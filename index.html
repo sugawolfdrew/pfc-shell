@@ -7,7 +7,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Post Frontal Cortex</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23008080'/%3E%3Crect x='2' y='2' width='12' height='3' fill='%23000080'/%3E%3Crect x='2' y='5' width='12' height='9' fill='%23c0c0c0'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="apple-touch-icon" href="assets/pfc-touch.png">
 <!-- Vendored assets: no CDN dependency, works offline, loads fast -->
 <link rel="stylesheet" href="assets/98.css">
 <script src="assets/marked.min.js"></script>
@@ -195,7 +196,7 @@
            display: flex; align-items: center; justify-content: center; }
   #logon .window { width: min(400px, 92vw); }
   #logon .intro { display: flex; gap: 12px; align-items: flex-start; margin: 4px 0 10px; }
-  #logon .intro img { width: 32px; height: 32px; image-rendering: pixelated; }
+  #logon .intro img { width: 52px; height: 52px; image-rendering: pixelated; }
   #logon .fine { font-size: 12px; color: #444; margin-top: 4px; }
   .hidden { display: none !important; }
   .toolbar { display: flex; gap: 4px; padding: 4px; align-items: center;
@@ -242,7 +243,7 @@
     </div>
     <div class="window-body">
       <div class="intro">
-        <img id="logon-keys" alt="">
+        <img id="logon-keys" src="assets/pfc-logo.png" alt="PFC">
         <div>
           <p style="margin:0">Type your token to log on to the Cortex.</p>
           <p class="fine">A GitHub fine-grained token for <b>sugawolfdrew/PFC</b>.
@@ -1965,7 +1966,10 @@ const Search = (() => {
   APPS.about.onOpen = () => {
     const body = document.querySelector("#win-about .window-body");
     body.innerHTML = `<div class="md">
-      <h1>Post Frontal Cortex</h1>
+      <img src="assets/pfc-logo.png" alt="PFC — a brain, wired to its nodes"
+           style="display:block; width:148px; height:148px; margin:10px auto 6px;
+                  image-rendering:pixelated;">
+      <h1 style="text-align:center; margin:0 0 10px">Post Frontal Cortex</h1>
       <p><b>The face.</b> A data-free shell: your wiki loads straight from the
       private repo into this browser and nowhere else. All cognition happens in
       Cowork sessions — a daily heartbeat files what lands in the inbox and
@@ -2095,7 +2099,7 @@ function buildWindows() {
   WM.make("oracle", "Oracle.exe", Math.min(540, W - 40), 480, cascade(5) + 260, 60);
   WM.make("why", "why.exe", Math.min(640, W - 40), 540, cascade(6) + 220, 50);
   WM.make("settings", "Settings", 350, 500, cascade(7) + 260, 60);
-  WM.make("about", "About PFC", 380, 300, cascade(8) + 300, 150);
+  WM.make("about", "About PFC", 400, 560, cascade(8) + 300, 40);
 }
 
 async function boot() {
@@ -2103,8 +2107,6 @@ async function boot() {
   if (!document.querySelector(".window.app")) buildWindows();
   const sf = document.getElementById("start-flag");
   sf.dataset.icon = "flag"; sf.dataset.sz = "16";
-  const lk = document.getElementById("logon-keys");
-  lk.dataset.icon = "keys"; lk.dataset.sz = "32";
   refreshIcons();
   WALL.init();
   if (DEMO && !document.getElementById("tray-demo")) {
