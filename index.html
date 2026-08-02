@@ -148,6 +148,11 @@
   .result .s { color: #333; margin-top: 2px; }
   .result .s b { background: #ffffe1; color: #000; font-weight: normal; }
 
+  /* Oracle */
+  .oracle-item { padding: 4px 6px 10px; border-bottom: 2px groove #dfdfdf; }
+  .oracle-item.pending { padding: 10px 12px; font-family: Arial; font-size: 14px; }
+  .oracle-item .fine { color: #444; font-size: 12px; margin-top: 3px; }
+
   /* Logon + dialogs */
   #logon { position: fixed; inset: 0; background: #008080; z-index: 9999;
            display: flex; align-items: center; justify-content: center; }
@@ -426,6 +431,23 @@ const ART = {
     "....kk..kk..kk..",
     "................",
     "................"],
+  oracle: [
+    "................",
+    ".....kkkkkk.....",
+    "....kttttttk....",
+    "...kttwwttttk...",
+    "..kttwwtttttdk..",
+    "..ktwwttttttdk..",
+    "..kttttttttddk..",
+    "..ktttttttdddk..",
+    "...kttttdddk....",
+    "....kkddddk.....",
+    ".....kkkkk......",
+    "....yYYYYYy.....",
+    "...yYyyyyyYy....",
+    "..yyyyyyyyyyy...",
+    "..kkkkkkkkkkk...",
+    "................"],
   logoff: [
     "................",
     "................",
@@ -505,17 +527,17 @@ async function getFile(path, force) {
   return text;
 }
 
-async function putCapture(text) {
+async function putCapture(text, kind = "web") {
   const now = new Date();
   const pad = n => String(n).padStart(2, "0");
   const stamp = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
   const hm = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-  const path = `inbox/${stamp}-${hm}-web.md`;
-  const body = `---\ncaptured: ${now.toISOString()}\nvia: web\n---\n${text.trim()}\n`;
+  const path = `inbox/${stamp}-${hm}-${kind}.md`;
+  const body = `---\ncaptured: ${now.toISOString()}\nvia: ${kind}\n${kind === "oracle" ? "type: question\n" : ""}---\n${text.trim()}\n`;
   if (DEMO) { await new Promise(r => setTimeout(r, 400)); return path + " (demo — not saved)"; }
   await gh(`/repos/${CFG.owner}/${CFG.repo}/contents/${path}`, {
     method: "PUT",
-    body: JSON.stringify({ message: `capture: via web (${stamp} ${pad(now.getHours())}:${pad(now.getMinutes())})`,
+    body: JSON.stringify({ message: `capture: via ${kind} (${stamp} ${pad(now.getHours())}:${pad(now.getMinutes())})`,
                            content: b64encode(body), branch: CFG.branch })
   });
   cache.tree = null; // tree changed
@@ -710,6 +732,7 @@ const APPS = {
   note: { title: "New Note" },
   changes: { title: "Recent Changes" },
   search: { title: "Search" },
+  oracle: { title: "Oracle.exe" },
   about: { title: "About PFC" },
 };
 
@@ -1044,6 +1067,65 @@ const Search = (() => {
   return { invalidate };
 })();
 
+/* ----- Oracle.exe: ask the brain; the heartbeat answers ----- */
+(() => {
+  async function render() {
+    const body = document.querySelector("#win-oracle .window-body");
+    WM.status("oracle", "Consulting the tiers…");
+    const tree = await getTree();
+    const answers = tree.filter(e => /^oracle\/\d{4}-.*\.md$/.test(e.path))
+      .map(e => e.path).sort().reverse().slice(0, 10);
+    const pending = tree.filter(e => /^inbox\/.*-oracle\.md$/.test(e.path)).map(e => e.path);
+    let html = "";
+    for (const p of pending) {
+      let q = "";
+      try { q = splitFrontmatter(await getFile(p)).body.trim().split("\n")[0]; } catch (e) {}
+      html += `<div class="oracle-item pending"><b>\u231B ${q || p}</b><div class="fine">awaiting the next beat</div></div>`;
+    }
+    for (const p of answers) {
+      html += `<div class="oracle-item" data-md-path="${p}"></div>`;
+    }
+    body.querySelector("#oracle-list").innerHTML =
+      html || `<div class="md"><p>No questions yet. Ask one — the next heartbeat answers
+               from the full three-tier memory, and it lands here with the morning brief.</p></div>`;
+    for (const el of body.querySelectorAll("[data-md-path]")) {
+      try { renderMd(await getFile(el.dataset.mdPath), el); } catch (e) {}
+    }
+    WM.status("oracle", `${answers.length} answered · ${pending.length} awaiting the beat`);
+  }
+  APPS.oracle.onOpen = () => {
+    const body = document.querySelector("#win-oracle .window-body");
+    if (!body.dataset.ready) {
+      body.dataset.ready = 1;
+      body.classList.remove("white");
+      body.innerHTML = `
+        <div class="row" style="display:flex; gap:4px; padding:6px;">
+          <input id="oracle-q" placeholder="Ask the brain\u2026" style="flex:1">
+          <button id="oracle-ask" class="default">Ask</button>
+        </div>
+        <div id="oracle-list" class="sunken-panel" style="overflow:auto; background:#fff;
+             margin:0 6px 6px; height:calc(100% - 46px);"></div>`;
+      const q = body.querySelector("#oracle-q"), btn = body.querySelector("#oracle-ask");
+      btn.onclick = async () => {
+        const text = q.value.trim();
+        if (!text) return;
+        btn.disabled = true;
+        WM.status("oracle", "Filing the question…");
+        try {
+          await putCapture(text, "oracle");
+          q.value = "";
+          cache.tree = null;
+          await render();
+        } catch (e) {
+          WM.status("oracle", e.message === "rate" ? "GitHub rate limit — try again in a minute." : "Could not file — " + e.message);
+        } finally { btn.disabled = false; }
+      };
+      q.onkeydown = e => { if (e.key === "Enter") btn.click(); };
+    }
+    render().catch(err);
+  };
+})();
+
 /* ----- About ----- */
 (() => {
   APPS.about.onOpen = () => {
@@ -1121,7 +1203,8 @@ function buildWindows() {
   WM.make("note", "New Note", 380, 300, cascade(2) + 240, 110);
   WM.make("changes", "Recent Changes", 560, 380, cascade(3) + 140, 130);
   WM.make("search", "Search", 480, 420, cascade(4) + 200, 90);
-  WM.make("about", "About PFC", 380, 300, cascade(5) + 300, 150);
+  WM.make("oracle", "Oracle.exe", Math.min(540, W - 40), 480, cascade(5) + 260, 60);
+  WM.make("about", "About PFC", 380, 300, cascade(6) + 300, 150);
 }
 
 async function boot() {
@@ -1179,6 +1262,8 @@ const DEMO_FILES = {
 "wiki/facebot.md": `---\ntitle: Facebot\ntype: project\ncreated: 2026-08-02\n---\n\nA Cowork-skills protocol that turns a folder of photos into managed marketplace sales, governed by a written constitution: closed-list permissions, four human checkpoints, an append-only audit log, owner-held breakers.\n\n## Links\n[[cowork-platform-findings]] — measured during its development.\n`,
 "wiki/cowork-platform-findings.md": `---\ntitle: Cowork platform findings\ntype: concept\ncreated: 2026-08-02\n---\n\nEmpirical: cloud-scheduled sessions have no device bridge and no Chrome, ever. send_later wakeups are best-effort (+37s to +36h). The cloud workspace is not durable — the repo at origin is the only durable state.\n\n## Links\n[[facebot]] — where these were measured.\n`,
 "wiki/claude-chat-corpus.md": `---\ntitle: Claude chat corpus\ntype: source\ncreated: 2026-08-02\n---\n\nThe primary data seed: 577 conversations, 4,199 messages, 2023-11 → 2026-08. Backfill proceeds month by month, heaviest first.\n\n## Links\n[[post-frontal-cortex]] — this corpus seeds the wiki.\n`,
+"oracle/2026-08-02-what-connects-facebot-to-pfc.md": `---\nquestion: What connects Facebot to PFC?\nasked: 2026-08-02T05:40:00Z\nanswered: 2026-08-02\nbeat: heartbeat\n---\n**Q:** What connects Facebot to PFC?\n\n**A:** Facebot ran the infrastructure research PFC is built on. Its July 2026 heartbeat experiments measured the platform constraints — cloud sessions have no device bridge, wakeups drift, workspaces evaporate — that became PFC's load-bearing rules, and its constitution is the direct ancestor of BRAIN.md's invariants. See [[facebot]] and [[cowork-platform-findings]].\n`,
+"inbox/2026-08-02-2140-oracle.md": `---\ncaptured: 2026-08-02T21:40:00Z\nvia: oracle\ntype: question\n---\nWhat was the name of the wizard trapped in the Tome?\n`,
 "protocol/BRAIN.md": `# BRAIN.md — the PFC genome (demo excerpt)\n\nEvery session loads this file first. The repo is the brain's only memory.\n\n## Invariants (excerpt)\n1. raw/ is immutable.\n2. Log everything, append-only.\n3. Silence over noise.\n4. Human gate on merges and deletions.\n5. Supersede, don't decay.\n`,
 };
 
