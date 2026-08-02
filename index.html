@@ -55,8 +55,6 @@
   .window.app .window-body.white { background: #fff; }
   .title-bar { cursor: default; touch-action: none; }
   .desktop-icon img, #start-menu img, #start-btn img { image-rendering: pixelated; }
-  .desktop-icon img { width: 32px; height: 32px; }
-  #start-menu img, #start-btn img { width: 16px; height: 16px; }
 
   /* Taskbar */
   #taskbar { position: fixed; left: 0; right: 0; bottom: 0; height: var(--tb); box-sizing: border-box;
@@ -245,6 +243,7 @@ function cycleZoom() {
   document.documentElement.style.zoom = Z;
   const b = document.getElementById("zoom-btn");
   if (b) b.textContent = `AA ${Math.round(Z * 100)}%`;
+  refreshIcons();
 }
 const DEMO = location.search.includes("demo") || location.hash === "#demo";
 const LS_KEY = "pfc_token";
@@ -264,25 +263,34 @@ const PAL = { k:"#000000", w:"#ffffff", s:"#c0c0c0", d:"#808080", y:"#ffff00",
               Y:"#808000", r:"#ff0000", g:"#008000", G:"#00ff00", b:"#000080",
               B:"#0000ff", c:"#008080", t:"#00ffff", p:"#ff80c0", P:"#800080",
               o:"#ff8000" };
-function pxIcon(rows) {
-  const rects = [];
+/* Canvas-baked icons: each 16x16 art pixel maps to a WHOLE number of device
+   pixels (zoom- and DPI-aware), so edges land exactly on the raster — no
+   antialias seams, no fractional smearing. Re-baked on zoom change. */
+function bakeIcon(rows, targetCss) {
+  const dpr = window.devicePixelRatio || 1;
+  const S = Math.max(2, Math.round(targetCss * Z * dpr / 16)); // integer art-pixel scale
+  const c = document.createElement("canvas");
+  c.width = c.height = 16 * S;
+  const g = c.getContext("2d");
   rows.forEach((row, y) => {
-    let x = 0;
-    while (x < row.length) {
-      const ch = row[x];
-      if (ch !== ".") {
-        let run = 1;
-        while (row[x + run] === ch) run++;
-        rects.push(`<rect x='${x}' y='${y}' width='${run}' height='1' fill='${PAL[ch]}'/>`);
-        x += run;
-      } else x++;
+    for (let i = 0; i < row.length; i++) {
+      const ch = row[i];
+      if (ch !== ".") { g.fillStyle = PAL[ch]; g.fillRect(i * S, y * S, S, S); }
     }
   });
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'>${rects.join("")}</svg>`;
-  return "data:image/svg+xml," + encodeURIComponent(svg);
+  return { src: c.toDataURL(), px: (16 * S) / (Z * dpr) };
 }
-const ICONS = {
-  surface: pxIcon([
+function refreshIcons() {
+  document.querySelectorAll("img[data-icon]").forEach(img => {
+    const rows = ART[img.dataset.icon];
+    if (!rows) return;
+    const { src, px } = bakeIcon(rows, +img.dataset.sz || 32);
+    img.src = src;
+    img.style.width = img.style.height = px + "px";
+  });
+}
+const ART = {
+  surface: [
     "................",
     ".......y........",
     "..y....y....y...",
@@ -298,8 +306,8 @@ const ICONS = {
     "..y....y....y...",
     ".......y........",
     "................",
-    "................"]),
-  explorer: pxIcon([
+    "................"],
+  explorer: [
     "................",
     "................",
     ".kkkkkk.........",
@@ -315,8 +323,8 @@ const ICONS = {
     ".kkkkkkkkkkkkkk.",
     "................",
     "................",
-    "................"]),
-  note: pxIcon([
+    "................"],
+  note: [
     "................",
     "..kkkkkkkkk.....",
     ".kwwwwwwwkwk....",
@@ -332,8 +340,8 @@ const ICONS = {
     ".kwwwwwwwk......",
     ".kkkkkkkkk......",
     "................",
-    "................"]),
-  changes: pxIcon([
+    "................"],
+  changes: [
     "................",
     ".....kkkkk......",
     "...kkwwwwwkk....",
@@ -349,8 +357,8 @@ const ICONS = {
     "...kkwwwwwkk....",
     ".....kkkkk......",
     "................",
-    "................"]),
-  search: pxIcon([
+    "................"],
+  search: [
     "................",
     "..kkkk..........",
     ".kttttk.........",
@@ -366,8 +374,8 @@ const ICONS = {
     ".........kdk....",
     "..........kk....",
     "................",
-    "................"]),
-  about: pxIcon([
+    "................"],
+  about: [
     "................",
     "....kkkkkkk.....",
     "...kpppppppk....",
@@ -383,8 +391,8 @@ const ICONS = {
     "...kkpppkk......",
     ".....kkk........",
     "................",
-    "................"]),
-  flag: pxIcon([
+    "................"],
+  flag: [
     "................",
     "................",
     "...kkkkkkkkkkk..",
@@ -400,8 +408,8 @@ const ICONS = {
     "................",
     "................",
     "................",
-    "................"]),
-  keys: pxIcon([
+    "................"],
+  keys: [
     "................",
     "................",
     "...kkkk.........",
@@ -417,8 +425,8 @@ const ICONS = {
     "...kyyk.kyk.kyk.",
     "....kk..kk..kk..",
     "................",
-    "................"]),
-  logoff: pxIcon([
+    "................"],
+  logoff: [
     "................",
     "................",
     "....kkkkkk......",
@@ -434,7 +442,7 @@ const ICONS = {
     "..kkkkkkkkkk....",
     "................",
     "................",
-    "................"]),
+    "................"],
 };
 
 /* ---------------- GitHub data layer ---------------- */
@@ -697,12 +705,12 @@ const WM = (() => {
 
 /* ---------------- Apps ---------------- */
 const APPS = {
-  surface: { title: "Surface.exe", ico: ICONS.surface },
-  explorer: { title: "Wiki Explorer", ico: ICONS.explorer },
-  note: { title: "New Note", ico: ICONS.note },
-  changes: { title: "Recent Changes", ico: ICONS.changes },
-  search: { title: "Search", ico: ICONS.search },
-  about: { title: "About PFC", ico: ICONS.about },
+  surface: { title: "Surface.exe" },
+  explorer: { title: "Wiki Explorer" },
+  note: { title: "New Note" },
+  changes: { title: "Recent Changes" },
+  search: { title: "Search" },
+  about: { title: "About PFC" },
 };
 
 /* ----- Surface.exe ----- */
@@ -1035,7 +1043,7 @@ function buildDesktop() {
   Object.entries(APPS).forEach(([id, a]) => {
     const d = document.createElement("div");
     d.className = "desktop-icon"; d.tabIndex = 0;
-    d.innerHTML = `<div class="ico"><img src="${a.ico}" alt=""></div><div class="lbl">${a.title}</div>`;
+    d.innerHTML = `<div class="ico"><img data-icon="${id}" data-sz="32" alt=""></div><div class="lbl">${a.title}</div>`;
     d.addEventListener("dblclick", () => WM.show(id));
     d.addEventListener("click", () => {
       document.querySelectorAll(".desktop-icon").forEach(i => i.classList.remove("selected"));
@@ -1044,13 +1052,13 @@ function buildDesktop() {
     });
     icons.appendChild(d);
     const li = document.createElement("li");
-    li.innerHTML = `<img src="${a.ico}" alt=""> ${a.title}`;
+    li.innerHTML = `<img data-icon="${id}" data-sz="16" alt=""> ${a.title}`;
     li.addEventListener("click", () => { toggleStart(false); WM.show(id); });
     items.appendChild(li);
   });
   const sep = document.createElement("li"); sep.className = "sep"; items.appendChild(sep);
   const off = document.createElement("li");
-  off.innerHTML = `<img src="${ICONS.logoff}" alt=""> Log Off`;
+  off.innerHTML = `<img data-icon="logoff" data-sz="16" alt=""> Log Off`;
   off.addEventListener("click", () => { localStorage.removeItem(LS_KEY); location.href = location.pathname; });
   items.appendChild(off);
 }
@@ -1089,8 +1097,11 @@ function buildWindows() {
 async function boot() {
   buildDesktop();
   if (!document.querySelector(".window.app")) buildWindows();
-  document.getElementById("start-flag").src = ICONS.flag;
-  document.getElementById("logon-keys").src = ICONS.keys;
+  const sf = document.getElementById("start-flag");
+  sf.dataset.icon = "flag"; sf.dataset.sz = "16";
+  const lk = document.getElementById("logon-keys");
+  lk.dataset.icon = "keys"; lk.dataset.sz = "32";
+  refreshIcons();
   if (DEMO && !document.getElementById("tray-demo")) {
     const f = document.createElement("span");
     f.id = "tray-demo"; f.textContent = "DEMO";
