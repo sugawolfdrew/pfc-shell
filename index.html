@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#008080">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -13,14 +13,14 @@
 <script src="assets/marked.min.js"></script>
 <style>
   /* ==== PFC shell — everything below is 98.css-native or inspired by it ==== */
-  :root { --safe: 26px; --tb: calc(36px + var(--safe)); }
+  :root { --safe: 31px; --tb: calc(36px + var(--safe)); }
   @media (max-width: 700px) {
-    :root { --safe: max(env(safe-area-inset-bottom, 0px), 26px); }
+    :root { --safe: max(env(safe-area-inset-bottom, 0px), 31px); }
   }
   @media (display-mode: standalone) and (max-width: 700px) {
-    :root { --safe: max(env(safe-area-inset-bottom, 0px), 50px); }
+    :root { --safe: max(env(safe-area-inset-bottom, 0px), 55px); }
   }
-  html.sim { --safe: 50px; }
+  html.sim { --safe: 55px; }
   /* The dead zone under the Start bar: an Active-Desktop-style ticker.
      Non-interactive on purpose — it lives in the home-gesture area. */
   #ticker { position: absolute; left: 4px; right: 4px; bottom: 3px;
