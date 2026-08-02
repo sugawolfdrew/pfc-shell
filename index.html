@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#008080">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>Post Frontal Cortex</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23008080'/%3E%3Crect x='2' y='2' width='12' height='3' fill='%23000080'/%3E%3Crect x='2' y='5' width='12' height='9' fill='%23c0c0c0'/%3E%3C/svg%3E">
+<!-- Vendored assets: no CDN dependency, works offline, loads fast -->
+<link rel="stylesheet" href="assets/98.css">
+<script src="assets/marked.min.js"></script>
+<style>
+  /* ==== PFC shell — everything below is 98.css-native or inspired by it ==== */
+  html, body { height: 100%; margin: 0; overflow: hidden; }
+  body { background: #008080; font-family: "Pixelated MS Sans Serif", Arial, sans-serif; }
+
+  /* Desktop + icons */
+  #desktop { position: fixed; inset: 0 0 30px 0; overflow: hidden; }
+  .desktop-icons { position: absolute; top: 8px; left: 8px; display: flex;
+                   flex-direction: column; gap: 14px; }
+  .desktop-icon { width: 76px; text-align: center; color: white; cursor: pointer;
+                  user-select: none; -webkit-user-select: none; }
+  .desktop-icon .ico { height: 32px; }
+  .desktop-icon .lbl { font-size: 11px; margin-top: 3px; padding: 1px 2px;
+                       text-shadow: 1px 1px 0 #000; }
+  .desktop-icon:focus .lbl, .desktop-icon.selected .lbl
+                     { background: #000080; outline: 1px dotted #fff; }
+
+  /* Windows (depth comes from 98.css bevels — Win98 had no soft shadows) */
+  .window.app { position: absolute; display: none; min-width: 260px; }
+  .window.app.open { display: flex; flex-direction: column; }
+  .window.app .window-body { flex: 1; overflow: auto; margin: 3px;
+                             background: #c0c0c0; }
+  .window.app .window-body.white { background: #fff; }
+  .title-bar { cursor: default; touch-action: none; }
+  .desktop-icon img, #start-menu img, #start-btn img { image-rendering: pixelated; }
+  .desktop-icon img { width: 32px; height: 32px; }
+  #start-menu img, #start-btn img { width: 16px; height: 16px; }
+
+  /* Taskbar */
+  #taskbar { position: fixed; left: 0; right: 0; bottom: 0; height: 30px;
+             background: #c0c0c0; display: flex; align-items: center; gap: 4px;
+             padding: 2px 4px; box-shadow: inset 0 1px 0 #fff; z-index: 9000;
+             border-top: 1px solid #dfdfdf; }
+  #taskbar button { min-width: 0; }
+  #start-btn { font-weight: bold; display: flex; align-items: center; gap: 4px; }
+  #task-buttons { display: flex; gap: 3px; flex: 1; overflow: hidden; }
+  #task-buttons button { max-width: 160px; overflow: hidden; white-space: nowrap;
+                         text-overflow: ellipsis; flex: 0 1 auto; }
+  #task-buttons button.pressed { box-shadow: inset -1px -1px #fff,
+      inset 1px 1px #0a0a0a, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
+      background: repeating-conic-gradient(#fff 0 25%, #c0c0c0 0 50%) 0 0/2px 2px; }
+  #tray { display: flex; align-items: center; gap: 6px; padding: 0 8px;
+          height: 22px; box-shadow: inset 1px 1px #808080, inset -1px -1px #fff;
+          font-size: 11px; }
+
+  /* Start menu */
+  #start-menu { position: fixed; bottom: 30px; left: 2px; width: 200px;
+                display: none; z-index: 9500; background: #c0c0c0; padding: 2px;
+                box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #dfdfdf,
+                            inset -2px -2px #808080, inset 2px 2px #fff; }
+  #start-menu.open { display: flex; }
+  #start-menu .side { width: 24px; background: #000080; color: #fff;
+                      writing-mode: vertical-rl; transform: rotate(180deg);
+                      font-weight: bold; font-size: 15px; padding: 8px 2px;
+                      letter-spacing: 1px; }
+  #start-menu ul { list-style: none; margin: 0; padding: 0; flex: 1; }
+  #start-menu li { padding: 7px 10px; display: flex; gap: 8px; cursor: pointer;
+                   font-size: 12px; align-items: center; }
+  #start-menu li:hover { background: #000080; color: #fff; }
+  #start-menu li.sep { border-top: 1px solid #808080; border-bottom: 1px solid #fff;
+                       padding: 0; margin: 3px 0; }
+
+  /* Pulse stat tiles (dataviz: values in ink, labels muted, no color-as-data) */
+  .pulse { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px; }
+  .stat-tile { flex: 1 1 90px; min-width: 90px; padding: 6px 8px;
+               box-shadow: inset -1px -1px #fff, inset 1px 1px #808080; }
+  .stat-tile .v { font-size: 22px; font-weight: bold; line-height: 1.1; }
+  .stat-tile .v.small { font-size: 15px; padding-top: 5px; white-space: nowrap; }
+  .stat-tile .l { font-size: 10px; color: #444; margin-top: 2px;
+                  text-transform: uppercase; letter-spacing: .5px; }
+  .backfill { margin: 0 6px 6px 6px; }
+  .backfill .l { font-size: 10px; color: #444; margin-bottom: 3px;
+                 text-transform: uppercase; letter-spacing: .5px; }
+
+  /* Markdown rendering */
+  .md { padding: 10px 14px; font-size: 13px; line-height: 1.5;
+        font-family: Arial, sans-serif; }
+  .md h1 { font-size: 18px; } .md h2 { font-size: 15px; } .md h3 { font-size: 13px; }
+  .md h1, .md h2 { border-bottom: 1px solid #c0c0c0; padding-bottom: 2px; }
+  .md pre { background: #f4f4f4; border: 1px inset #fff; padding: 8px;
+            overflow: auto; font-size: 12px; }
+  .md code { font-family: "Courier New", monospace; }
+  .md blockquote { border-left: 3px solid #c0c0c0; margin-left: 0;
+                   padding-left: 10px; color: #333; }
+  .md table { border-collapse: collapse; }
+  .md th, .md td { border: 1px solid #999; padding: 3px 8px; font-size: 12px; }
+  a.wikilink { color: #000080; font-weight: bold; text-decoration: none;
+               border-bottom: 1px dashed #000080; cursor: pointer; }
+  a.wikilink.missing { color: #800000; border-bottom-color: #800000; }
+  .frontmatter-chip { display: inline-block; font-size: 10px; padding: 1px 6px;
+      margin: 0 4px 4px 0; background: #dfdfdf;
+      box-shadow: inset -1px -1px #808080, inset 1px 1px #fff; }
+
+  /* Explorer layout — deep 3D wells come from 98.css sunken-panel */
+  #win-explorer .window-body { display: flex; padding: 0; overflow: hidden; }
+  #explorer-tree { width: 190px; overflow: auto; background: #fff; margin: 2px; }
+  #explorer-view { flex: 1; overflow: auto; background: #fff; margin: 2px 2px 2px 0; }
+  ul.tree-view { border: none; box-shadow: none; }
+  ul.tree-view li { cursor: pointer; }
+  ul.tree-view li.sel > span { background: #000080; color: #fff; }
+  #backlinks { padding: 6px 14px 10px; font-size: 12px; background: #c0c0c0;
+               box-shadow: inset 0 1px 0 #808080, inset 0 2px 0 #fff; }
+
+  /* Recent changes */
+  .log-line { display: flex; gap: 8px; padding: 4px 8px; font-size: 12px;
+              border-bottom: 1px solid #dfdfdf; font-family: Arial; }
+  .log-line .d { color: #444; white-space: nowrap; }
+  .log-line .p { font-weight: bold; white-space: nowrap; }
+
+  /* Search */
+  #win-search .row { display: flex; gap: 4px; padding: 6px; }
+  #win-search input { flex: 1; }
+  .result { padding: 6px 10px; cursor: pointer; border-bottom: 1px solid #dfdfdf;
+            font-family: Arial; font-size: 12px; background: #fff; }
+  .result:hover { background: #000080; color: #fff; }
+  .result:hover .t, .result:hover .s { color: #fff; }
+  .result .t { font-weight: bold; color: #000080; }
+  .result .s { color: #333; margin-top: 2px; }
+  .result .s b { background: #ffffe1; color: #000; font-weight: normal; }
+
+  /* Logon + dialogs */
+  #logon { position: fixed; inset: 0; background: #008080; z-index: 9999;
+           display: flex; align-items: center; justify-content: center; }
+  #logon .window { width: min(400px, 92vw); }
+  #logon .intro { display: flex; gap: 12px; align-items: flex-start; margin: 4px 0 10px; }
+  #logon .intro img { width: 32px; height: 32px; image-rendering: pixelated; }
+  #logon .fine { font-size: 10px; color: #444; margin-top: 4px; }
+  .hidden { display: none !important; }
+  .toolbar { display: flex; gap: 4px; padding: 4px; align-items: center;
+             border-bottom: 1px solid #808080; box-shadow: 0 1px 0 #fff; }
+  .toolbar .spacer { flex: 1; }
+  .toolbar .note { font-size: 11px; color: #444; }
+
+  /* Mobile: windows maximize, taskbar is the navigator */
+  @media (max-width: 700px) {
+    .window.app { position: fixed !important; left: 0 !important; top: 0 !important;
+                  right: 0 !important; bottom: 30px !important;
+                  width: auto !important; height: auto !important; }
+    .window.app .title-bar-controls button[aria-label="Maximize"] { display: none; }
+    #explorer-tree { width: 130px; }
+    .desktop-icons { flex-direction: row; flex-wrap: wrap; top: auto; bottom: 40px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="desktop">
+  <div class="desktop-icons" id="desktop-icons"></div>
+</div>
+
+<!-- ============ Logon ============ -->
+<div id="logon" class="hidden">
+  <div class="window">
+    <div class="title-bar">
+      <div class="title-bar-text">Welcome to Post Frontal Cortex</div>
+    </div>
+    <div class="window-body">
+      <div class="intro">
+        <img id="logon-keys" alt="">
+        <div>
+          <p style="margin:0">Type your token to log on to the Cortex.</p>
+          <p class="fine">A GitHub fine-grained token for <b>sugawolfdrew/PFC</b>.
+             Stored only in this browser; sent only to api.github.com.</p>
+        </div>
+      </div>
+      <div class="field-row">
+        <label for="token-input">Token</label>
+        <input id="token-input" type="password" placeholder="github_pat_…"
+               autocomplete="off" style="flex:1">
+      </div>
+      <p id="logon-err" style="color:#800000; font-size:11px;"></p>
+      <section class="field-row" style="justify-content: flex-end; gap: 6px;">
+        <button id="logon-ok" class="default">OK</button>
+        <button id="logon-demo">Demo</button>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Taskbar ============ -->
+<div id="taskbar">
+  <button id="start-btn" aria-label="Start menu"><img id="start-flag" alt=""> Start</button>
+  <div id="task-buttons"></div>
+  <div id="tray"><span id="clock">--:--</span></div>
+</div>
+<div id="start-menu">
+  <div class="side">PFC&nbsp;98</div>
+  <ul id="start-items"></ul>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   PFC Face — data-free shell. All content loads client-side from the
+   private repo via the GitHub API with a token that never leaves this
+   browser. protocol/BRAIN.md governs the brain; this file is only glass.
+   ===================================================================== */
+const CFG = { owner: "sugawolfdrew", repo: "PFC", branch: "main" };
+const DEMO = location.search.includes("demo") || location.hash === "#demo";
+const LS_KEY = "pfc_token";
+
+/* ---------------- Pixel-art icons (Win98 16-color palette) ---------------- */
+const PAL = { k:"#000000", w:"#ffffff", s:"#c0c0c0", d:"#808080", y:"#ffff00",
+              Y:"#808000", r:"#ff0000", g:"#008000", G:"#00ff00", b:"#000080",
+              B:"#0000ff", c:"#008080", t:"#00ffff", p:"#ff80c0", P:"#800080",
+              o:"#ff8000" };
+function pxIcon(rows) {
+  const rects = [];
+  rows.forEach((row, y) => {
+    let x = 0;
+    while (x < row.length) {
+      const ch = row[x];
+      if (ch !== ".") {
+        let run = 1;
+        while (row[x + run] === ch) run++;
+        rects.push(`<rect x='${x}' y='${y}' width='${run}' height='1' fill='${PAL[ch]}'/>`);
+        x += run;
+      } else x++;
+    }
+  });
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'>${rects.join("")}</svg>`;
+  return "data:image/svg+xml," + encodeURIComponent(svg);
+}
+const ICONS = {
+  surface: pxIcon([
+    "................",
+    ".......y........",
+    "..y....y....y...",
+    "...y...y...y....",
+    "......kkk.......",
+    ".....kyyyk......",
+    "....kyyyyyk.....",
+    ".yy.kyyoyyk.yy..",
+    "....kyyyyyk.....",
+    ".....kyyyk......",
+    "......kkk.......",
+    "...y...y...y....",
+    "..y....y....y...",
+    ".......y........",
+    "................",
+    "................"]),
+  explorer: pxIcon([
+    "................",
+    "................",
+    ".kkkkkk.........",
+    "kyyyyyyk........",
+    "kyyyyyykkkkkkkk.",
+    "kyyyyyyyyyyyyyk.",
+    "kyyyyyyyyyyyyyk.",
+    "kyyyyyyyyyyyyyk.",
+    "kyyyyyyyyyyyyyk.",
+    "kyyyyyyyyyyyyyk.",
+    "kyyyyyyyyyyyyyk.",
+    "kYYYYYYYYYYYYYk.",
+    ".kkkkkkkkkkkkkk.",
+    "................",
+    "................",
+    "................"]),
+  note: pxIcon([
+    "................",
+    "..kkkkkkkkk.....",
+    ".kwwwwwwwkwk....",
+    ".kwwwwwwwkkk....",
+    ".kwbbbbbwwwk....",
+    ".kwwwwwwwwwk..o.",
+    ".kwbbbbbwwwk.ok.",
+    ".kwwwwwwwwwkok..",
+    ".kwbbbbwwwokk...",
+    ".kwwwwwwwokk....",
+    ".kwbbbwwokk.....",
+    ".kwwwwwkkk......",
+    ".kwwwwwwwk......",
+    ".kkkkkkkkk......",
+    "................",
+    "................"]),
+  changes: pxIcon([
+    "................",
+    ".....kkkkk......",
+    "...kkwwwwwkk....",
+    "..kwwwwkwwwwk...",
+    ".kwwwwwkwwwwwk..",
+    ".kwwwwwkwwwwwk..",
+    "kwwwwwwkwwwwwwk.",
+    "kwwwwwwkkkwwwwk.",
+    "kwwwwwwwwwkwwwk.",
+    ".kwwwwwwwwwkwk..",
+    ".kwwwwwwwwwwwk..",
+    "..kwwwwwwwwwk...",
+    "...kkwwwwwkk....",
+    ".....kkkkk......",
+    "................",
+    "................"]),
+  search: pxIcon([
+    "................",
+    "..kkkk..........",
+    ".kttttk.........",
+    "kttwwttk........",
+    "ktwwtttk........",
+    "kttttttk........",
+    "kttttttk........",
+    ".kttttk.........",
+    "..kkkkdk........",
+    "......kdk.......",
+    ".......kdk......",
+    "........kdk.....",
+    ".........kdk....",
+    "..........kk....",
+    "................",
+    "................"]),
+  about: pxIcon([
+    "................",
+    "....kkkkkkk.....",
+    "...kpppppppk....",
+    "..kppPppPpppk...",
+    ".kpPppppppPppk..",
+    ".kppppPppppppk..",
+    "kpPppppppPpppk..",
+    "kpppPppppppPpk..",
+    "kppppppPpppppk..",
+    ".kpPppppppPpk...",
+    ".kppppPpppppk...",
+    "..kpppppPpk.....",
+    "...kkpppkk......",
+    ".....kkk........",
+    "................",
+    "................"]),
+  flag: pxIcon([
+    "................",
+    "................",
+    "...kkkkkkkkkkk..",
+    "..krrrrrgggggk..",
+    "..krrrrrgggggk..",
+    "..krrrrrgggggk..",
+    "..krrrrrgggggk..",
+    "..kbbbbbyyyyyk..",
+    "..kbbbbbyyyyyk..",
+    "..kbbbbbyyyyyk..",
+    "..kbbbbbyyyyyk..",
+    "...kkkkkkkkkkk..",
+    "................",
+    "................",
+    "................",
+    "................"]),
+  keys: pxIcon([
+    "................",
+    "................",
+    "...kkkk.........",
+    "..kyyyyk........",
+    ".kyykkyyk.......",
+    ".kyk..kyk.......",
+    ".kyykkyyk.......",
+    "..kyyyyk........",
+    "...kyyk.........",
+    "...kyykkkkkkkk..",
+    "...kyyyyyyyyyyk.",
+    "...kyykkkykkkyk.",
+    "...kyyk.kyk.kyk.",
+    "....kk..kk..kk..",
+    "................",
+    "................"]),
+  logoff: pxIcon([
+    "................",
+    "................",
+    "....kkkkkk......",
+    "...kddddddk.....",
+    "...kd....dk.....",
+    "...kd....dk.....",
+    "..kkkkkkkkkk....",
+    "..kyyyyyyyyk....",
+    "..kyyykkyyyk....",
+    "..kyyykkyyyk....",
+    "..kyyyykyyyk....",
+    "..kyyyyyyyyk....",
+    "..kkkkkkkkkk....",
+    "................",
+    "................",
+    "................"]),
+};
+
+/* ---------------- GitHub data layer ---------------- */
+const cache = { tree: null, files: new Map() };
+
+function token() { return localStorage.getItem(LS_KEY) || ""; }
+
+async function gh(path, opts = {}) {
+  const r = await fetch(`https://api.github.com${path}`, {
+    ...opts,
+    headers: {
+      "Authorization": `Bearer ${token()}`,
+      "Accept": "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...(opts.headers || {})
+    }
+  });
+  if (r.status === 401) { throw new Error("auth"); }
+  if (r.status === 403) {
+    // 403 is rate-limiting more often than credentials — never nuke the token for it
+    if (r.headers.get("x-ratelimit-remaining") === "0" || r.headers.get("retry-after"))
+      throw new Error("rate");
+    throw new Error("forbidden");
+  }
+  if (!r.ok) { throw new Error(`GitHub ${r.status} on ${path}`); }
+  return r.json();
+}
+
+function b64decode(b64) {
+  const bin = atob(b64.replace(/\s/g, ""));
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  return new TextDecoder("utf-8").decode(bytes);
+}
+function b64encode(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = "";
+  bytes.forEach(b => bin += String.fromCharCode(b));
+  return btoa(bin);
+}
+
+async function getTree(force) {
+  if (cache.tree && !force) return cache.tree;
+  if (DEMO) { cache.tree = Object.keys(DEMO_FILES).map(p => ({ path: p, type: "blob" })); return cache.tree; }
+  const d = await gh(`/repos/${CFG.owner}/${CFG.repo}/git/trees/${CFG.branch}?recursive=1`);
+  cache.tree = d.tree.filter(e => e.type === "blob");
+  return cache.tree;
+}
+
+async function getFile(path, force) {
+  if (cache.files.has(path) && !force) return cache.files.get(path);
+  let text;
+  if (DEMO) {
+    text = DEMO_FILES[path];
+    if (text === undefined) throw new Error(`demo has no ${path}`);
+  } else {
+    const d = await gh(`/repos/${CFG.owner}/${CFG.repo}/contents/${encodeURIComponent(path).replace(/%2F/g, "/")}?ref=${CFG.branch}`);
+    text = b64decode(d.content);
+  }
+  cache.files.set(path, text);
+  return text;
+}
+
+async function putCapture(text) {
+  const now = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  const hm = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const path = `inbox/${stamp}-${hm}-web.md`;
+  const body = `---\ncaptured: ${now.toISOString()}\nvia: web\n---\n${text.trim()}\n`;
+  if (DEMO) { await new Promise(r => setTimeout(r, 400)); return path + " (demo — not saved)"; }
+  await gh(`/repos/${CFG.owner}/${CFG.repo}/contents/${path}`, {
+    method: "PUT",
+    body: JSON.stringify({ message: `capture: via web (${stamp} ${pad(now.getHours())}:${pad(now.getMinutes())})`,
+                           content: b64encode(body), branch: CFG.branch })
+  });
+  cache.tree = null; // tree changed
+  return path;
+}
+
+/* ---------------- Markdown helpers ---------------- */
+function slugify(s) { return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
+
+function splitFrontmatter(md) {
+  const m = md.match(/^---\n([\s\S]*?)\n---\n?/);
+  if (!m) return { meta: {}, body: md };
+  const meta = {};
+  m[1].split("\n").forEach(line => {
+    const i = line.indexOf(":");
+    if (i > 0) meta[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  });
+  return { meta, body: md.slice(m[0].length) };
+}
+
+/* Minimal fallback renderer if marked ever fails to load */
+function miniMd(md) {
+  const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  return esc(md)
+    .replace(/^### (.*)$/gm, "<h3>$1</h3>")
+    .replace(/^## (.*)$/gm, "<h2>$1</h2>")
+    .replace(/^# (.*)$/gm, "<h1>$1</h1>")
+    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/^- (.*)$/gm, "<li>$1</li>")
+    .replace(/(<li>[\s\S]*?<\/li>)(?!\s*<li>)/g, "<ul>$1</ul>")
+    .replace(/\n\n/g, "<p></p>");
+}
+
+function renderMd(md, el) {
+  const { meta, body } = splitFrontmatter(md);
+  let html = (typeof marked !== "undefined")
+    ? marked.parse(body, { mangle: false, headerIds: false })
+    : miniMd(body);
+  // Linkify [[wikilinks]] — but never inside code/pre, where they are literal syntax
+  html = html.split(/(<pre[\s\S]*?<\/pre>|<code[\s\S]*?<\/code>)/g).map((seg, i) =>
+    i % 2 === 1 ? seg : seg.replace(/\[\[([^\]|]+)\]\]/g, (_, name) => {
+      const slug = slugify(name);
+      const exists = cache.tree && cache.tree.some(e => e.path === `wiki/${slug}.md`);
+      return `<a class="wikilink${exists ? "" : " missing"}" data-page="${slug}">${name}</a>`;
+    })).join("");
+  let chips = "";
+  ["type", "created", "updated", "tags"].forEach(k => {
+    if (meta[k]) chips += `<span class="frontmatter-chip">${k}: ${meta[k].replace(/[\[\]]/g, "")}</span>`;
+  });
+  el.innerHTML = (chips ? `<div style="padding:8px 14px 0">${chips}</div>` : "") +
+                 `<div class="md">${html}</div>`;
+  el.querySelectorAll("a.wikilink").forEach(a =>
+    a.addEventListener("click", () => Explorer.openPage(a.dataset.page)));
+  el.querySelectorAll("a[href^='http']").forEach(a => a.target = "_blank");
+}
+
+/* ---------------- Window manager ---------------- */
+const WM = (() => {
+  let z = 100;
+  const open = new Set();
+  const isMobile = () => matchMedia("(max-width: 700px)").matches;
+
+  function make(id, title, w, h, x, y) {
+    const el = document.createElement("div");
+    el.className = "window app";
+    el.id = `win-${id}`;
+    el.style.cssText = `width:${w}px;height:${h}px;left:${x}px;top:${y}px;`;
+    el.innerHTML = `
+      <div class="title-bar">
+        <div class="title-bar-text">${title}</div>
+        <div class="title-bar-controls">
+          <button aria-label="Minimize"></button>
+          <button aria-label="Maximize"></button>
+          <button aria-label="Close"></button>
+        </div>
+      </div>
+      <div class="window-body white"></div>
+      <div class="status-bar"><p class="status-bar-field">Ready</p>${DEMO ? '<p class="status-bar-field">Demo — nothing is saved</p>' : ''}</div>`;
+    document.getElementById("desktop").appendChild(el);
+    const [btnMin, btnMax, btnClose] = el.querySelectorAll(".title-bar-controls button");
+    btnClose.addEventListener("click", () => close(id));
+    btnMin.addEventListener("click", () => minimize(id));
+    btnMax.addEventListener("click", () => maximize(el));
+    el.addEventListener("pointerdown", () => focus(id));
+    drag(el);
+    return el;
+  }
+
+  function drag(el) {
+    const bar = el.querySelector(".title-bar");
+    let sx, sy, ox, oy, dragging = false;
+    bar.addEventListener("pointerdown", e => {
+      if (e.target.tagName === "BUTTON" || isMobile() || el.dataset.max) return;
+      dragging = true; sx = e.clientX; sy = e.clientY;
+      ox = el.offsetLeft; oy = el.offsetTop;
+      bar.setPointerCapture(e.pointerId);
+    });
+    bar.addEventListener("pointermove", e => {
+      if (!dragging) return;
+      el.style.left = Math.max(-40, ox + e.clientX - sx) + "px";
+      el.style.top = Math.max(0, oy + e.clientY - sy) + "px";
+    });
+    bar.addEventListener("pointerup", () => dragging = false);
+  }
+
+  function maximize(el) {
+    const btn = el.querySelector('.title-bar-controls button:nth-child(2)');
+    if (el.dataset.max) {
+      el.style.cssText = el.dataset.max; delete el.dataset.max;
+      btn.setAttribute("aria-label", "Maximize");
+    } else {
+      el.dataset.max = el.style.cssText;
+      el.style.cssText = "left:0;top:0;width:100%;height:calc(100% - 0px);";
+      btn.setAttribute("aria-label", "Restore");
+    }
+  }
+
+  function focus(id) {
+    document.querySelectorAll(".window.app .title-bar").forEach(t => t.classList.add("inactive"));
+    const el = document.getElementById(`win-${id}`);
+    if (!el) return;
+    el.querySelector(".title-bar").classList.remove("inactive");
+    el.style.zIndex = ++z;
+    if (isMobile()) {
+      document.querySelectorAll(".window.app").forEach(w => {
+        if (w !== el) w.classList.remove("open");
+      });
+      el.classList.add("open");
+    }
+    syncTaskbar(id);
+  }
+
+  function show(id) {
+    const el = document.getElementById(`win-${id}`);
+    el.classList.add("open");
+    open.add(id);
+    focus(id);
+    renderTaskButtons();
+    APPS[id].onOpen && APPS[id].onOpen();
+  }
+  function close(id) {
+    document.getElementById(`win-${id}`).classList.remove("open");
+    open.delete(id);
+    renderTaskButtons();
+  }
+  function minimize(id) {
+    document.getElementById(`win-${id}`).classList.remove("open");
+    syncTaskbar(null);
+  }
+
+  function renderTaskButtons() {
+    const tb = document.getElementById("task-buttons");
+    tb.innerHTML = "";
+    open.forEach(id => {
+      const b = document.createElement("button");
+      b.textContent = APPS[id].title;
+      b.dataset.win = id;
+      b.addEventListener("click", () => {
+        const el = document.getElementById(`win-${id}`);
+        if (el.classList.contains("open") && !el.classList.contains("inactive")) minimize(id);
+        else { el.classList.add("open"); focus(id); }
+      });
+      tb.appendChild(b);
+    });
+    const active = document.querySelector(".window.app.open:not(.inactive)");
+    syncTaskbar(active ? active.id.slice(4) : null);
+  }
+  function syncTaskbar(id) {
+    document.querySelectorAll("#task-buttons button").forEach(b =>
+      b.classList.toggle("pressed", b.dataset.win === id));
+  }
+
+  function status(id, text) {
+    const f = document.querySelector(`#win-${id} .status-bar-field`);
+    if (f) f.textContent = text;
+  }
+  return { make, show, close, focus, status };
+})();
+
+/* ---------------- Apps ---------------- */
+const APPS = {
+  surface: { title: "Surface.exe", ico: ICONS.surface },
+  explorer: { title: "Wiki Explorer", ico: ICONS.explorer },
+  note: { title: "New Note", ico: ICONS.note },
+  changes: { title: "Recent Changes", ico: ICONS.changes },
+  search: { title: "Search", ico: ICONS.search },
+  about: { title: "About PFC", ico: ICONS.about },
+};
+
+/* ----- Surface.exe ----- */
+const Surface = (() => {
+  let briefs = [], idx = 0;
+  const el = () => document.querySelector("#win-surface .window-body");
+
+  async function pulse() {
+    const tree = await getTree();
+    const pages = tree.filter(e => /^wiki\/.+\.md$/.test(e.path)).length;
+    const inbox = tree.filter(e => /^inbox\/[^/]+\.md$/.test(e.path) && !e.path.endsWith("README.md")).length;
+    let done = 0, total = 28;
+    try {
+      const man = await getFile("raw/chat-exports/PROCESSED.md");
+      done = (man.match(/^\d{4}-\d{2}\s*\|.*\|\s*done/gm) || []).length;
+      const t = man.match(/(\d+)\s+months total/); if (t) total = +t[1];
+    } catch (e) { /* manifest optional */ }
+    let lastBeat = "—";
+    try {
+      const log = await getFile("log.md");
+      const beats = log.match(/## \[([0-9-]+)\] heartbeat[^\n]*/g);
+      if (beats) lastBeat = beats[beats.length - 1].match(/\[([0-9-]+)\]/)[1];
+    } catch (e) {}
+    const pct = Math.round(100 * done / total);
+    return `
+      <div class="pulse">
+        <div class="stat-tile"><div class="v">${pages}</div><div class="l">wiki pages</div></div>
+        <div class="stat-tile"><div class="v">${inbox}</div><div class="l">inbox pending</div></div>
+        <div class="stat-tile"><div class="v small">${lastBeat}</div><div class="l">last heartbeat</div></div>
+      </div>
+      <div class="backfill">
+        <div class="l">corpus backfill — ${done}/${total} months (${pct}%)</div>
+        <div class="progress-indicator segmented">
+          <span class="progress-indicator-bar" style="width:${Math.max(pct,2)}%"></span>
+        </div>
+      </div>`;
+  }
+
+  async function render() {
+    WM.status("surface", "Loading…");
+    const tree = await getTree();
+    briefs = tree.filter(e => /^surface\/\d{4}-\d{2}-\d{2}\.md$/.test(e.path))
+                 .map(e => e.path).sort().reverse();
+    if (idx >= briefs.length) idx = 0;
+    const body = el();
+    const pulseHtml = await pulse();
+    if (!briefs.length) {
+      body.innerHTML = pulseHtml + `<div class="md"><p>No surface briefs yet.</p></div>`;
+      WM.status("surface", "No briefs"); return;
+    }
+    const path = briefs[idx];
+    const md = await getFile(path);
+    body.innerHTML = `
+      <div class="toolbar">
+        <button id="sf-prev" ${idx >= briefs.length - 1 ? "disabled" : ""}>◀ Older</button>
+        <button id="sf-next" ${idx <= 0 ? "disabled" : ""}>Newer ▶</button>
+        <span class="note">${path.slice(8, 18)}</span>
+        <div class="spacer"></div>
+        <button id="sf-refresh">Refresh</button>
+      </div>
+      ${pulseHtml}<div id="sf-md"></div>`;
+    renderMd(md, body.querySelector("#sf-md"));
+    body.querySelector("#sf-prev").onclick = () => { idx++; render(); };
+    body.querySelector("#sf-next").onclick = () => { idx--; render(); };
+    body.querySelector("#sf-refresh").onclick = async () => {
+      cache.tree = null; cache.files.clear(); Search.invalidate(); render();
+    };
+    WM.status("surface", `${briefs.length} brief${briefs.length > 1 ? "s" : ""} · ${path}`);
+  }
+  APPS.surface.onOpen = () => render().catch(err);
+  return { render };
+})();
+
+/* ----- Wiki Explorer ----- */
+const Explorer = (() => {
+  let current = null;
+  const body = () => document.querySelector("#win-explorer .window-body");
+
+  async function ensureLayout() {
+    if (document.getElementById("explorer-tree")) return;
+    body().classList.remove("white");
+    body().innerHTML = `
+      <div id="explorer-tree" class="sunken-panel"><ul class="tree-view" id="tree-root"></ul></div>
+      <div id="explorer-view" class="sunken-panel"><div class="md"><p>Select a page.</p></div></div>`;
+  }
+
+  async function renderTree() {
+    const tree = await getTree();
+    const root = document.getElementById("tree-root");
+    const groups = {
+      "Wiki": tree.filter(e => /^wiki\/.+\.md$/.test(e.path)),
+      "Protocol": tree.filter(e => /^protocol\/.+\.md$/.test(e.path)),
+      "Surface": tree.filter(e => /^surface\/.+\.md$/.test(e.path)).slice(-14).reverse(),
+      "Root": tree.filter(e => /^(index|log)\.md$/.test(e.path)),
+    };
+    root.innerHTML = "";
+    for (const [g, items] of Object.entries(groups)) {
+      if (!items.length) continue;
+      const li = document.createElement("li");
+      const det = document.createElement("details");
+      det.open = g === "Wiki";
+      det.innerHTML = `<summary>${g} (${items.length})</summary>`;
+      const ul = document.createElement("ul");
+      if (g !== "Surface") items.sort((a, b) => a.path.localeCompare(b.path)); // Surface stays newest-first
+      items.forEach(e => {
+        const item = document.createElement("li");
+        const label = e.path.replace(/^(wiki|protocol|surface)\//, "").replace(/\.md$/, "");
+        item.innerHTML = `<span>${label}</span>`;
+        item.dataset.path = e.path;
+        item.addEventListener("click", ev => { ev.stopPropagation(); openPath(e.path); });
+        ul.appendChild(item);
+      });
+      det.appendChild(ul); li.appendChild(det); root.appendChild(li);
+    }
+  }
+
+  async function backlinksFor(slug) {
+    const tree = await getTree();
+    const pages = tree.filter(e => /^wiki\/.+\.md$/.test(e.path));
+    const hits = [];
+    for (const p of pages) {
+      if (p.path === `wiki/${slug}.md`) continue;
+      try {
+        const txt = await getFile(p.path);
+        const links = [...txt.matchAll(/\[\[([^\]|]+)\]\]/g)].map(m => slugify(m[1]));
+        if (links.includes(slug)) hits.push(p.path.slice(5, -3));
+      } catch (e) {}
+    }
+    return hits;
+  }
+
+  async function openPath(path) {
+    await ensureLayout();
+    WM.status("explorer", "Loading " + path);
+    document.querySelectorAll("#tree-root li").forEach(li =>
+      li.classList.toggle("sel", li.dataset.path === path));
+    const view = document.getElementById("explorer-view");
+    const md = await getFile(path);
+    renderMd(md, view);
+    current = path;
+    if (/^wiki\//.test(path)) {
+      const slug = path.slice(5, -3);
+      backlinksFor(slug).then(bl => {
+        if (current !== path) return; // user already navigated elsewhere
+        const div = document.createElement("div");
+        div.id = "backlinks";
+        div.innerHTML = bl.length
+          ? "↩ Linked from: " + bl.map(s =>
+              `<a class="wikilink" data-page="${s}">${s}</a>`).join(" · ")
+          : "↩ No backlinks yet.";
+        view.appendChild(div);
+        div.querySelectorAll("a.wikilink").forEach(a =>
+          a.addEventListener("click", () => openPage(a.dataset.page)));
+      });
+    }
+    WM.status("explorer", path);
+  }
+
+  function openPage(slug) {
+    WM.show("explorer");
+    openPath(`wiki/${slug}.md`).catch(() =>
+      WM.status("explorer", `wiki/${slug}.md does not exist yet`));
+  }
+
+  APPS.explorer.onOpen = async () => {
+    await ensureLayout();
+    renderTree().catch(err);
+    if (!current) openPath("wiki/post-frontal-cortex.md").catch(() => {});
+  };
+  return { openPage, openPath };
+})();
+
+/* ----- New Note ----- */
+(() => {
+  APPS.note.onOpen = () => {
+    const body = document.querySelector("#win-note .window-body");
+    if (body.dataset.ready) return;
+    body.dataset.ready = 1;
+    body.classList.remove("white");
+    body.innerHTML = `
+      <div style="padding:8px; display:flex; flex-direction:column; height:calc(100% - 16px); gap:6px;">
+        <label for="note-text">A thought, link, product, place… the heartbeat files it.</label>
+        <textarea id="note-text" style="flex:1; resize:none;" rows="8"></textarea>
+        <section class="field-row" style="justify-content:flex-end; gap:6px;">
+          <button id="note-clear">Clear</button>
+          <button id="note-save" class="default">Save to inbox</button>
+        </section>
+      </div>`;
+    const ta = body.querySelector("#note-text");
+    body.querySelector("#note-clear").onclick = () => { ta.value = ""; ta.focus(); };
+    const saveBtn = body.querySelector("#note-save");
+    saveBtn.onclick = async () => {
+      const text = ta.value.trim();
+      if (!text) { WM.status("note", "Nothing to save."); return; }
+      WM.status("note", "Saving…");
+      saveBtn.disabled = true;
+      try {
+        const path = await putCapture(text);
+        ta.value = "";
+        Search.invalidate();
+        WM.status("note", `Saved → ${path}`);
+      } catch (e) {
+        WM.status("note",
+          e.message === "auth" ? "Token was refused (401)." :
+          e.message === "rate" ? "GitHub rate limit — wait a minute, your note is still in the box." :
+          e.message === "forbidden" ? "Token lacks write access to inbox/." :
+          "Save failed — " + e.message);
+      } finally { saveBtn.disabled = false; }
+    };
+  };
+})();
+
+/* ----- Recent Changes ----- */
+(() => {
+  APPS.changes.onOpen = async () => {
+    const body = document.querySelector("#win-changes .window-body");
+    WM.status("changes", "Loading…");
+    try {
+      const log = await getFile("log.md", true);
+      const lines = [...log.matchAll(/^## \[([0-9-]+)\] (\w+) \| (.+)$/gm)].reverse();
+      body.innerHTML = lines.map(m => `
+        <div class="log-line"><span class="d">${m[1]}</span>
+          <span class="p">${m[2]}</span><span>${m[3]}</span></div>`).join("")
+        || "<div class='md'><p>Log is empty.</p></div>";
+      WM.status("changes", `${lines.length} operations logged`);
+    } catch (e) { body.innerHTML = `<div class="md"><p>Could not load log.md</p></div>`; }
+  };
+})();
+
+/* ----- Search ----- */
+const Search = (() => {
+  let indexPromise = null;
+  function invalidate() { indexPromise = null; }
+  function buildIndex() {
+    if (indexPromise) return indexPromise; // in-flight or done: reuse the same promise
+    indexPromise = (async () => {
+      const tree = await getTree();
+      const paths = tree.filter(e => /\.md$/.test(e.path) &&
+        /^(wiki|protocol|surface)\//.test(e.path) || /^(index|log)\.md$/.test(e.path))
+        .map(e => e.path);
+      const docs = [];
+      for (const p of paths) {
+        try { docs.push({ path: p, text: await getFile(p) }); } catch (e) {}
+      }
+      return docs;
+    })();
+    return indexPromise;
+  }
+  APPS.search.onOpen = () => {
+    const body = document.querySelector("#win-search .window-body");
+    if (body.dataset.ready) return;
+    body.dataset.ready = 1;
+    body.classList.remove("white");
+    body.innerHTML = `
+      <div class="row"><input id="q" placeholder="Search the brain…">
+        <button id="go" class="default">Find</button></div>
+      <div id="results" class="sunken-panel" style="overflow:auto; height:calc(100% - 42px); background:#fff; margin:0 6px 6px;"></div>`;
+    const q = body.querySelector("#q"), res = body.querySelector("#results");
+    async function run() {
+      const term = q.value.trim().toLowerCase();
+      if (!term) return;
+      WM.status("search", "Indexing…");
+      const ix = await buildIndex();
+      if (q.value.trim().toLowerCase() !== term) return; // superseded by a newer query
+      const scored = ix.map(d => {
+        const t = d.text.toLowerCase();
+        const n = t.split(term).length - 1;
+        if (!n) return null;
+        const titleHit = d.path.toLowerCase().includes(term) ? 5 : 0;
+        const i = t.indexOf(term);
+        const snip = d.text.slice(Math.max(0, i - 60), i + 90)
+          .replace(/</g, "&lt;")
+          .replace(new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "ig"), "<b>$1</b>");
+        return { path: d.path, score: n + titleHit, snip };
+      }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, 30);
+      res.innerHTML = scored.map(s => `
+        <div class="result" data-path="${s.path}">
+          <div class="t">${s.path}</div><div class="s">…${s.snip}…</div>
+        </div>`).join("") || "<div class='md'><p>No matches.</p></div>";
+      res.querySelectorAll(".result").forEach(r => r.addEventListener("click", () => {
+        WM.show("explorer"); Explorer.openPath(r.dataset.path);
+      }));
+      WM.status("search", `${scored.length} result${scored.length === 1 ? "" : "s"} for “${term}”`);
+    }
+    body.querySelector("#go").onclick = run;
+    q.onkeydown = e => { if (e.key === "Enter") run(); };
+  };
+  return { invalidate };
+})();
+
+/* ----- About ----- */
+(() => {
+  APPS.about.onOpen = () => {
+    const body = document.querySelector("#win-about .window-body");
+    body.innerHTML = `<div class="md">
+      <h1>Post Frontal Cortex</h1>
+      <p><b>The face.</b> A data-free shell: your wiki loads straight from the
+      private repo into this browser and nowhere else. All cognition happens in
+      Cowork sessions — a daily heartbeat files what lands in the inbox and
+      writes the Surface.</p>
+      <p>Spine: <code>github.com/sugawolfdrew/PFC</code> · Brain: Cowork ·
+      Memory: the Karpathy LLM-Wiki pattern · Chrome: 98.css</p>
+      <p style="color:#444">v2 M2 — founded 2026-08-02.</p></div>`;
+  };
+})();
+
+/* ---------------- Desktop, start menu, boot ---------------- */
+function err(e) {
+  if (e && e.message === "auth") { localStorage.removeItem(LS_KEY); boot(); return; }
+  console.error(e); // "rate"/"forbidden"/network: keep the token, surface via window status bars
+}
+
+function buildDesktop() {
+  const icons = document.getElementById("desktop-icons");
+  const items = document.getElementById("start-items");
+  icons.innerHTML = ""; items.innerHTML = "";
+  Object.entries(APPS).forEach(([id, a]) => {
+    const d = document.createElement("div");
+    d.className = "desktop-icon"; d.tabIndex = 0;
+    d.innerHTML = `<div class="ico"><img src="${a.ico}" alt=""></div><div class="lbl">${a.title}</div>`;
+    d.addEventListener("dblclick", () => WM.show(id));
+    d.addEventListener("click", () => {
+      document.querySelectorAll(".desktop-icon").forEach(i => i.classList.remove("selected"));
+      d.classList.add("selected");
+      if (matchMedia("(max-width: 700px)").matches) WM.show(id);
+    });
+    icons.appendChild(d);
+    const li = document.createElement("li");
+    li.innerHTML = `<img src="${a.ico}" alt=""> ${a.title}`;
+    li.addEventListener("click", () => { toggleStart(false); WM.show(id); });
+    items.appendChild(li);
+  });
+  const sep = document.createElement("li"); sep.className = "sep"; items.appendChild(sep);
+  const off = document.createElement("li");
+  off.innerHTML = `<img src="${ICONS.logoff}" alt=""> Log Off`;
+  off.addEventListener("click", () => { localStorage.removeItem(LS_KEY); location.href = location.pathname; });
+  items.appendChild(off);
+}
+
+function toggleStart(force) {
+  document.getElementById("start-menu").classList.toggle("open", force);
+}
+document.getElementById("start-btn").addEventListener("click", e => {
+  e.stopPropagation();
+  document.getElementById("start-menu").classList.toggle("open");
+});
+document.addEventListener("click", e => {
+  if (!e.target.closest("#start-menu")) toggleStart(false);
+});
+
+function tickClock() {
+  const n = new Date();
+  document.getElementById("clock").textContent =
+    `${String(n.getHours() % 12 || 12)}:${String(n.getMinutes()).padStart(2, "0")} ${n.getHours() < 12 ? "AM" : "PM"}`;
+}
+setInterval(tickClock, 5000); tickClock();
+
+/* Windows (created once) */
+function buildWindows() {
+  const W = innerWidth, cascade = (i) => 90 + i * 26;
+  WM.make("surface", "Surface.exe", Math.min(560, W - 40), 520, cascade(0) + 90, 40);
+  WM.make("explorer", "Wiki Explorer", Math.min(720, W - 40), 500, cascade(1) + 60, 70);
+  WM.make("note", "New Note", 380, 300, cascade(2) + 240, 110);
+  WM.make("changes", "Recent Changes", 560, 380, cascade(3) + 140, 130);
+  WM.make("search", "Search", 480, 420, cascade(4) + 200, 90);
+  WM.make("about", "About PFC", 380, 300, cascade(5) + 300, 150);
+}
+
+async function boot() {
+  buildDesktop();
+  if (!document.querySelector(".window.app")) buildWindows();
+  document.getElementById("start-flag").src = ICONS.flag;
+  document.getElementById("logon-keys").src = ICONS.keys;
+  if (DEMO && !document.getElementById("tray-demo")) {
+    const f = document.createElement("span");
+    f.id = "tray-demo"; f.textContent = "DEMO";
+    document.getElementById("tray").prepend(f);
+  }
+  const logon = document.getElementById("logon");
+  if (DEMO || token()) {
+    logon.classList.add("hidden");
+    try {
+      await getTree();
+      WM.show("surface");
+    } catch (e) {
+      if (e.message === "auth") { localStorage.removeItem(LS_KEY); showLogon("That token was refused (401). Try again."); }
+      else if (e.message === "rate") showLogon("GitHub rate limit hit — your token is fine; wait a minute and press OK.");
+      else showLogon("Could not reach GitHub: " + e.message);
+    }
+  } else showLogon();
+}
+
+function showLogon(msg) {
+  const logon = document.getElementById("logon");
+  logon.classList.remove("hidden");
+  document.getElementById("logon-err").textContent = msg || "";
+  const input = document.getElementById("token-input");
+  document.getElementById("logon-ok").onclick = async () => {
+    localStorage.setItem(LS_KEY, input.value.trim());
+    input.value = "";
+    boot();
+  };
+  document.getElementById("logon-demo").onclick = () => {
+    location.href = location.pathname + "?demo=1";
+  };
+  input.onkeydown = e => { if (e.key === "Enter") document.getElementById("logon-ok").click(); };
+}
+
+/* ---------------- Demo data (public-safe: PFC's own meta pages) ---------------- */
+const DEMO_FILES = {
+"index.md": `# PFC Wiki Index\n\n## Meta / Projects\n- [[post-frontal-cortex]] — this system: spine (repo) + brain (Cowork) + face (98.css).\n- [[facebot]] — constitution-governed sibling protocol.\n\n## Concepts\n- [[karpathy-llm-wiki]] — the memory pattern this wiki implements.\n- [[98-css]] — Windows-98 CSS library; front-end north star.\n- [[cowork-platform-findings]] — measured platform behaviors.\n\n## Sources\n- [[claude-chat-corpus]] — 577 conversations, 2023-11 → 2026-08.\n`,
+"log.md": `# PFC Operations Log\n\n## [2026-08-02] admin | repo founded: protocol/, wiki skeleton, site placeholder\n## [2026-08-02] ingest | facebot docs distilled → wiki/facebot.md, wiki/cowork-platform-findings.md\n## [2026-08-02] ingest | chat export analyzed (577 convs) → wiki/claude-chat-corpus.md\n## [2026-08-02] surface | inaugural: 1 connection, 0 proposals\n## [2026-08-02] heartbeat | quiet — no inbox, no new raw\n`,
+"raw/chat-exports/PROCESSED.md": `# Backfill manifest\n\n28 months total.\n2026-04 | 54 convs | done 2026-08-09 | pages touched: 12\n2025-07 | 53 convs | done 2026-08-11 | pages touched: 9\n2025-08 | 47 convs | done 2026-08-12 | pages touched: 7\n`,
+"surface/2026-08-02.md": `---\ndate: 2026-08-02\nbeat: deep\n---\n\n## Connections\n- **[[facebot]] ↔ [[post-frontal-cortex]]** — Your July experiment in selling furniture accidentally ran the infrastructure research for your second brain: Facebot's measured findings are now PFC's load-bearing constraints. The system's first recorded synchronicity is about itself.\n`,
+"wiki/post-frontal-cortex.md": `---\ntitle: Post Frontal Cortex (PFC)\ntype: project\ncreated: 2026-08-02\nupdated: 2026-08-02\n---\n\nA second brain and personal OS. v2 is built around Cowork as the orchestrator: a git repo as the spine, Cowork sessions as the brain (scheduled heartbeat + deep sessions), and this 98.css front end as the face.\n\n## Notes\n- The gap is re-emergence, not storage. The Surface earns trust through silence.\n\n## Links\n[[karpathy-llm-wiki]] — the memory pattern.\n[[98-css]] — the face.\n[[facebot]] — sibling protocol.\n[[claude-chat-corpus]] — primary data seed.\n[[cowork-platform-findings]] — constraints the architecture obeys.\n`,
+"wiki/karpathy-llm-wiki.md": `---\ntitle: Karpathy LLM Wiki\ntype: concept\ncreated: 2026-08-02\n---\n\nInstead of RAG re-retrieving fragments at query time, the LLM incrementally builds and maintains a wiki — a persistent, compounding artifact of plain markdown. Ingestion touches many related pages in one pass; answers get filed back; periodic lint keeps it honest.\n\n## Links\n[[post-frontal-cortex]] — implements this pattern.\n`,
+"wiki/98-css.md": `---\ntitle: 98.css\ntype: concept\ncreated: 2026-08-02\n---\n\nA CSS library recreating the Windows 98 UI. This site's rule: only elements pulled from or inspired by it. You are looking at it right now.\n\n## Links\n[[post-frontal-cortex]] — the face of the system.\n`,
+"wiki/facebot.md": `---\ntitle: Facebot\ntype: project\ncreated: 2026-08-02\n---\n\nA Cowork-skills protocol that turns a folder of photos into managed marketplace sales, governed by a written constitution: closed-list permissions, four human checkpoints, an append-only audit log, owner-held breakers.\n\n## Links\n[[cowork-platform-findings]] — measured during its development.\n`,
+"wiki/cowork-platform-findings.md": `---\ntitle: Cowork platform findings\ntype: concept\ncreated: 2026-08-02\n---\n\nEmpirical: cloud-scheduled sessions have no device bridge and no Chrome, ever. send_later wakeups are best-effort (+37s to +36h). The cloud workspace is not durable — the repo at origin is the only durable state.\n\n## Links\n[[facebot]] — where these were measured.\n`,
+"wiki/claude-chat-corpus.md": `---\ntitle: Claude chat corpus\ntype: source\ncreated: 2026-08-02\n---\n\nThe primary data seed: 577 conversations, 4,199 messages, 2023-11 → 2026-08. Backfill proceeds month by month, heaviest first.\n\n## Links\n[[post-frontal-cortex]] — this corpus seeds the wiki.\n`,
+"protocol/BRAIN.md": `# BRAIN.md — the PFC genome (demo excerpt)\n\nEvery session loads this file first. The repo is the brain's only memory.\n\n## Invariants (excerpt)\n1. raw/ is immutable.\n2. Log everything, append-only.\n3. Silence over noise.\n4. Human gate on merges and deletions.\n5. Supersede, don't decay.\n`,
+};
+
+/* boot */
+window.addEventListener("error", e => console.error("[pfc]", e.message));
+boot();
+</script>
+</body>
+</html>
