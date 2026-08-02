@@ -15,8 +15,22 @@
   /* ==== PFC shell — everything below is 98.css-native or inspired by it ==== */
   :root { --safe: 0px; --tb: calc(36px + var(--safe)); }
   @media (display-mode: standalone) and (max-width: 700px) {
-    :root { --safe: max(env(safe-area-inset-bottom, 0px), 40px); }
+    :root { --safe: max(env(safe-area-inset-bottom, 0px), 50px); }
+    #ticker { display: block; }
   }
+  html.sim { --safe: 50px; }
+  html.sim #ticker { display: block; }
+  /* The dead zone under the Start bar: an Active-Desktop-style ticker.
+     Non-interactive on purpose — it lives in the home-gesture area. */
+  #ticker { display: none; position: absolute; left: 4px; right: 4px; bottom: 3px;
+            height: calc(var(--safe) - 7px); overflow: hidden; background: #000;
+            box-shadow: inset -1px -1px #fff, inset 1px 1px #808080;
+            pointer-events: none; }
+  #ticker .tape { position: absolute; white-space: nowrap; color: #00ff00;
+                  font-family: "Courier New", monospace; font-size: 14px; font-weight: bold;
+                  line-height: calc(var(--safe) - 7px);
+                  animation: tick 40s linear infinite; }
+  @keyframes tick { from { transform: translateX(0); } to { transform: translateX(-50%); } }
   @media (max-width: 700px) { /* browser-tab mobile still gets the inset if present */
     :root { --safe: env(safe-area-inset-bottom, 0px); }
   }
@@ -47,10 +61,9 @@
   #start-menu img, #start-btn img { width: 16px; height: 16px; }
 
   /* Taskbar */
-  #taskbar { position: fixed; left: 0; right: 0; bottom: 0; height: var(--tb);
-             padding-bottom: var(--safe);
+  #taskbar { position: fixed; left: 0; right: 0; bottom: 0; height: var(--tb); box-sizing: border-box;
              background: #c0c0c0; display: flex; align-items: center; gap: 4px;
-             padding: 2px 4px; box-shadow: inset 0 1px 0 #fff; z-index: 9000;
+             padding: 2px 4px calc(2px + var(--safe)); box-shadow: inset 0 1px 0 #fff; z-index: 9000;
              border-top: 1px solid #dfdfdf; }
   #taskbar button { min-width: 0; }
   #start-btn { font-weight: bold; display: flex; align-items: center; gap: 4px; }
@@ -208,7 +221,7 @@
 <div id="taskbar">
   <button id="start-btn" aria-label="Start menu"><img id="start-flag" alt=""> Start</button>
   <div id="task-buttons"></div>
-  <div id="tray"><button id="zoom-btn" style="min-height:22px;font-size:12px" title="Text size"></button><span id="clock">--:--</span></div>
+  <div id="ticker"><div class="tape" id="ticker-tape"></div></div><div id="tray"><button id="zoom-btn" style="min-height:22px;font-size:12px" title="Text size"></button><span id="clock">--:--</span></div>
 </div>
 <div id="start-menu">
   <div class="side">PFC&nbsp;98</div>
@@ -237,6 +250,13 @@ function cycleZoom() {
 }
 const DEMO = location.search.includes("demo") || location.hash === "#demo";
 const LS_KEY = "pfc_token";
+if (location.search.includes("sim")) document.documentElement.classList.add("sim");
+function setTicker(txt) {
+  const t = document.getElementById("ticker-tape");
+  if (!t) return;
+  const unit = " " + txt.toUpperCase() + "  \u2726 ";
+  t.textContent = unit.repeat(6); // even repeats -> seamless -50% loop
+}
 
 /* ---------------- Pixel-art icons (Win98 16-color palette) ---------------- */
 const PAL = { k:"#000000", w:"#ffffff", s:"#c0c0c0", d:"#808080", y:"#ffff00",
@@ -750,6 +770,13 @@ const Surface = (() => {
       cache.tree = null; cache.files.clear(); Search.invalidate(); render();
     };
     WM.status("surface", `${briefs.length} brief${briefs.length > 1 ? "s" : ""} · ${path}`);
+    try { // feed the ticker: pulse line + first connection, markdown stripped
+      const conn = (md.match(/^- \*\*(.+)$/m) || [,""])[1]
+        .replace(/\[\[|\]\]|\*\*/g, "").replace(/\s+/g, " ").slice(0, 160);
+      const pulse = (md.match(/^## Pulse\n(.+)$/m) || [,""])[1];
+      setTicker([pulse, conn && ("LATEST: " + conn)].filter(Boolean).join("  \u2726  ") ||
+                "Post Frontal Cortex \u2014 it remembers for you, and brings the right thing back");
+    } catch (e) {}
   }
   APPS.surface.onOpen = () => render().catch(err);
   return { render };
@@ -1113,6 +1140,7 @@ const DEMO_FILES = {
 "protocol/BRAIN.md": `# BRAIN.md — the PFC genome (demo excerpt)\n\nEvery session loads this file first. The repo is the brain's only memory.\n\n## Invariants (excerpt)\n1. raw/ is immutable.\n2. Log everything, append-only.\n3. Silence over noise.\n4. Human gate on merges and deletions.\n5. Supersede, don't decay.\n`,
 };
 
+setTicker("Post Frontal Cortex \u2014 it remembers for you, and brings the right thing back");
 /* boot */
 window.addEventListener("error", e => console.error("[pfc]", e.message));
 boot();
