@@ -123,7 +123,13 @@
 
   /* Explorer layout — deep 3D wells come from 98.css sunken-panel */
   #win-explorer .window-body { display: flex; padding: 0; overflow: hidden; }
-  #explorer-tree { width: 190px; overflow: auto; background: #fff; margin: 2px; }
+  #explorer-left { display: flex; flex-direction: column; width: 190px; margin: 2px; flex: none; }
+  #tree-bar { flex: none; padding: 5px 9px; font-size: 13px; cursor: pointer; user-select: none;
+              -webkit-user-select: none; background: #c0c0c0; margin-bottom: 2px;
+              box-shadow: inset -1px -1px #808080, inset 1px 1px #fff; }
+  #explorer-tree { flex: 1; overflow: auto; background: #fff; }
+  .tree-collapsed #explorer-tree { display: none; }
+  .tree-collapsed #explorer-left { width: auto; }
   #explorer-view { flex: 1; overflow: auto; background: #fff; margin: 2px 2px 2px 0; }
   ul.tree-view { border: none; box-shadow: none; }
   ul.tree-view li { cursor: pointer; }
@@ -180,7 +186,8 @@
     .window.app .title-bar-controls button[aria-label="Maximize"] { display: none; }
     /* Explorer: over/under, not side-by-side — full-width tree, full-width reading */
     #win-explorer .window-body { flex-direction: column; }
-    #explorer-tree { width: auto; height: 34%; min-height: 130px; margin: 2px; flex: none; }
+    #explorer-left { width: auto; height: 34%; min-height: 130px; }
+    .tree-collapsed #explorer-left { height: auto; min-height: 0; }
     #explorer-view { margin: 2px; }
     ul.tree-view { line-height: 2.1; font-size: 15px; }
     ul.tree-view li { padding: 1px 0; }
@@ -857,8 +864,19 @@ const Explorer = (() => {
     if (document.getElementById("explorer-tree")) return;
     body().classList.remove("white");
     body().innerHTML = `
-      <div id="explorer-tree" class="sunken-panel"><ul class="tree-view" id="tree-root"></ul></div>
+      <div id="explorer-left">
+        <div id="tree-bar" role="button">\u25BE Index</div>
+        <div id="explorer-tree" class="sunken-panel"><ul class="tree-view" id="tree-root"></ul></div>
+      </div>
       <div id="explorer-view" class="sunken-panel"><div class="md"><p>Select a page.</p></div></div>`;
+    const bar = document.getElementById("tree-bar");
+    const applyCollapse = c => {
+      body().classList.toggle("tree-collapsed", c);
+      bar.textContent = (c ? "\u25B8" : "\u25BE") + " Index";
+      localStorage.setItem("pfc_tree_collapsed", c ? "1" : "");
+    };
+    bar.addEventListener("click", () => applyCollapse(!body().classList.contains("tree-collapsed")));
+    applyCollapse(localStorage.getItem("pfc_tree_collapsed") === "1");
   }
 
   async function renderTree() {
