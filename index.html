@@ -1363,26 +1363,89 @@ const Search = (() => {
       const fileIn = body.querySelector("#why-file");
       body.querySelector("#why-add").onclick = () => fileIn.click();
       body.querySelector("#why-shuffle").onclick = () => { assign(); paint(); };
+      // Bulk uploader: blobs -> ONE commit (single-file commits trip GitHub's burst
+      // throttle ~17 in). Content-hash dedupe: re-selecting everything skips what's up.
+      const ghRaw = async (path, opts = {}, tries = 5) => {
+        for (let t = 0; ; t++) {
+          const r = await fetch(`https://api.github.com${path}`, { ...opts, headers: {
+            "Authorization": `Bearer ${token()}`, "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28", ...(opts.headers || {}) } });
+          if (r.ok) return r.json();
+          if ((r.status === 403 || r.status === 429) && t < tries) {
+            const wait = (parseInt(r.headers.get("retry-after")) || 2 ** t * 1.5) * 1000;
+            WM.status("why", `GitHub asked for a breather \u2014 waiting ${Math.round(wait/1000)}s\u2026`);
+            await new Promise(res => setTimeout(res, wait));
+            continue;
+          }
+          throw new Error(`GitHub ${r.status} on ${path}`);
+        }
+      };
+      const gitBlobSha = async b64 => { // git blob sha1: "blob <len>\0" + bytes
+        const bin = atob(b64), bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const head = new TextEncoder().encode(`blob ${bytes.length}\u0000`);
+        const buf = new Uint8Array(head.length + bytes.length);
+        buf.set(head); buf.set(bytes, head.length);
+        const d = await crypto.subtle.digest("SHA-1", buf);
+        return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, "0")).join("");
+      };
       fileIn.onchange = async () => {
         const files = [...fileIn.files]; fileIn.value = "";
         if (!files.length) return;
-        WM.status("why", `Uploading ${files.length}\u2026`);
-        const now = new Date(), pad = n => String(n).padStart(2, "0");
-        const stamp = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-        let ok = 0;
-        for (let i = 0; i < files.length; i++) {
-          try {
-            const b64 = await resizeToJpeg(files[i]);
-            if (!DEMO) await gh(`/repos/${CFG.owner}/${CFG.repo}/contents/why/photos/${stamp}-${i}.jpg`, {
-              method: "PUT",
-              body: JSON.stringify({ message: "why: add photo", content: b64, branch: CFG.branch })
-            });
-            ok++;
-          } catch (e) { WM.status("why", `Upload ${i+1} failed \u2014 ${e.message}`); }
-        }
-        cache.tree = null;
-        await loadPool(); assign(); await paint();
-        WM.status("why", `${ok}/${files.length} added \u00b7 pool now ${pool.length}`);
+        const addBtn = body.querySelector("#why-add");
+        addBtn.disabled = true;
+        try {
+          const now = new Date(), pad = n => String(n).padStart(2, "0");
+          const stamp = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+          const items = [];
+          for (let i = 0; i < files.length; i++) {
+            WM.status("why", `Preparing ${i+1}/${files.length}\u2026`);
+            try {
+              const b64 = await resizeToJpeg(files[i]);
+              items.push({ b64, sha: await gitBlobSha(b64), path: `why/photos/${stamp}-${String(i).padStart(3,"0")}.jpg` });
+            } catch (e) { /* unreadable file: skip */ }
+          }
+          if (DEMO) { WM.status("why", "Demo \u2014 nothing is saved."); return; }
+          const tree = await getTree(true);
+          const have = new Set(tree.filter(e => /^why\/photos\//.test(e.path)).map(e => e.sha));
+          const fresh = items.filter(it => !have.has(it.sha));
+          const skipped = items.length - fresh.length;
+          if (!fresh.length) {
+            WM.status("why", `All ${items.length} already in the pool \u2014 nothing to add.`);
+            return;
+          }
+          const entries = [];
+          for (let i = 0; i < fresh.length; i++) {
+            WM.status("why", `Uploading ${i+1}/${fresh.length}\u2026`);
+            const blob = await ghRaw(`/repos/${CFG.owner}/${CFG.repo}/git/blobs`, {
+              method: "POST", body: JSON.stringify({ content: fresh[i].b64, encoding: "base64" }) });
+            entries.push({ path: fresh[i].path, mode: "100644", type: "blob", sha: blob.sha });
+            await new Promise(r => setTimeout(r, 250)); // pace under the burst limit
+          }
+          WM.status("why", "Committing the batch\u2026");
+          for (let attempt = 0; ; attempt++) {
+            const head = await ghRaw(`/repos/${CFG.owner}/${CFG.repo}/git/ref/heads/${CFG.branch}`);
+            const headCommit = await ghRaw(`/repos/${CFG.owner}/${CFG.repo}/git/commits/${head.object.sha}`);
+            const newTree = await ghRaw(`/repos/${CFG.owner}/${CFG.repo}/git/trees`, {
+              method: "POST", body: JSON.stringify({ base_tree: headCommit.tree.sha, tree: entries }) });
+            const commit = await ghRaw(`/repos/${CFG.owner}/${CFG.repo}/git/commits`, {
+              method: "POST", body: JSON.stringify({ message: `why: add ${fresh.length} photos`,
+                tree: newTree.sha, parents: [head.object.sha] }) });
+            try {
+              await ghRaw(`/repos/${CFG.owner}/${CFG.repo}/git/refs/heads/${CFG.branch}`, {
+                method: "PATCH", body: JSON.stringify({ sha: commit.sha }) });
+              break;
+            } catch (e) { // a beat pushed mid-upload: rebase once onto the new head
+              if (attempt >= 2) throw e;
+              WM.status("why", "The brain pushed mid-upload \u2014 rebasing the batch\u2026");
+            }
+          }
+          cache.tree = null;
+          await loadPool(); assign(); await paint();
+          WM.status("why", `${fresh.length} added${skipped ? ` \u00b7 ${skipped} already up` : ""} \u00b7 pool now ${pool.length}`);
+        } catch (e) {
+          WM.status("why", "Upload stopped \u2014 " + e.message + " (re-select everything; duplicates are skipped)");
+        } finally { addBtn.disabled = false; }
       };
     }
     WM.status("why", "Loading the pool\u2026");
