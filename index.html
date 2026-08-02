@@ -36,7 +36,20 @@
   body { background: #008080; font-family: "Pixelated MS Sans Serif", Arial, sans-serif; }
 
   /* Desktop + icons */
-  #desktop { position: fixed; inset: 0 0 var(--tb) 0; overflow: hidden; }
+  #desktop { position: fixed; inset: 0 0 var(--tb) 0; overflow: hidden; background: #008080; }
+  #wallpaper { position: absolute; inset: 0; width: 100%; height: 100%;
+               image-rendering: pixelated; }
+  /* Settings.exe: Display-Properties monitor */
+  .mon { width: 186px; margin: 4px auto 8px; }
+  .mon .bezel { background: #c0c0c0; padding: 7px 7px 9px; border-radius: 4px 4px 2px 2px;
+                box-shadow: inset -1px -1px #808080, inset 1px 1px #fff, 1px 1px 0 #000; }
+  .mon canvas { display: block; width: 100%; height: 108px; background: #008080;
+                image-rendering: pixelated;
+                box-shadow: inset 1px 1px #000, inset -1px -1px #404040; }
+  .mon .stand { width: 44px; height: 8px; background: #c0c0c0; margin: 0 auto;
+                box-shadow: inset -1px -1px #808080, inset 1px 1px #fff, 1px 1px 0 #000; }
+  .mon .base { width: 84px; height: 7px; background: #c0c0c0; margin: 0 auto;
+               box-shadow: inset -1px -1px #808080, inset 1px 1px #fff, 1px 1px 0 #000; }
   .desktop-icons { position: absolute; top: 8px; left: 8px; display: flex;
                    flex-direction: column; gap: 14px; }
   .desktop-icon { width: 84px; text-align: center; color: white; cursor: pointer;
@@ -217,6 +230,7 @@
 <body>
 
 <div id="desktop">
+  <canvas id="wallpaper"></canvas>
   <div class="desktop-icons" id="desktop-icons"></div>
 </div>
 
@@ -253,7 +267,7 @@
 <div id="taskbar">
   <button id="start-btn" aria-label="Start menu"><img id="start-flag" alt=""> Start</button>
   <div id="task-buttons"></div>
-  <div id="ticker"><div class="tape" id="ticker-tape"></div></div><div id="tray"><button id="zoom-btn" style="min-height:22px;font-size:12px" title="Text size"></button><span id="clock">--:--</span></div>
+  <div id="ticker"><div class="tape" id="ticker-tape"></div></div><div id="tray"><span id="clock">--:--</span></div>
 </div>
 <div id="start-menu">
   <div class="side">PFC&nbsp;98</div>
@@ -268,18 +282,19 @@
    browser. protocol/BRAIN.md governs the brain; this file is only glass.
    ===================================================================== */
 const CFG = { owner: "sugawolfdrew", repo: "PFC", branch: "main" };
-/* UI scale — Win98 can afford big. Persisted; AA button in tray cycles. */
-const ZOOMS = [1, 1.25, 1.5, 1.75];
+/* UI scale — Win98 can afford big. Persisted; set from Settings.exe. */
+const ZOOMS = [0.75, 1, 1.25, 1.5, 1.75];
 let Z = parseFloat(localStorage.getItem("pfc_zoom")) ||
-        1.25; // same comfortable default everywhere — AA control adjusts
+        1.25; // same comfortable default everywhere — Settings adjusts
+if (!ZOOMS.includes(Z)) Z = ZOOMS.reduce((a, b) => Math.abs(b - Z) < Math.abs(a - Z) ? b : a);
 document.documentElement.style.zoom = Z;
-function cycleZoom() {
-  Z = ZOOMS[(ZOOMS.indexOf(Z) + 1) % ZOOMS.length] || 1.25;
+function setZoom(v) {
+  if (!ZOOMS.includes(v)) return;
+  Z = v;
   localStorage.setItem("pfc_zoom", Z);
   document.documentElement.style.zoom = Z;
-  const b = document.getElementById("zoom-btn");
-  if (b) b.textContent = `AA ${Math.round(Z * 100)}%`;
   refreshIcons();
+  if (window.WALL) WALL.resize();
 }
 const DEMO = location.search.includes("demo") || location.hash === "#demo";
 const LS_KEY = "pfc_token";
@@ -496,6 +511,24 @@ const ART = {
     ".kkkkkkkkkkkkk..",
     "..y..........y..",
     "................"],
+  settings: [
+    "................",
+    ".kkkkkkkkkkkkkk.",
+    ".kssssssssssssk.",
+    ".ksccccccccccsk.",
+    ".kscttcccccccsk.",
+    ".ksctcccccGccsk.",
+    ".ksccccccGGGcsk.",
+    ".ksccccccccccsk.",
+    ".kssssssssssssk.",
+    ".kkkkkkkkkkkkkk.",
+    "......kssk......",
+    "......kssk......",
+    "....kssssssk....",
+    "....kkkkkkkk....",
+    "................",
+    "................",
+  ],
   logoff: [
     "................",
     "................",
@@ -664,6 +697,353 @@ function renderMd(md, el) {
 }
 
 /* ---------------- Window manager ---------------- */
+/* ---------------- Wallpaper: procedural, Active-Desktop energy ----------------
+   No image assets: every scene is computed at a chunky internal resolution,
+   scaled up pixelated, ticked at ~6fps, and paused when hidden or covered.
+   Alive, not just animated: the sky runs on the actual clock, and the night
+   stars are the wiki — one per page. ?hour=N forces the clock for testing. */
+const WALL = (() => {
+  const LSW = "pfc_wall";
+  const SCENES = { pfc98: "PFC 98", hills: "Rolling Hills", teal: "Teal (classic)" };
+  let scene = localStorage.getItem(LSW);
+  if (!SCENES[scene]) scene = "pfc98";
+  let g = null, W = 0, H = 0, t = 0, iv = null;
+  const B4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+  const hex = h => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+  const FORCE_H = new URLSearchParams(location.search).get("hour");
+  const CALM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let seed = 1;
+  const rnd = () => { seed = (seed * 16807 + 11) % 2147483647; return seed / 2147483647; };
+
+  function minutes() {
+    if (FORCE_H) return (((parseFloat(FORCE_H) % 24) + 24) % 24) * 60;
+    const n = new Date(); return n.getHours() * 60 + n.getMinutes();
+  }
+  const phase = m => (m < 330 || m >= 1260) ? "night" : m < 450 ? "dawn" : m < 1140 ? "day" : "dusk";
+  const SKIES = {
+    day:   ["#0c40a0", "#1c58c0", "#3878d8", "#78b0e8", "#c0e0f4"],
+    dawn:  ["#302868", "#684078", "#a85888", "#e09068", "#f8d8a0"],
+    dusk:  ["#201c50", "#583468", "#984878", "#d87050", "#f0c080"],
+    night: ["#000014", "#000028", "#04083c", "#0a1050", "#141c64"],
+  };
+  const P98 = { dark:  ["#000810", "#001018", "#001c26", "#003038", "#004850", "#005858"],
+                light: ["#00242c", "#00343c", "#004850", "#006060", "#008080", "#00a0a0"] };
+
+  /* ---- sprites (baked once, 1 art px = 1 canvas px) ---- */
+  function bake(rows, pal) {
+    const c = document.createElement("canvas");
+    c.width = Math.max(...rows.map(r => r.length)); c.height = rows.length;
+    const q = c.getContext("2d");
+    rows.forEach((r, y) => { for (let x = 0; x < r.length; x++) {
+      const ch = r[x];
+      if (ch !== ".") { q.fillStyle = (pal || PAL)[ch] || "#f0f"; q.fillRect(x, y, 1, 1); }
+    } });
+    return c;
+  }
+  const CLOUD1 = bake([
+    "......wwww......",
+    "...wwwwwwwww....",
+    ".wwwwwwwwwwwww..",
+    "wwwwwwwwwwwwwwww",
+    "wwwwwwwwwwwwwwww",
+    ".ssssssssssssss.",
+  ]);
+  const CLOUD2 = bake([
+    "...wwww...",
+    ".wwwwwwww.",
+    "wwwwwwwwww",
+    ".ssssssss.",
+  ]);
+  const BRAIN = bake([
+    ".........kkkkkkkkkk.........",
+    ".......kkppppppppppkk.......",
+    ".....kkppwwpppPPPppppkk.....",
+    "....kppwwpPPPppppPPppppk....",
+    "...kppwpPPpppPPppppPPpppk...",
+    "..kpppPPppPPPppPPPpppppPk...",
+    "..kppPpppPpppPPpppPPPppppk..",
+    ".kpppPPpPPppPPpppPPpppPPppk.",
+    ".kppPpppppPPpppPPpppPPppppk.",
+    ".kpppPPPpppppPPppppPPpppPpk.",
+    ".kppppppPPPpppppPPPppppPPpk.",
+    "..kpPPpppppPPPpppppPPpppk...",
+    "..kppppPPPpppppPPPpppppPk...",
+    "...kPpppppPPpppppppPPppk....",
+    "....kPPpppppppPPPppppPk.....",
+    ".....kkPPPpppppppPPPkk......",
+    ".......kkkPPPPPPPkkk........",
+    ".........kkkkkkkkk..........",
+  ]);
+  const TREE_PAL = { day: { g: "#0a5828", Y: "#6a4818" }, dawn: { g: "#0a4820", Y: "#584014" },
+                     dusk: { g: "#083818", Y: "#443010" }, night: { g: "#062812", Y: "#30240c" } };
+  const treeC = {};
+  const TREE_ART = [
+    "..ggg..",
+    ".ggggg.",
+    "ggggggg",
+    "ggggggg",
+    ".ggggg.",
+    "...Y...",
+    "...Y...",
+  ];
+  const GLYPH = {
+    P: ["XXXX.", "X...X", "X...X", "XXXX.", "X....", "X....", "X...."],
+    F: ["XXXXX", "X....", "X....", "XXXX.", "X....", "X....", "X...."],
+    C: [".XXX.", "X...X", "X....", "X....", "X....", "X...X", ".XXX."],
+    "9": [".XXX.", "X...X", "X...X", ".XXXX", "....X", "...X.", ".XX.."],
+    "8": [".XXX.", "X...X", "X...X", ".XXX.", "X...X", "X...X", ".XXX."],
+    "·": [".....", ".....", ".....", ".XX..", ".XX..", ".....", "....."],
+  };
+  function drawText(q, s, x, y, sc, fill, shadow) {
+    let cx = x;
+    for (const ch of s) {
+      const gl = GLYPH[ch];
+      if (gl) gl.forEach((row, gy) => { for (let gx = 0; gx < row.length; gx++) {
+        if (row[gx] === "X") {
+          if (shadow) { q.fillStyle = shadow; q.fillRect(cx + gx * sc + sc, y + gy * sc + sc, sc, sc); }
+          q.fillStyle = fill; q.fillRect(cx + gx * sc, y + gy * sc, sc, sc);
+        }
+      } });
+      cx += 6 * sc;
+    }
+    return cx - x;
+  }
+  function line(x0, y0, x1, y1) { // integer plot: strokes antialias, rects don't
+    x0 |= 0; y0 |= 0; x1 |= 0; y1 |= 0;
+    const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let e = dx + dy;
+    for (;;) {
+      g.fillRect(x0, y0, 1, 1);
+      if (x0 === x1 && y0 === y1) break;
+      const e2 = 2 * e;
+      if (e2 >= dy) { e += dy; x0 += sx; }
+      if (e2 <= dx) { e += dx; y0 += sy; }
+    }
+  }
+  function disk(x, y, r, core, rim) {
+    for (let dy = -r; dy <= r; dy++) {
+      const w2 = Math.floor(Math.sqrt(r * r - dy * dy));
+      g.fillStyle = (rim && dy > r - 3) ? rim : core;
+      g.fillRect((x - w2) | 0, (y + dy) | 0, 2 * w2 + 1, 1);
+    }
+  }
+
+  /* ---- cached layers ---- */
+  let skyC = null, skyKey = "", hillsC = null, hillsKey = "", hillHor = 0;
+  function bakeSky(stops, rows) {
+    const c = document.createElement("canvas"); c.width = W; c.height = rows;
+    const q = c.getContext("2d");
+    const img = q.createImageData(W, rows);
+    const cols = stops.map(hex);
+    for (let y = 0; y < rows; y++) {
+      const v = y / Math.max(1, rows - 1) * (cols.length - 1);
+      for (let x = 0; x < W; x++) {
+        let i = Math.round(v + ((B4[y & 3][x & 3] / 16) - 0.5) * 0.8);
+        i = Math.max(0, Math.min(cols.length - 1, i));
+        const o = (y * W + x) * 4, cc = cols[i];
+        img.data[o] = cc[0]; img.data[o + 1] = cc[1]; img.data[o + 2] = cc[2]; img.data[o + 3] = 255;
+      }
+    }
+    q.putImageData(img, 0, 0);
+    return c;
+  }
+  function bakeHills(ph) {
+    const c = document.createElement("canvas"); c.width = W; c.height = H;
+    const q = c.getContext("2d");
+    const hor = hillHor = (H * 0.58) | 0;
+    const G = { day: ["#207838", "#38a848", "#185828"], dawn: ["#1a6030", "#2f8840", "#144820"],
+                dusk: ["#144826", "#226034", "#0e3418"], night: ["#0a2818", "#123c22", "#081e10"] }[ph];
+    seed = 777;
+    const p1 = rnd() * 6.28, p2 = rnd() * 6.28, p3 = rnd() * 6.28;
+    const frontY = [];
+    for (let x = 0; x < W; x++) {
+      const u = x / W;
+      const back = (hor + 8 - (Math.sin(u * 4.1 + p1) * 10 + Math.sin(u * 9.7 + p2) * 4)) | 0;
+      const front = (hor + 30 - (Math.sin(u * 2.3 + p3) * 16 + Math.sin(u * 6.1 + p1) * 6)) | 0;
+      frontY[x] = front;
+      q.fillStyle = G[2]; q.fillRect(x, back, 1, H - back);
+      q.fillStyle = G[0]; q.fillRect(x, front, 1, H - front);
+      if (((x + front) & 1) === 0) { q.fillStyle = G[1]; q.fillRect(x, front, 1, 1); }
+    }
+    seed = 9091; // grass flecks
+    q.fillStyle = G[1];
+    for (let i = 0; i < W * 1.5; i++) {
+      const x = (rnd() * W) | 0, y = (hor + 26 + rnd() * (H - hor - 28)) | 0;
+      if (rnd() < 0.55) q.fillRect(x, y, 1, 1);
+    }
+    if (!treeC[ph]) treeC[ph] = bake(TREE_ART, { ...PAL, ...TREE_PAL[ph] });
+    const tx = (W * 0.72) | 0;
+    q.drawImage(treeC[ph], tx, frontY[Math.min(tx + 3, W - 1)] - 6);
+    return c;
+  }
+
+  /* ---- dynamic bits ---- */
+  let stars = [], clouds = [];
+  function starCount() {
+    try {
+      const n = (cache.tree || []).filter(e => /^wiki\/.+\.md$/.test(e.path)).length;
+      return Math.max(40, Math.min(140, n || 64));
+    } catch (e) { return 64; }
+  }
+  function makeStars() {
+    seed = 424242; stars = [];
+    const n = starCount();
+    for (let i = 0; i < n; i++)
+      stars.push({ x: (rnd() * W) | 0, y: (rnd() * H * 0.5) | 0, p: (rnd() * 26) | 0 });
+  }
+  function makeClouds() {
+    seed = 1313; clouds = [];
+    for (let i = 0; i < 4; i++)
+      clouds.push({ x: rnd() * W, y: (4 + rnd() * H * 0.26) | 0, big: i % 2 === 0, v: 0.35 + rnd() * 0.45 });
+  }
+  function sunPos(m) { // daylight arc, 5:50 -> 20:30
+    if (m < 350 || m > 1230) return null;
+    const u = (m - 350) / 880;
+    return { x: (u * (W + 24) - 12) | 0, y: (H * 0.52 - Math.sin(Math.PI * u) * H * 0.40) | 0 };
+  }
+  function moonPos(m) { // the night arc wraps midnight
+    let u = null;
+    if (m >= 1230) u = (m - 1230) / 560; else if (m < 350) u = (m + 210) / 560;
+    if (u === null) return null;
+    return { x: (u * (W + 20) - 10) | 0, y: (H * 0.46 - Math.sin(Math.PI * u) * H * 0.34) | 0 };
+  }
+  function drawClouds(alpha) {
+    g.globalAlpha = alpha;
+    for (const cl of clouds) {
+      cl.x += cl.v;
+      const spr = cl.big ? CLOUD1 : CLOUD2, sc = cl.big ? 2 : 1;
+      if (cl.x > W + 8) cl.x = -spr.width * sc - 8;
+      g.drawImage(spr, cl.x | 0, cl.y, spr.width * sc, spr.height * sc);
+    }
+    g.globalAlpha = 1;
+  }
+
+  /* ---- scenes ---- */
+  function drawHillsScene(m, ph) {
+    if (skyKey !== "h" + ph + W) { skyC = bakeSky(SKIES[ph], H); skyKey = "h" + ph + W; }
+    g.drawImage(skyC, 0, 0);
+    if (ph === "night") {
+      g.fillStyle = "#e8e8f8";
+      for (const s of stars) if (((t + s.p) % 26) > 3) g.fillRect(s.x, s.y, 1, 1);
+      const mp = moonPos(m);
+      if (mp) { disk(mp.x, mp.y, 6, "#e8e8d0"); g.save();
+        disk(mp.x + 3, mp.y - 1, 5, SKIES.night[1]); g.restore(); }
+    } else {
+      const sp = sunPos(m);
+      if (sp) disk(sp.x, sp.y, 7, "#f8ee58", "#f0b030");
+    }
+    drawClouds(ph === "night" ? 0.45 : ph === "day" ? 1 : 0.8);
+    if (hillsKey !== ph + W) { hillsC = bakeHills(ph); hillsKey = ph + W; }
+    g.drawImage(hillsC, 0, 0);
+  }
+  function drawP98Scene(m, ph) {
+    const light = ph === "day" || ph === "dawn";
+    const hor = (H * 0.62) | 0;
+    if (skyKey !== "p" + light + W) { skyC = bakeSky(light ? P98.light : P98.dark, hor); skyKey = "p" + light + W; }
+    g.drawImage(skyC, 0, 0);
+    g.fillStyle = light ? "#b8f0e8" : "#a8f0f0"; // it's space: stars always
+    for (const s of stars) if (((t + s.p) % 26) > 3 && s.y < hor - 6) g.fillRect(s.x, s.y, 1, 1);
+    // ground: the scrolling grid
+    g.fillStyle = "#001414"; g.fillRect(0, hor, W, H - hor);
+    const cx = W / 2;
+    g.fillStyle = light ? "#00a898" : "#008878";
+    for (let i = -9; i <= 9; i++)
+      line(cx + i * (W / 42), hor + 1, cx + i * (W / 7.2), H - 1);
+    const off = (t * 0.012) % (1 / 11);
+    for (let j = 0; j < 11; j++) {
+      const k = j / 11 + off;
+      const y = (hor + (H - hor - 1) * Math.pow(k, 2.1)) | 0;
+      g.fillStyle = k > 0.5 ? (light ? "#00c8b8" : "#00a090") : (light ? "#008878" : "#006058");
+      g.fillRect(0, y, W, 1);
+    }
+    g.fillStyle = "#00e8d8"; g.fillRect(0, hor, W, 1); // horizon glow
+    // the brain, risen like a sun; three thoughts in orbit
+    const sc = Math.max(1, Math.round(W / 170));
+    const bw = BRAIN.width * sc, bh = BRAIN.height * sc;
+    const bx = (cx - bw / 2) | 0, by = hor - bh - 4 * sc + ((t >> 4) % 2 ? 1 : 0);
+    g.drawImage(BRAIN, bx, by, bw, bh);
+    g.fillStyle = "#80fff0";
+    for (let i = 0; i < 3; i++) {
+      const a = t * 0.045 + i * 2.094;
+      const ox = (cx + Math.cos(a) * (bw * 0.72)) | 0;
+      const oy = (by + bh * 0.45 + Math.sin(a) * (bh * 0.62)) | 0;
+      if (Math.sin(a) > -0.25 || ((t + i * 5) % 3)) g.fillRect(ox, oy, 1, 1);
+    }
+    // logotype
+    const lsc = Math.max(1, Math.min(3, Math.floor((W * 0.7) / 36)));
+    const tw = 6 * 6 * lsc - lsc;
+    drawText(g, "PFC·98", ((W - tw) / 2) | 0, (H * 0.09) | 0, lsc, "#e8fffc", "#00303c");
+  }
+
+  /* ---- plumbing ---- */
+  function covered() {
+    if (document.hidden) return true;
+    const lg = document.getElementById("logon");
+    if (lg && !lg.classList.contains("hidden")) return true;
+    if (matchMedia("(max-width: 700px)").matches && document.querySelector(".window.app.open")) return true;
+    return false;
+  }
+  function frame() {
+    if (scene === "teal" || !g || !W || covered()) return;
+    t++;
+    const m = minutes();
+    if (scene === "pfc98") drawP98Scene(m, phase(m)); else drawHillsScene(m, phase(m));
+  }
+  function resize() {
+    const c = document.getElementById("wallpaper"), d = document.getElementById("desktop");
+    if (!c || !d) return;
+    const r = d.getBoundingClientRect();
+    if (r.width < 4 || r.height < 4) return;
+    H = 216; W = Math.round(H * r.width / r.height);
+    if (W > 640) { H = Math.round(216 * 640 / W); W = 640; }
+    if (W < 64) W = 64;
+    c.width = W; c.height = H;
+    g = c.getContext("2d");
+    skyKey = hillsKey = "";
+    makeStars(); makeClouds();
+    frame();
+  }
+  function set(s) {
+    if (!SCENES[s]) return;
+    scene = s; localStorage.setItem(LSW, s);
+    const c = document.getElementById("wallpaper");
+    c.style.display = s === "teal" ? "none" : "block";
+    skyKey = hillsKey = "";
+    makeStars();
+    frame();
+  }
+  function renderTo(pc, s) { // Settings preview: one still frame at native res, offscreen
+    const q = pc.getContext("2d");
+    if (s === "teal") { q.fillStyle = "#008080"; q.fillRect(0, 0, pc.width, pc.height); return; }
+    const oc = document.createElement("canvas"); oc.width = pc.width; oc.height = pc.height;
+    const og = g, os = scene, ot = t, oW = W, oH = H;
+    const oStars = stars, oClouds = clouds;
+    g = oc.getContext("2d"); scene = s; t = 30; W = pc.width; H = pc.height;
+    skyKey = hillsKey = "";
+    makeStars(); makeClouds();
+    const m = minutes();
+    if (s === "pfc98") drawP98Scene(m, phase(m)); else drawHillsScene(m, phase(m));
+    g = og; scene = os; t = ot; W = oW; H = oH;
+    stars = oStars; clouds = oClouds;
+    skyKey = hillsKey = ""; // main bakes were swapped out; force rebake
+    q.drawImage(oc, 0, 0);
+    frame();
+  }
+  function init() {
+    const c = document.getElementById("wallpaper");
+    if (!c) return;
+    c.style.display = scene === "teal" ? "none" : "block";
+    if (iv !== null) { resize(); return; }
+    resize();
+    let rz = null;
+    addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(resize, 200); });
+    document.addEventListener("visibilitychange", frame);
+    iv = setInterval(frame, CALM ? 60000 : 150);
+  }
+  return { init, set, resize, renderTo, scene: () => scene, SCENES };
+})();
+
 const WM = (() => {
   let z = 100;
   const open = new Set();
@@ -795,6 +1175,7 @@ const APPS = {
   search: { title: "Search" },
   oracle: { title: "Oracle.exe" },
   why: { title: "why.exe" },
+  settings: { title: "Settings" },
   about: { title: "About PFC" },
 };
 
@@ -1595,6 +1976,63 @@ const Search = (() => {
   };
 })();
 
+/* ----- Settings (Display Properties, basically) ----- */
+(() => {
+  APPS.settings.onOpen = () => {
+    const body = document.querySelector("#win-settings .window-body");
+    if (!body.dataset.ready) {
+      body.dataset.ready = 1;
+      body.classList.remove("white");
+      body.innerHTML = `
+        <fieldset style="margin:2px 0 10px">
+          <legend>Wallpaper</legend>
+          <div class="mon">
+            <div class="bezel"><canvas id="set-prev" width="176" height="108"></canvas></div>
+            <div class="stand"></div><div class="base"></div>
+          </div>
+          <select id="set-wall" size="3" style="width:100%; font-size:15px; height:76px; background-image:none; padding:2px;"></select>
+        </fieldset>
+        <fieldset style="margin:0 0 10px">
+          <legend>Appearance</legend>
+          <div class="field-row">
+            <label for="set-zoom">Text size</label>
+            <select id="set-zoom" style="flex:1; font-size:15px;"></select>
+          </div>
+          <p style="margin:6px 0 0; font-size:12px; color:#444">Applies right away — this control moved here from the tray.</p>
+        </fieldset>
+        <section class="field-row" style="justify-content:flex-end; gap:6px;">
+          <button id="set-ok" class="default">OK</button>
+          <button id="set-apply">Apply</button>
+        </section>`;
+      const wallSel = body.querySelector("#set-wall");
+      Object.entries(WALL.SCENES).forEach(([k, name]) => {
+        const o = document.createElement("option");
+        o.value = k; o.textContent = name;
+        wallSel.appendChild(o);
+      });
+      const zoomSel = body.querySelector("#set-zoom");
+      ZOOMS.forEach(v => {
+        const o = document.createElement("option");
+        o.value = v; o.textContent = Math.round(v * 100) + "%";
+        zoomSel.appendChild(o);
+      });
+      const prev = body.querySelector("#set-prev");
+      wallSel.onchange = () => WALL.renderTo(prev, wallSel.value);
+      zoomSel.onchange = () => setZoom(parseFloat(zoomSel.value));
+      const apply = () => {
+        WALL.set(wallSel.value);
+        WM.status("settings", "Applied — " + WALL.SCENES[wallSel.value]);
+      };
+      body.querySelector("#set-apply").onclick = apply;
+      body.querySelector("#set-ok").onclick = () => { apply(); WM.close("settings"); };
+    }
+    body.querySelector("#set-wall").value = WALL.scene();
+    body.querySelector("#set-zoom").value = String(Z);
+    WALL.renderTo(body.querySelector("#set-prev"), WALL.scene());
+    WM.status("settings", "Display Properties");
+  };
+})();
+
 /* ---------------- Desktop, start menu, boot ---------------- */
 function err(e) {
   if (e && e.message === "auth") { localStorage.removeItem(LS_KEY); boot(); return; }
@@ -1631,8 +2069,6 @@ function buildDesktop() {
 function toggleStart(force) {
   document.getElementById("start-menu").classList.toggle("open", force);
 }
-document.getElementById("zoom-btn").textContent = `AA ${Math.round(Z * 100)}%`;
-document.getElementById("zoom-btn").addEventListener("click", cycleZoom);
 document.getElementById("start-btn").addEventListener("click", e => {
   e.stopPropagation();
   document.getElementById("start-menu").classList.toggle("open");
@@ -1658,7 +2094,8 @@ function buildWindows() {
   WM.make("search", "Search", 480, 420, cascade(4) + 200, 90);
   WM.make("oracle", "Oracle.exe", Math.min(540, W - 40), 480, cascade(5) + 260, 60);
   WM.make("why", "why.exe", Math.min(640, W - 40), 540, cascade(6) + 220, 50);
-  WM.make("about", "About PFC", 380, 300, cascade(7) + 300, 150);
+  WM.make("settings", "Settings", 350, 500, cascade(7) + 260, 60);
+  WM.make("about", "About PFC", 380, 300, cascade(8) + 300, 150);
 }
 
 async function boot() {
@@ -1669,6 +2106,7 @@ async function boot() {
   const lk = document.getElementById("logon-keys");
   lk.dataset.icon = "keys"; lk.dataset.sz = "32";
   refreshIcons();
+  WALL.init();
   if (DEMO && !document.getElementById("tray-demo")) {
     const f = document.createElement("span");
     f.id = "tray-demo"; f.textContent = "DEMO";
