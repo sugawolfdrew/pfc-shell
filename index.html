@@ -527,6 +527,19 @@ async function getFile(path, force) {
   return text;
 }
 
+async function getFileFull(path) { // fresh, uncached, with sha (for editing)
+  if (DEMO) return { text: DEMO_FILES[path] ?? "", sha: "demo" };
+  const d = await gh(`/repos/${CFG.owner}/${CFG.repo}/contents/${encodeURIComponent(path).replace(/%2F/g, "/")}?ref=${CFG.branch}`);
+  return { text: b64decode(d.content), sha: d.sha };
+}
+async function putFileSha(path, content, message, sha) { // sha = edit watcher: mismatch throws
+  if (DEMO) { await new Promise(r => setTimeout(r, 300)); return; }
+  await gh(`/repos/${CFG.owner}/${CFG.repo}/contents/${encodeURIComponent(path).replace(/%2F/g, "/")}`, {
+    method: "PUT",
+    body: JSON.stringify({ message, content: b64encode(content), branch: CFG.branch, ...(sha ? { sha } : {}) })
+  });
+  cache.tree = null; cache.files.delete(path);
+}
 async function putCapture(text, kind = "web") {
   const now = new Date();
   const pad = n => String(n).padStart(2, "0");
@@ -792,12 +805,27 @@ const Surface = (() => {
         <button id="sf-next" ${idx <= 0 ? "disabled" : ""}>Newer ▶</button>
         <span class="note">${path.slice(8, 18)}</span>
         <div class="spacer"></div>
+        <button id="sf-beat" title="Signal the hourly pulse to run a full beat">\u2665 Beat now</button>
         <button id="sf-refresh">Refresh</button>
       </div>
       ${pulseHtml}<div id="sf-md"></div>`;
     renderMd(md, body.querySelector("#sf-md"));
     body.querySelector("#sf-prev").onclick = () => { idx++; render(); };
     body.querySelector("#sf-next").onclick = () => { idx--; render(); };
+    body.querySelector("#sf-beat").onclick = async () => {
+      const btn = body.querySelector("#sf-beat");
+      btn.disabled = true;
+      WM.status("surface", "Signaling…");
+      try {
+        const now = new Date(), pad = n => String(n).padStart(2, "0");
+        const stamp = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        await putFileSha(`inbox/${stamp}-beatnow.md`,
+          `---\nvia: face\ntype: beat-request\nrequested: ${now.toISOString()}\n---\nFull beat requested from Surface.exe.\n`,
+          "signal: beat now");
+        WM.status("surface", "Beat requested \u2014 the pulse checks hourly and will run a full beat.");
+      } catch (e) { WM.status("surface", "Signal failed \u2014 " + e.message); }
+      finally { btn.disabled = false; }
+    };
     body.querySelector("#sf-refresh").onclick = async () => {
       cache.tree = null; cache.files.clear(); Search.invalidate(); render();
     };
@@ -919,43 +947,121 @@ const Explorer = (() => {
   return { openPage, openPath };
 })();
 
-/* ----- New Note ----- */
+/* ----- Notes: Write | Prior tabs, edit pending notes with upstream-change watcher ----- */
 (() => {
-  APPS.note.onOpen = () => {
-    const body = document.querySelector("#win-note .window-body");
-    if (body.dataset.ready) return;
-    body.dataset.ready = 1;
-    body.classList.remove("white");
-    body.innerHTML = `
-      <div style="padding:8px; display:flex; flex-direction:column; height:calc(100% - 16px); gap:6px;">
-        <label for="note-text">A thought, link, product, place… the heartbeat files it.</label>
-        <textarea id="note-text" style="flex:1; resize:none;" rows="8"></textarea>
-        <section class="field-row" style="justify-content:flex-end; gap:6px;">
-          <button id="note-clear">Clear</button>
-          <button id="note-save" class="default">Save to inbox</button>
-        </section>
-      </div>`;
-    const ta = body.querySelector("#note-text");
-    body.querySelector("#note-clear").onclick = () => { ta.value = ""; ta.focus(); };
-    const saveBtn = body.querySelector("#note-save");
-    saveBtn.onclick = async () => {
-      const text = ta.value.trim();
-      if (!text) { WM.status("note", "Nothing to save."); return; }
-      WM.status("note", "Saving…");
-      saveBtn.disabled = true;
-      try {
-        const path = await putCapture(text);
-        ta.value = "";
-        Search.invalidate();
-        WM.status("note", `Saved → ${path}`);
-      } catch (e) {
-        WM.status("note",
-          e.message === "auth" ? "Token was refused (401)." :
-          e.message === "rate" ? "GitHub rate limit — wait a minute, your note is still in the box." :
-          e.message === "forbidden" ? "Token lacks write access to inbox/." :
-          "Save failed — " + e.message);
-      } finally { saveBtn.disabled = false; }
+  let editing = null; // {path, sha, front} when editing an existing pending note
+  const body = () => document.querySelector("#win-note .window-body");
+
+  function splitNote(raw) {
+    const m = raw.match(/^(---\n[\s\S]*?\n---\n?)([\s\S]*)$/);
+    return m ? { front: m[1], text: m[2].trim() } : { front: "", text: raw.trim() };
+  }
+  function setMode(tab) {
+    body().querySelectorAll("[role=tab]").forEach(li =>
+      li.setAttribute("aria-selected", li.dataset.tab === tab));
+    body().querySelector("#note-write").style.display = tab === "write" ? "flex" : "none";
+    body().querySelector("#note-prior").style.display = tab === "prior" ? "block" : "none";
+    if (tab === "prior") renderPrior();
+  }
+  function setEditing(e) {
+    editing = e;
+    const ta = body().querySelector("#note-text");
+    body().querySelector("#note-save").textContent = e ? "Save changes" : "Save to inbox";
+    body().querySelector("#note-new").style.display = e ? "" : "none";
+    WM.status("note", e ? `Editing ${e.path}` : "New note");
+    ta.focus();
+  }
+  async function renderPrior() {
+    const list = body().querySelector("#note-prior");
+    list.innerHTML = "<div class='md'><p>Loading…</p></div>";
+    const tree = await getTree(true);
+    const pending = tree.filter(e => /^inbox\/[^/]+\.md$/.test(e.path)
+      && !e.path.endsWith("README.md") && !/-oracle\.md$/.test(e.path)).map(e => e.path).sort().reverse();
+    const filed = tree.filter(e => /^inbox\/processed\/.+\.md$/.test(e.path)
+      && !/-oracle\.md$/.test(e.path)).map(e => e.path).sort().reverse().slice(0, 30);
+    const row = (p, state) => {
+      const name = p.split("/").pop().replace(/\.md$/, "");
+      return `<div class="result" data-note="${p}" data-state="${state}">
+        <div class="t">${state === "pending" ? "\u270E" : "\u2713"} ${name}</div>
+        <div class="s">${state === "pending" ? "pending — click to edit" : "filed by the brain — click to view"}</div></div>`;
     };
+    list.innerHTML = (pending.map(p => row(p, "pending")).join("") +
+                      filed.map(p => row(p, "filed")).join("")) ||
+      "<div class='md'><p>No notes yet.</p></div>";
+    list.querySelectorAll("[data-note]").forEach(el => el.addEventListener("click", async () => {
+      const p = el.dataset.note;
+      if (el.dataset.state === "filed") { WM.show("explorer"); Explorer.openPath(p); return; }
+      WM.status("note", "Opening…");
+      try {
+        const { text, sha } = await getFileFull(p);
+        const parts = splitNote(text);
+        body().querySelector("#note-text").value = parts.text;
+        setEditing({ path: p, sha, front: parts.front });
+        setMode("write");
+      } catch (e) { WM.status("note", "Could not open — " + e.message); }
+    }));
+    WM.status("note", `${pending.length} pending · ${filed.length} filed (recent)`);
+  }
+  APPS.note.onOpen = () => {
+    const b = body();
+    if (!b.dataset.ready) {
+      b.dataset.ready = 1;
+      b.classList.remove("white");
+      b.innerHTML = `
+        <div style="padding:8px 8px 0 8px;">
+          <menu role="tablist" style="margin:0;">
+            <li role="tab" data-tab="write" aria-selected="true"><a href="#w">Write</a></li>
+            <li role="tab" data-tab="prior" aria-selected="false"><a href="#p">Prior</a></li>
+          </menu>
+        </div>
+        <div id="note-write" style="padding:8px; display:flex; flex-direction:column; gap:6px; height:calc(100% - 56px);">
+          <textarea id="note-text" style="flex:1; resize:none;" rows="8"
+            placeholder="A thought, link, product, place… the next beat files it."></textarea>
+          <section class="field-row" style="justify-content:flex-end; gap:6px;">
+            <button id="note-new" style="display:none">New</button>
+            <button id="note-clear">Clear</button>
+            <button id="note-save" class="default">Save to inbox</button>
+          </section>
+        </div>
+        <div id="note-prior" class="sunken-panel" style="display:none; overflow:auto; background:#fff;
+             margin:0 8px 8px; height:calc(100% - 56px);"></div>`;
+      b.querySelectorAll("[role=tab]").forEach(li =>
+        li.addEventListener("click", e => { e.preventDefault(); setMode(li.dataset.tab); }));
+      const ta = b.querySelector("#note-text");
+      b.querySelector("#note-clear").onclick = () => { ta.value = ""; ta.focus(); };
+      b.querySelector("#note-new").onclick = () => { ta.value = ""; setEditing(null); };
+      const saveBtn = b.querySelector("#note-save");
+      saveBtn.onclick = async () => {
+        const text = ta.value.trim();
+        if (!text) { WM.status("note", "Nothing to save."); return; }
+        saveBtn.disabled = true;
+        WM.status("note", "Saving…");
+        try {
+          if (editing) { // sha-guarded update: the watcher
+            await putFileSha(editing.path, editing.front + text + "\n",
+              `capture: edited ${editing.path.split("/").pop()}`, editing.sha);
+            const { sha } = await getFileFull(editing.path);
+            editing.sha = sha;
+            WM.status("note", `Changes saved \u2192 ${editing.path}`);
+          } else {
+            const path = await putCapture(text);
+            ta.value = "";
+            Search.invalidate();
+            WM.status("note", `Saved \u2192 ${path}`);
+          }
+        } catch (e) {
+          if (editing && /409|422|GitHub 4/.test(e.message)) {
+            WM.status("note", "Changed upstream — the brain likely filed it. Check Prior for its new home.");
+            setEditing(null);
+          } else {
+            WM.status("note",
+              e.message === "auth" ? "Token was refused (401)." :
+              e.message === "rate" ? "GitHub rate limit — wait a minute; your text is still here." :
+              "Save failed — " + e.message);
+          }
+        } finally { saveBtn.disabled = false; }
+      };
+    }
   };
 })();
 
@@ -1263,6 +1369,8 @@ const DEMO_FILES = {
 "wiki/cowork-platform-findings.md": `---\ntitle: Cowork platform findings\ntype: concept\ncreated: 2026-08-02\n---\n\nEmpirical: cloud-scheduled sessions have no device bridge and no Chrome, ever. send_later wakeups are best-effort (+37s to +36h). The cloud workspace is not durable — the repo at origin is the only durable state.\n\n## Links\n[[facebot]] — where these were measured.\n`,
 "wiki/claude-chat-corpus.md": `---\ntitle: Claude chat corpus\ntype: source\ncreated: 2026-08-02\n---\n\nThe primary data seed: 577 conversations, 4,199 messages, 2023-11 → 2026-08. Backfill proceeds month by month, heaviest first.\n\n## Links\n[[post-frontal-cortex]] — this corpus seeds the wiki.\n`,
 "oracle/2026-08-02-what-connects-facebot-to-pfc.md": `---\nquestion: What connects Facebot to PFC?\nasked: 2026-08-02T05:40:00Z\nanswered: 2026-08-02\nbeat: heartbeat\n---\n**Q:** What connects Facebot to PFC?\n\n**A:** Facebot ran the infrastructure research PFC is built on. Its July 2026 heartbeat experiments measured the platform constraints — cloud sessions have no device bridge, wakeups drift, workspaces evaporate — that became PFC's load-bearing rules, and its constitution is the direct ancestor of BRAIN.md's invariants. See [[facebot]] and [[cowork-platform-findings]].\n`,
+"inbox/2026-08-02-2035-web.md": `---\ncaptured: 2026-08-02T20:35:00Z\nvia: web\n---\nLook into the RetroTINK 4K firmware update for the CRT den.\n`,
+"inbox/processed/2026-08/2026-08-01-2210-web.md": `---\ncaptured: 2026-08-01T22:10:00Z\nvia: web\n---\nCeramic studio in Oakland does intro nights \u2014 check Thursday.\n`,
 "inbox/2026-08-02-2140-oracle.md": `---\ncaptured: 2026-08-02T21:40:00Z\nvia: oracle\ntype: question\n---\nWhat was the name of the wizard trapped in the Tome?\n`,
 "protocol/BRAIN.md": `# BRAIN.md — the PFC genome (demo excerpt)\n\nEvery session loads this file first. The repo is the brain's only memory.\n\n## Invariants (excerpt)\n1. raw/ is immutable.\n2. Log everything, append-only.\n3. Silence over noise.\n4. Human gate on merges and deletions.\n5. Supersede, don't decay.\n`,
 };
