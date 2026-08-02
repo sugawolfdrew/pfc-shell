@@ -154,6 +154,16 @@
   .result .s { color: #333; margin-top: 2px; }
   .result .s b { background: #ffffe1; color: #000; font-weight: normal; }
 
+  /* why.exe: photos clip to their hole's true shape; load like it's 1997 */
+  .why-photo { object-fit: cover; position: absolute; z-index: 1;
+               mask-size: 100% 100%; -webkit-mask-size: 100% 100%;
+               mask-repeat: no-repeat; -webkit-mask-repeat: no-repeat;
+               animation: why-decode .6s steps(7, end) both; }
+  @keyframes why-decode {
+    from { clip-path: inset(0 0 100% 0); }
+    to   { clip-path: inset(0 0 0 0); }
+  }
+
   /* Oracle */
   .oracle-item { padding: 4px 6px 10px; border-bottom: 2px groove #dfdfdf; }
   .oracle-item.pending { padding: 10px 12px; font-family: Arial; font-size: 14px; }
@@ -1279,11 +1289,11 @@ const Search = (() => {
 (() => {
   // transparent slots in assets/why-frame.png, % coords, top-to-bottom
   const SLOTS = [
-    {l:21.13,t:0,w:24,h:17.41}, {l:64,t:0,w:18.99,h:5.96}, {l:65.07,t:24.94,w:17.31,h:14.75},
-    {l:77.37,t:27.29,w:22.69,h:35.45}, {l:30.81,t:28.55,w:4.66,h:7.53},
-    {l:24.12,t:31.06,w:6.33,h:10.82}, {l:34.75,t:43.92,w:16.12,h:14.59},
-    {l:14.45,t:46.12,w:25.67,h:25.41}, {l:40.24,t:58.2,w:34.39,h:37.49},
-    {l:0,t:70.9,w:12.3,h:29.18}, {l:83.22,t:72,w:16.84,h:28.08}
+    {l:21.07,t:0,w:24.06,h:17.41}, {l:63.94,t:0,w:18.99,h:5.96}, {l:64.96,t:24.94,w:17.37,h:14.75},
+    {l:77.37,t:27.22,w:22.63,h:35.45}, {l:30.81,t:28.47,w:4.6,h:7.53},
+    {l:24.12,t:31.06,w:6.33,h:10.75}, {l:34.75,t:43.92,w:16.12,h:14.59},
+    {l:14.39,t:46.04,w:25.67,h:25.41}, {l:40.24,t:58.12,w:34.39,h:37.49},
+    {l:0,t:70.9,w:12.3,h:29.1}, {l:83.16,t:72,w:16.84,h:28}
   ];
   const FRAME_AR = 3350 / 2550; // slot real aspect = (w%/h%) * FRAME_AR
   const slotAspect = s => (s.w / s.h) * FRAME_AR;
@@ -1335,15 +1345,19 @@ const Search = (() => {
   async function paint() {
     const stage = document.querySelector("#why-stage");
     stage.querySelectorAll("img.why-photo").forEach(el => el.remove());
+    let order = 0;
     for (const { si, p } of assigned) {
       const s = SLOTS[si];
       const img = document.createElement("img");
       img.className = "why-photo";
       const pos = (p.A / 100) < slotAspect(s) ? "50% 25%" : "center"; // vertical crop -> bias to faces
-      img.style.cssText = `position:absolute; left:${s.l}%; top:${s.t}%; width:${s.w}%;
-        height:${s.h}%; object-fit:cover; object-position:${pos}; z-index:1;`;
+      img.style.cssText = `left:${s.l}%; top:${s.t}%; width:${s.w}%; height:${s.h}%;
+        object-position:${pos};
+        mask-image:url(assets/why-mask-${si}.png); -webkit-mask-image:url(assets/why-mask-${si}.png);
+        animation-delay:${(order * 0.22).toFixed(2)}s;`;
       try { img.src = await photoSrc(p.path); } catch (e) { continue; }
       stage.insertBefore(img, stage.querySelector(".why-frame"));
+      order++;
     }
     WM.status("why", DEMO ? "Demo pool — uploads land in the private repo when logged on"
       : `${pool.length} photo${pool.length === 1 ? "" : "s"} in the pool \u00b7 ${SLOTS.length} spaces \u00b7 shuffled fresh each open`);
