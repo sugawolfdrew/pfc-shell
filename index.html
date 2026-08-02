@@ -178,7 +178,13 @@
                   right: 0 !important; bottom: var(--tb) !important;
                   width: auto !important; height: auto !important; }
     .window.app .title-bar-controls button[aria-label="Maximize"] { display: none; }
-    #explorer-tree { width: 130px; }
+    /* Explorer: over/under, not side-by-side — full-width tree, full-width reading */
+    #win-explorer .window-body { flex-direction: column; }
+    #explorer-tree { width: auto; height: 34%; min-height: 130px; margin: 2px; flex: none; }
+    #explorer-view { margin: 2px; }
+    ul.tree-view { line-height: 2.1; font-size: 15px; }
+    ul.tree-view li { padding: 1px 0; }
+    .toolbar { flex-wrap: wrap; }
     .desktop-icons { flex-direction: row; flex-wrap: wrap; top: auto; bottom: 40px; }
   }
 </style>
@@ -914,6 +920,7 @@ const Explorer = (() => {
     const view = document.getElementById("explorer-view");
     const md = await getFile(path);
     renderMd(md, view);
+    view.scrollTop = 0;
     current = path;
     if (/^wiki\//.test(path)) {
       const slug = path.slice(5, -3);
