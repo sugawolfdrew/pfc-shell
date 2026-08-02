@@ -936,19 +936,49 @@ const Explorer = (() => {
   };
 })();
 
-/* ----- Recent Changes ----- */
+/* ----- Recent Changes (98.css tabs = filter) ----- */
 (() => {
+  let ops = [], cur = "all";
+  const TABS = [
+    ["all", "All", null],
+    ["ingest", "Ingest", ["ingest"]],
+    ["surface", "Surface", ["surface"]],
+    ["beats", "Beats", ["heartbeat"]],
+    ["build", "Build", ["build"]],
+    ["meta", "Meta", ["admin", "correct", "lint", "query"]],
+  ];
+  function renderList(body) {
+    const cats = TABS.find(t => t[0] === cur)[2];
+    const rows = cats ? ops.filter(o => cats.includes(o[2])) : ops;
+    body.querySelector("#log-list").innerHTML = rows.map(m => `
+      <div class="log-line"><span class="d">${m[1]}</span>
+        <span class="p">${m[2]}</span><span>${m[3]}</span></div>`).join("")
+      || "<div class='md'><p>Nothing in this category yet.</p></div>";
+    body.querySelectorAll("[role=tab]").forEach(li =>
+      li.setAttribute("aria-selected", li.dataset.tab === cur));
+    WM.status("changes", cats
+      ? `${rows.length} of ${ops.length} operations · ${cur}`
+      : `${ops.length} operations logged`);
+  }
   APPS.changes.onOpen = async () => {
     const body = document.querySelector("#win-changes .window-body");
+    body.classList.remove("white");
     WM.status("changes", "Loading…");
     try {
       const log = await getFile("log.md", true);
-      const lines = [...log.matchAll(/^## \[([0-9-]+)\] (\w+) \| (.+)$/gm)].reverse();
-      body.innerHTML = lines.map(m => `
-        <div class="log-line"><span class="d">${m[1]}</span>
-          <span class="p">${m[2]}</span><span>${m[3]}</span></div>`).join("")
-        || "<div class='md'><p>Log is empty.</p></div>";
-      WM.status("changes", `${lines.length} operations logged`);
+      ops = [...log.matchAll(/^## \[([0-9-]+)\] (\w+) \| (.+)$/gm)].reverse();
+      body.innerHTML = `
+        <div style="padding:8px 8px 0 8px;">
+          <menu role="tablist" style="margin:0;">
+            ${TABS.map(([id, label]) =>
+              `<li role="tab" data-tab="${id}" aria-selected="${id === cur}"><a href="#log">${label}</a></li>`).join("")}
+          </menu>
+        </div>
+        <div id="log-list" class="sunken-panel" style="overflow:auto; background:#fff;
+             margin:0 8px 8px 8px; height:calc(100% - 52px);"></div>`;
+      body.querySelectorAll("[role=tab]").forEach(li =>
+        li.addEventListener("click", e => { e.preventDefault(); cur = li.dataset.tab; renderList(body); }));
+      renderList(body);
     } catch (e) { body.innerHTML = `<div class="md"><p>Could not load log.md</p></div>`; }
   };
 })();
