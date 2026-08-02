@@ -154,13 +154,19 @@
   .result .s { color: #333; margin-top: 2px; }
   .result .s b { background: #ffffe1; color: #000; font-weight: normal; }
 
-  /* why.exe: photos clip to their hole's true shape; load like it's 1997 */
-  .why-photo { object-fit: cover; position: absolute; z-index: 1;
+  /* why.exe: photos clip to their hole's true shape; load like it's 1997.
+     Divs + background-size:cover, NOT <img> + object-fit: iOS WebKit drops
+     object-fit on masked replaced elements (letterboxed photos -> white
+     bands inside the holes; seen on Andrew's phone 2026-08-02). */
+  .why-photo { position: absolute; z-index: 1;
+               background-size: cover; background-repeat: no-repeat;
                mask-size: 100% 100%; -webkit-mask-size: 100% 100%;
                mask-repeat: no-repeat; -webkit-mask-repeat: no-repeat;
                mask-mode: alpha;
                animation: why-decode .6s steps(7, end) both; }
-  #why-stage { overflow: hidden; }
+  #why-stage { overflow: hidden; transform-origin: 0 0; }
+  #why-viewport { overflow: hidden; touch-action: none; user-select: none;
+                  -webkit-user-select: none; -webkit-touch-callout: none; }
   @keyframes why-decode {
     from { clip-path: inset(0 0 100% 0); }
     to   { clip-path: inset(0 0 0 0); }
@@ -1300,6 +1306,7 @@ const Search = (() => {
   const FRAME_AR = 3350 / 2550; // slot real aspect = (w%/h%) * FRAME_AR
   const slotAspect = s => (s.w / s.h) * FRAME_AR;
   let pool = [], assigned = [];
+  let resetZoom = () => {};
   const photoCache = new Map();
 
   function demoPlaceholders() {
@@ -1346,23 +1353,35 @@ const Search = (() => {
   }
   async function paint() {
     const stage = document.querySelector("#why-stage");
-    stage.querySelectorAll("img.why-photo").forEach(el => el.remove());
+    stage.querySelectorAll(".why-photo").forEach(el => el.remove());
     let order = 0;
     for (const { si, p } of assigned) {
       const s = SLOTS[si];
-      const img = document.createElement("img");
-      img.className = "why-photo";
-      const pos = (p.A / 100) < slotAspect(s) ? "50% 25%" : "center"; // vertical crop -> bias to faces
-      img.style.cssText = `left:${s.l}%; top:${s.t}%; width:${s.w}%; height:${s.h}%;
-        object-position:${pos};
-        mask-image:url(assets/why-mask-${si}.png); -webkit-mask-image:url(assets/why-mask-${si}.png);
+      let src; try { src = await photoSrc(p.path); } catch (e) { continue; }
+      // Decode fully BEFORE painting. iOS WebKit rasterizes the masked layer
+      // at insert and the fill-mode:both animation freezes it — a half-decoded
+      // JPEG stays half-painted forever (the white bands on Andrew's phone,
+      // 2026-08-02; reproduced in WebKit 26, gone with this await).
+      const pre = new Image(); pre.src = src;
+      try { await pre.decode(); } catch (e) {
+        await new Promise(r => { if (pre.complete) r(); else pre.onload = pre.onerror = r; });
+      }
+      const ph = document.createElement("div");
+      ph.className = "why-photo";
+      const pos = (p.A / 100) < slotAspect(s) ? "50% 25%" : "50% 50%"; // vertical crop -> bias to faces
+      ph.style.cssText = `left:${s.l}%; top:${s.t}%; width:${s.w}%; height:${s.h}%;
+        background-image:url("${src}"); background-position:${pos};
+        mask-image:url(assets/why-mask-${si}.png?v=2); -webkit-mask-image:url(assets/why-mask-${si}.png?v=2);
         animation-delay:${(order * 0.22).toFixed(2)}s;`;
-      try { img.src = await photoSrc(p.path); } catch (e) { continue; }
-      stage.insertBefore(img, stage.querySelector(".why-frame"));
+      // once the decode-in effect ends, drop the animation so the layer
+      // repaints from live style — no cached mid-animation raster survives
+      ph.addEventListener("animationend", () => { ph.style.animation = "none"; }, { once: true });
+      stage.insertBefore(ph, stage.querySelector(".why-frame"));
       order++;
     }
+    const hint = ("ontouchstart" in window) ? " \u00b7 pinch to zoom" : "";
     WM.status("why", DEMO ? "Demo pool — uploads land in the private repo when logged on"
-      : `${pool.length} photo${pool.length === 1 ? "" : "s"} in the pool \u00b7 ${SLOTS.length} spaces \u00b7 shuffled fresh each open`);
+      : `${pool.length} photo${pool.length === 1 ? "" : "s"} in the pool \u00b7 ${SLOTS.length} spaces \u00b7 shuffled fresh each open${hint}`);
   }
   async function resizeToJpeg(file, max = 1000) {
     const url = URL.createObjectURL(file);
@@ -1394,7 +1413,7 @@ const Search = (() => {
           <input id="why-file" type="file" accept="image/*" multiple style="display:none">
           <div class="spacer"></div><span class="note">DO IT FOR HER</span>
         </div>
-        <div style="overflow:auto; margin:6px; background:#fff;
+        <div id="why-viewport" style="margin:6px; background:#fff;
              box-shadow: inset -1px -1px #fff, inset 1px 1px #808080;">
           <div id="why-stage" style="position:relative; width:100%; padding-top:76.12%; background:#fff;">
             <img class="why-frame" src="assets/why-frame.png" alt="DO IT FOR HER"
@@ -1403,7 +1422,71 @@ const Search = (() => {
         </div>`;
       const fileIn = body.querySelector("#why-file");
       body.querySelector("#why-add").onclick = () => fileIn.click();
-      body.querySelector("#why-shuffle").onclick = () => { assign(); paint(); };
+      body.querySelector("#why-shuffle").onclick = () => { resetZoom(); assign(); paint(); };
+      // Pinch-zoom the wall. The global viewport is locked (Andrew's request),
+      // so why.exe zooms itself: two fingers scale about the midpoint, one
+      // finger pans while zoomed, double-tap toggles 2.5x / home, releasing
+      // near 1x snaps home. Transform rides on the stage; viewport clips.
+      {
+        const view = body.querySelector("#why-viewport");
+        const stageEl = body.querySelector("#why-stage");
+        const Z = { k: 1, x: 0, y: 0 };
+        const apply = anim => {
+          const W = stageEl.offsetWidth, H = stageEl.offsetHeight;
+          Z.k = Math.min(4, Math.max(1, Z.k));
+          if (Z.k === 1) { Z.x = 0; Z.y = 0; }
+          else { Z.x = Math.min(0, Math.max(W * (1 - Z.k), Z.x));
+                 Z.y = Math.min(0, Math.max(H * (1 - Z.k), Z.y)); }
+          stageEl.style.transition = anim ? "transform .18s ease-out" : "";
+          stageEl.style.transform = `translate(${Z.x}px, ${Z.y}px) scale(${Z.k})`;
+        };
+        resetZoom = () => { Z.k = 1; apply(false); };
+        let pinch = null, pan = null, lastTap = { t: 0, x: 0, y: 0 };
+        const pt = t => { const r = view.getBoundingClientRect(); return { x: t.clientX - r.left, y: t.clientY - r.top }; };
+        const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+        const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+        view.addEventListener("touchstart", e => {
+          if (e.touches.length === 2) {
+            const a = pt(e.touches[0]), b = pt(e.touches[1]);
+            pinch = { d: dist(a, b), m: mid(a, b), k: Z.k, x: Z.x, y: Z.y };
+            pan = null; e.preventDefault();
+          } else if (e.touches.length === 1 && Z.k > 1) {
+            pan = { p: pt(e.touches[0]), x: Z.x, y: Z.y };
+            e.preventDefault();
+          }
+        }, { passive: false });
+        view.addEventListener("touchmove", e => {
+          if (pinch && e.touches.length === 2) {
+            const a = pt(e.touches[0]), b = pt(e.touches[1]);
+            const m = mid(a, b);
+            Z.k = Math.min(4, Math.max(1, pinch.k * dist(a, b) / pinch.d));
+            Z.x = m.x - (pinch.m.x - pinch.x) * (Z.k / pinch.k);
+            Z.y = m.y - (pinch.m.y - pinch.y) * (Z.k / pinch.k);
+            apply(false); e.preventDefault();
+          } else if (pan && e.touches.length === 1) {
+            const p = pt(e.touches[0]);
+            Z.x = pan.x + (p.x - pan.p.x); Z.y = pan.y + (p.y - pan.p.y);
+            apply(false); e.preventDefault();
+          }
+        }, { passive: false });
+        const endTouch = e => {
+          if (pinch && e.touches.length < 2) {
+            pinch = null;
+            if (Z.k < 1.05) { Z.k = 1; apply(true); }
+            if (e.touches.length === 1 && Z.k > 1) pan = { p: pt(e.touches[0]), x: Z.x, y: Z.y };
+          } else if (pan && e.touches.length === 0) pan = null;
+          if (e.type === "touchend" && e.touches.length === 0 && e.changedTouches.length === 1) {
+            const p = pt(e.changedTouches[0]), now = e.timeStamp;
+            if (now - lastTap.t < 300 && Math.hypot(p.x - lastTap.x, p.y - lastTap.y) < 30) {
+              if (Z.k > 1) Z.k = 1;
+              else { Z.k = 2.5; Z.x = p.x * (1 - 2.5); Z.y = p.y * (1 - 2.5); }
+              apply(true); lastTap = { t: 0, x: 0, y: 0 }; e.preventDefault();
+            } else lastTap = { t: now, x: p.x, y: p.y };
+          }
+        };
+        view.addEventListener("touchend", endTouch, { passive: false });
+        view.addEventListener("touchcancel", endTouch, { passive: false });
+      }
       // Bulk uploader: blobs -> ONE commit (single-file commits trip GitHub's burst
       // throttle ~17 in). Content-hash dedupe: re-selecting everything skips what's up.
       const ghRaw = async (path, opts = {}, tries = 5) => {
@@ -1491,6 +1574,7 @@ const Search = (() => {
       };
     }
     WM.status("why", "Loading the pool\u2026");
+    resetZoom();
     try { await loadPool(); assign(); await paint(); } catch (e) { err(e); }
   };
 })();
