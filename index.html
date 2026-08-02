@@ -503,6 +503,11 @@ function renderMd(md, el) {
   // Linkify [[wikilinks]] — but never inside code/pre, where they are literal syntax
   html = html.split(/(<pre[\s\S]*?<\/pre>|<code[\s\S]*?<\/code>)/g).map((seg, i) =>
     i % 2 === 1 ? seg : seg.replace(/\[\[([^\]|]+)\]\]/g, (_, name) => {
+      if (name.includes("/")) { // tier link (e.g. sessions/claude/…): open by path
+        const path = name.endsWith(".md") ? name : name + ".md";
+        const label = name.split("/").pop();
+        return `<a class="wikilink" data-path="${path}">${label}</a>`;
+      }
       const slug = slugify(name);
       const exists = cache.tree && cache.tree.some(e => e.path === `wiki/${slug}.md`);
       return `<a class="wikilink${exists ? "" : " missing"}" data-page="${slug}">${name}</a>`;
@@ -514,7 +519,9 @@ function renderMd(md, el) {
   el.innerHTML = (chips ? `<div style="padding:8px 14px 0">${chips}</div>` : "") +
                  `<div class="md">${html}</div>`;
   el.querySelectorAll("a.wikilink").forEach(a =>
-    a.addEventListener("click", () => Explorer.openPage(a.dataset.page)));
+    a.addEventListener("click", () => a.dataset.path
+      ? (WM.show("explorer"), Explorer.openPath(a.dataset.path))
+      : Explorer.openPage(a.dataset.page)));
   el.querySelectorAll("a[href^='http']").forEach(a => a.target = "_blank");
 }
 
@@ -742,6 +749,8 @@ const Explorer = (() => {
       "Wiki": tree.filter(e => /^wiki\/.+\.md$/.test(e.path)),
       "Protocol": tree.filter(e => /^protocol\/.+\.md$/.test(e.path)),
       "Surface": tree.filter(e => /^surface\/.+\.md$/.test(e.path)).slice(-14).reverse(),
+      "Sessions · claude": tree.filter(e => /^sessions\/claude\/.+\.md$/.test(e.path)),
+      "Sessions · gemini": tree.filter(e => /^sessions\/gemini\/.+\.md$/.test(e.path)),
       "Root": tree.filter(e => /^(index|log)\.md$/.test(e.path)),
     };
     root.innerHTML = "";
@@ -753,14 +762,18 @@ const Explorer = (() => {
       det.innerHTML = `<summary>${g} (${items.length})</summary>`;
       const ul = document.createElement("ul");
       if (g !== "Surface") items.sort((a, b) => a.path.localeCompare(b.path)); // Surface stays newest-first
-      items.forEach(e => {
+      if (g.startsWith("Sessions")) items.reverse(); // episodic tier: newest first
+      const build = () => items.forEach(e => {
         const item = document.createElement("li");
-        const label = e.path.replace(/^(wiki|protocol|surface)\//, "").replace(/\.md$/, "");
+        const label = e.path.replace(/^(wiki|protocol|surface|sessions\/\w+)\//, "").replace(/\.md$/, "");
         item.innerHTML = `<span>${label}</span>`;
         item.dataset.path = e.path;
         item.addEventListener("click", ev => { ev.stopPropagation(); openPath(e.path); });
         ul.appendChild(item);
       });
+      if (g.startsWith("Sessions")) { // lazy: 600+ episodic files build on first expand
+        det.addEventListener("toggle", () => { if (det.open && !ul.childElementCount) build(); }, { once: false });
+      } else build();
       det.appendChild(ul); li.appendChild(det); root.appendChild(li);
     }
   }
