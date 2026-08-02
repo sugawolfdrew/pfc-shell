@@ -254,6 +254,9 @@ function setTicker(txt) {
   if (!t) return;
   const unit = " " + txt.toUpperCase() + "  \u2726 ";
   t.textContent = unit.repeat(8); // even repeats -> seamless -50% loop
+  requestAnimationFrame(() => {   // constant crawl: ~28 layout px/sec regardless of content length
+    t.style.animationDuration = Math.max(30, Math.round(t.scrollWidth / 2 / 28)) + "s";
+  });
 }
 
 /* ---------------- Pixel-art icons (Win98 16-color palette) ---------------- */
