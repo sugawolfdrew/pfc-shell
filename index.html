@@ -46,10 +46,12 @@
                pointer-events: none; user-select: none; -webkit-user-select: none;
                font-family: Consolas, Menlo, "DejaVu Sans Mono", "Courier New", monospace;
                font-weight: bold; font-size: clamp(7px, 1.1vw, 13px); line-height: 1.0;
-               background: linear-gradient(115deg, #cfc0ff, #f070d0 30%, #8858d8 55%, #cfc0ff 80%, #f070d0);
+               /* hard-edged bands + a stepped clock: the sweep marches a band at a
+                  time like 8-bit palette cycling, instead of gliding */
+               background: linear-gradient(115deg, #f4ecff 0%, #f4ecff 8.333%, #e6c8f8 8.333%, #e6c8f8 16.67%, #d8a8f0 16.67%, #d8a8f0 25%, #e88ce4 25%, #e88ce4 33.33%, #f070d0 33.33%, #f070d0 41.67%, #d066dc 41.67%, #d066dc 50%, #a868d0 50%, #a868d0 58.33%, #8858d8 58.33%, #8858d8 66.67%, #6a3890 66.67%, #6a3890 75%, #8858d8 75%, #8858d8 83.33%, #a868d0 83.33%, #a868d0 91.67%, #d8a8f0 91.67%, #d8a8f0 100%);
                background-size: 250% 100%;
                -webkit-background-clip: text; background-clip: text; color: transparent;
-               animation: logo-flow 11s linear infinite;
+               animation: logo-flow 9s steps(12, end) infinite;
                filter: drop-shadow(2px 2px 0 #000006); }
   @keyframes logo-flow { from { background-position: 0% 0; } to { background-position: 250% 0; } }
   @media (prefers-reduced-motion: reduce) { #wall-logo { animation: none; } }
