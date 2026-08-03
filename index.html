@@ -1963,20 +1963,29 @@ const Search = (() => {
 
 /* ----- About ----- */
 (() => {
-  APPS.about.onOpen = () => {
+  APPS.about.onOpen = async () => {
     const body = document.querySelector("#win-about .window-body");
-    body.innerHTML = `<div class="md">
+    body.innerHTML = `<div style="padding:10px 4px 0">
       <img src="assets/pfc-logo.png" alt="PFC — a brain, wired to its nodes"
-           style="display:block; width:148px; height:148px; margin:10px auto 6px;
+           style="display:block; width:148px; height:148px; margin:0 auto 6px;
                   image-rendering:pixelated;">
-      <h1 style="text-align:center; margin:0 0 10px">Post Frontal Cortex</h1>
-      <p><b>The face.</b> A data-free shell: your wiki loads straight from the
-      private repo into this browser and nowhere else. All cognition happens in
-      Cowork sessions — a daily heartbeat files what lands in the inbox and
-      writes the Surface.</p>
-      <p>Spine: <code>github.com/sugawolfdrew/PFC</code> · Brain: Cowork ·
-      Memory: the Karpathy LLM-Wiki pattern · Chrome: 98.css</p>
-      <p style="color:#444">v2 M2 — founded 2026-08-02.</p></div>`;
+      <h1 style="text-align:center; font-size:22px; margin:0 0 4px">Post Frontal Cortex</h1>
+      </div>
+      <div id="about-readme"><p style="padding:0 14px; font-family:Arial; font-size:14px;">
+        Reading the spine's README…</p></div>`;
+    WM.status("about", "README.md — live from the spine");
+    try {
+      let md = await getFile("README.md");
+      md = md.replace(/<img[^>]*pfc-logo[^>]*>\s*/g, "")   // the hero above already shows it
+             .replace(/^# PFC[^\n]*\n/m, "")               // and the title
+             .replace(/site\/assets\//g, "assets/");
+      renderMd(md, document.getElementById("about-readme"));
+    } catch (e) {
+      document.getElementById("about-readme").innerHTML = `<div class="md">
+        <p><b>The face.</b> A data-free shell over the private spine at
+        <code>github.com/${CFG.owner}/${CFG.repo}</code>.</p>
+        <p style="color:#800000">Couldn't load README.md — ${e.message}</p></div>`;
+    }
   };
 })();
 
@@ -2146,6 +2155,7 @@ function showLogon(msg) {
 
 /* ---------------- Demo data (public-safe: PFC's own meta pages) ---------------- */
 const DEMO_FILES = {
+"README.md": `# PFC — Post Frontal Cortex\n\nAndrew De Young's second brain and personal OS. A private, plain-markdown wiki maintained by Claude Cowork sessions, with a Windows-98-styled web front end. The system distills scattered inputs — conversations, captures, screenshots, sibling projects — into a compounding wiki, and re-surfaces connections as they emerge.\n\n**If you are a Claude session: read \`protocol/BRAIN.md\` before doing anything.**\n\n## Architecture in one breath\n\n**Spine** — a private repo, the single source of truth. **Brain** — Cowork sessions: a daily cloud heartbeat and interactive deep sessions. **Face** — this shell: zero cognition, all content client-side.\n\n*(Demo excerpt — the live About reads the repo's actual README.)*`,
 "index.md": `# PFC Wiki Index\n\n## Meta / Projects\n- [[post-frontal-cortex]] — this system: spine (repo) + brain (Cowork) + face (98.css).\n- [[facebot]] — constitution-governed sibling protocol.\n\n## Concepts\n- [[karpathy-llm-wiki]] — the memory pattern this wiki implements.\n- [[98-css]] — Windows-98 CSS library; front-end north star.\n- [[cowork-platform-findings]] — measured platform behaviors.\n\n## Sources\n- [[claude-chat-corpus]] — 577 conversations, 2023-11 → 2026-08.\n`,
 "log.md": `# PFC Operations Log\n\n## [2026-08-02] admin | repo founded: protocol/, wiki skeleton, site placeholder\n## [2026-08-02] ingest | facebot docs distilled → wiki/facebot.md, wiki/cowork-platform-findings.md\n## [2026-08-02] ingest | chat export analyzed (577 convs) → wiki/claude-chat-corpus.md\n## [2026-08-02] surface | inaugural: 1 connection, 0 proposals\n## [2026-08-02] heartbeat | quiet — no inbox, no new raw\n`,
 "raw/chat-exports/PROCESSED.md": `# Backfill manifest\n\n28 months total.\n2026-04 | 54 convs | done 2026-08-09 | pages touched: 12\n2025-07 | 53 convs | done 2026-08-11 | pages touched: 9\n2025-08 | 47 convs | done 2026-08-12 | pages touched: 7\n`,
