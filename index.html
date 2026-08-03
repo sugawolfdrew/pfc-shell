@@ -199,6 +199,24 @@
     to   { clip-path: inset(0 0 0 0); }
   }
 
+  /* Inquest.exe — the docket */
+  .gate { border: 2px groove #dfdfdf; margin: 0 0 8px; padding: 8px 10px 10px;
+          font-family: Arial; font-size: 14px; background: #fff; }
+  .gate .gid { font-size: 11px; color: #555; letter-spacing: 1px; }
+  .gate .gid b { color: #000080; }
+  .gate .gq { font-weight: bold; margin: 4px 0 8px; font-size: 15px; }
+  .gate .side { margin: 0 0 6px; padding: 5px 8px; background: #f0f0f0;
+                box-shadow: inset -1px -1px #fff, inset 1px 1px #b0b0b0; }
+  .gate .side b { color: #000080; }
+  .gate .ev { font-size: 12px; color: #444; margin: 6px 0 8px; }
+  .gate .ev a { color: #000080; }
+  .gate .acts { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+  .gate .acts button { min-width: 62px; }
+  .gate textarea { width: 100%; box-sizing: border-box; margin: 6px 0 0;
+                   font-family: Arial; font-size: 14px; }
+  .gate.ruled { opacity: .55; }
+  #inq-empty { padding: 14px; font-family: Arial; font-size: 14px; }
+  .flag-btn { margin-left: auto; }
   /* Oracle.exe, skinned as the Haruspex (Spex's diviner) */
   #oracle-mast { margin: 0 6px; padding: 3px 8px; text-align: center;
                  font-family: Arial; font-size: 11px; font-weight: bold;
@@ -537,6 +555,23 @@ const ART = {
     ".kkkkkkkkkkkkk..",
     "..y..........y..",
     "................"],
+  inquest: [
+    "................",
+    "..wwwwwwwwww....",
+    "..wkkkkkkkkw....",
+    "..wkwwwwwkkw....",
+    "..wkwkkkwkkw..k.",
+    "..wkwwwwwkkw.kY.",
+    "..wkwkkkwkkwkYk.",
+    "..wkwwwwwkkkYk..",
+    "..wkwkkkwkYYk...",
+    "..wkwwwwwYYk....",
+    "..wkkkkkYYk.....",
+    "..wwwwwYYk......",
+    "....kkYYk.......",
+    "....kYYk........",
+    "....kkk.........",
+    "................"],
   settings: [
     "................",
     ".kkkkkkkkkkkkkk.",
@@ -647,13 +682,14 @@ async function putFileSha(path, content, message, sha) { // sha = edit watcher: 
   });
   cache.tree = null; cache.files.delete(path);
 }
-async function putCapture(text, kind = "web") {
+async function putCapture(text, kind = "web", meta = null) {
   const now = new Date();
   const pad = n => String(n).padStart(2, "0");
   const stamp = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
   const hm = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
   const path = `inbox/${stamp}-${hm}-${kind}.md`;
-  const body = `---\ncaptured: ${now.toISOString()}\nvia: ${kind}\n${kind === "oracle" ? "type: question\n" : ""}---\n${text.trim()}\n`;
+  const extra = meta ? Object.entries(meta).map(([k, v]) => `${k}: ${v}\n`).join("") : "";
+  const body = `---\ncaptured: ${now.toISOString()}\nvia: web\n${kind === "oracle" ? "type: question\n" : ""}${extra}---\n${text.trim()}\n`;
   if (DEMO) { await new Promise(r => setTimeout(r, 400)); return path + " (demo — not saved)"; }
   await gh(`/repos/${CFG.owner}/${CFG.repo}/contents/${path}`, {
     method: "PUT",
@@ -1382,6 +1418,7 @@ const APPS = {
   changes: { title: "Recent Changes" },
   search: { title: "Search" },
   oracle: { title: "Oracle.exe" },
+  inquest: { title: "Inquest.exe" },
   why: { title: "why.exe" },
   settings: { title: "Settings" },
   about: { title: "About PFC" },
@@ -1582,6 +1619,14 @@ const Explorer = (() => {
     current = path;
     if (/^wiki\//.test(path)) {
       const slug = path.slice(5, -3);
+      const bar = document.createElement("div");
+      bar.style.cssText = "padding:8px 14px 2px; display:flex;";
+      const flag = document.createElement("button");
+      flag.className = "flag-btn"; flag.textContent = "\u2691 Flag this page";
+      flag.title = "Tell the brain this page is wrong — it fixes it on the next beat";
+      flag.onclick = () => flagPage(path, view);
+      bar.appendChild(flag);
+      view.appendChild(bar);
       backlinksFor(slug).then(bl => {
         if (current !== path) return; // user already navigated elsewhere
         const div = document.createElement("div");
@@ -1596,6 +1641,42 @@ const Explorer = (() => {
       });
     }
     WM.status("explorer", path);
+  }
+
+  function flagPage(path, view) {
+    if (view.querySelector(".flag-box")) return;
+    const box = document.createElement("div");
+    box.className = "flag-box";
+    box.style.cssText = "margin:4px 14px 14px; padding:8px; background:#c0c0c0;" +
+      "box-shadow: inset -1px -1px #808080, inset 1px 1px #fff;";
+    box.innerHTML = `
+      <p style="margin:0 0 6px; font-family:Arial; font-size:13px;">
+        What's wrong on <b>${path}</b>? Say what it should be if you know —
+        the brain applies it on the next beat, supersedes the old claim, and chases
+        the same error across every other page.</p>
+      <textarea rows="3" style="width:100%; box-sizing:border-box; font-family:Arial; font-size:14px;"
+                placeholder="e.g. the rate was $40/hr the whole time, not $42"></textarea>
+      <div style="display:flex; gap:4px; justify-content:flex-end; margin-top:6px;">
+        <button class="default">Send flag</button><button data-x>Cancel</button></div>`;
+    view.appendChild(box);
+    const ta = box.querySelector("textarea"); ta.focus();
+    box.querySelector("[data-x]").onclick = () => box.remove();
+    box.querySelector(".default").onclick = async () => {
+      const text = ta.value.trim();
+      if (!text) { ta.focus(); return; }
+      box.querySelectorAll("button").forEach(b => b.disabled = true);
+      WM.status("explorer", "Filing the flag\u2026");
+      try {
+        await putCapture(text, "flag", { type: "flag", page: path });
+        box.innerHTML = `<p style="margin:0; font-family:Arial; font-size:13px; color:#000080">
+          <b>\u2691 Flagged.</b> The next beat corrects it and reports what changed
+          \u2014 pending flags are listed in Inquest.exe.</p>`;
+        WM.status("explorer", "Flag filed \u2014 the brain fixes it next beat");
+      } catch (e) {
+        box.querySelectorAll("button").forEach(b => b.disabled = false);
+        WM.status("explorer", e.message === "rate" ? "GitHub rate limit \u2014 try again in a minute." : "Could not file \u2014 " + e.message);
+      }
+    };
   }
 
   function openPage(slug) {
@@ -1897,6 +1978,146 @@ const Search = (() => {
       q.onkeydown = e => { if (e.key === "Enter") btn.click(); };
     }
     render().catch(err);
+  };
+})();
+
+/* ----- Inquest.exe: the brain asks Andrew. Oracle.exe is the other direction. ----- */
+(() => {
+  const KINDS = { contradiction: "CONTRADICTION", proposal: "PROPOSAL",
+                  verification: "VERIFICATION", decision: "DECISION" };
+  function parseDocket(md) {
+    const out = [];
+    for (const block of md.split(/^## /m).slice(1)) {
+      const head = block.split("\n")[0].trim();
+      const bits = head.split("·").map(x => x.trim());
+      const g = { id: bits[0] || "", kind: (bits[1] || "").toLowerCase(), scope: bits.slice(2).join(" · ") };
+      const grab = k => {
+        const m = block.match(new RegExp("^\\*\\*" + k + ":\\*\\*\\s*([\\s\\S]*?)(?=\\n\\*\\*|$)", "m"));
+        return m ? m[1].trim() : "";
+      };
+      g.q = grab("Q"); g.a = grab("A"); g.b = grab("B");
+      g.ev = grab("Evidence"); g.raised = grab("Raised");
+      if (g.id) out.push(g);
+    }
+    return out;
+  }
+  const linkify = t => t.replace(/\[\[([^\]|]+)\]\]/g, (_, n) => {
+    const path = n.includes("/") ? (n.endsWith(".md") ? n : n + ".md") : `wiki/${n}.md`;
+    return `<a class="wikilink" data-path="${path}">${n.split("/").pop()}</a>`;
+  }).replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+
+  async function render(tab) {
+    const body = document.querySelector("#win-inquest .window-body");
+    const list = body.querySelector("#inq-list");
+    body.querySelectorAll("menu[role=tablist] li").forEach(li =>
+      li.setAttribute("aria-selected", li.dataset.tab === tab ? "true" : "false"));
+    list.innerHTML = `<div id="inq-empty">Reading the docket…</div>`;
+    if (tab === "open") {
+      let md = "";
+      try { md = await getFile("gates/open.md", true); } catch (e) {
+        list.innerHTML = `<div id="inq-empty">No docket yet — <code>gates/open.md</code> appears when the brain raises its first matter.</div>`;
+        WM.status("inquest", "docket empty"); return;
+      }
+      const gates = parseDocket(md);
+      if (!gates.length) {
+        list.innerHTML = `<div id="inq-empty">Nothing awaiting you. The brain has no open questions.</div>`;
+        WM.status("inquest", "0 open"); return;
+      }
+      list.innerHTML = "";
+      for (const g of gates) {
+        const el = document.createElement("div");
+        el.className = "gate"; el.dataset.gid = g.id;
+        const sides = g.b
+          ? `<div class="side"><b>A ·</b> ${linkify(g.a)}</div><div class="side"><b>B ·</b> ${linkify(g.b)}</div>`
+          : `<div class="side">${linkify(g.a)}</div>`;
+        el.innerHTML = `
+          <div class="gid"><b>${KINDS[g.kind] || g.kind.toUpperCase()}</b> · ${g.id} · ${g.scope}</div>
+          <div class="gq">${linkify(g.q)}</div>
+          ${sides}
+          ${g.ev ? `<div class="ev">↳ ${linkify(g.ev)}</div>` : ""}
+          <div class="acts">
+            ${g.b ? `<button data-r="a">A is right</button><button data-r="b">B is right</button>
+                     <button data-r="both">Both</button>` : `<button data-r="a">Approve</button>`}
+            <button data-r="neither">${g.b ? "Neither" : "Decline"}</button>
+            <button data-r="defer">Later</button>
+          </div>
+          <textarea rows="2" placeholder="Add a note — required if you pick Neither…"></textarea>`;
+        el.querySelectorAll(".acts button").forEach(btn => btn.onclick = async () => {
+          const note = el.querySelector("textarea").value.trim();
+          if (btn.dataset.r === "neither" && !note) {
+            WM.status("inquest", "Neither needs a note — tell it what's actually true.");
+            el.querySelector("textarea").focus(); return;
+          }
+          el.querySelectorAll("button").forEach(b => b.disabled = true);
+          WM.status("inquest", `Filing ruling on ${g.id}…`);
+          try {
+            await putCapture(note || "(no note)", "gate",
+              { type: "ruling", gate: g.id, ruling: btn.dataset.r });
+            el.classList.add("ruled");
+            el.querySelector(".acts").innerHTML =
+              `<span style="color:#000080"><b>✓ ruled ${btn.dataset.r}</b> — the next beat applies it</span>`;
+            el.querySelector("textarea").remove();
+            WM.status("inquest", `${g.id} ruled ${btn.dataset.r} · applied on the next beat`);
+          } catch (e) {
+            el.querySelectorAll("button").forEach(b => b.disabled = false);
+            WM.status("inquest", e.message === "rate" ? "GitHub rate limit — try again in a minute." : "Could not file — " + e.message);
+          }
+        });
+        list.appendChild(el);
+      }
+      WM.status("inquest", `${gates.length} awaiting your ruling`);
+    } else {
+      const tree = await getTree(true);
+      const want = tab === "flags" ? /-flag\.md$/ : /-gate\.md$/;
+      const paths = tree.filter(e => want.test(e.path) &&
+                    /^inbox\//.test(e.path)).map(e => e.path).sort().reverse().slice(0, 25);
+      if (!paths.length) {
+        list.innerHTML = `<div id="inq-empty">${tab === "flags"
+          ? "No flags pending. Flag a wrong page from the Explorer — the ⚑ button by its title."
+          : "No rulings pending. Rulings you file appear here until the next beat applies them."}</div>`;
+        WM.status("inquest", "none pending"); return;
+      }
+      list.innerHTML = "";
+      for (const path of paths) {
+        const el = document.createElement("div");
+        el.className = "gate";
+        try {
+          const raw = await getFile(path);
+          const { meta, body: txt } = splitFrontmatter(raw);
+          const head = meta.page ? `FLAG · ${meta.page}` : `RULING · ${meta.gate || ""} · ${meta.ruling || ""}`;
+          el.innerHTML = `<div class="gid"><b>${head}</b> · ${(meta.captured || "").slice(0, 16).replace("T", " ")}</div>
+                          <div style="margin-top:6px">${linkify(txt.trim() || "(no note)")}</div>
+                          <div class="ev">pending — the next beat applies it</div>`;
+        } catch (e) { el.textContent = path; }
+        list.appendChild(el);
+      }
+      WM.status("inquest", `${paths.length} pending`);
+    }
+    list.querySelectorAll("a.wikilink").forEach(a => a.addEventListener("click", () => {
+      WM.show("explorer"); Explorer.openPath(a.dataset.path);
+    }));
+  }
+
+  APPS.inquest.onOpen = () => {
+    const body = document.querySelector("#win-inquest .window-body");
+    if (!body.dataset.ready) {
+      body.dataset.ready = 1;
+      body.classList.remove("white");
+      body.innerHTML = `
+        <menu role="tablist" style="margin:4px 6px 0">
+          <li role="tab" data-tab="open" aria-selected="true"><a href="#">Open</a></li>
+          <li role="tab" data-tab="flags"><a href="#">My flags</a></li>
+          <li role="tab" data-tab="rulings"><a href="#">Filed</a></li>
+        </menu>
+        <div class="window" role="tabpanel" style="margin:0 6px 6px; height:calc(100% - 40px);
+             display:flex; flex-direction:column;">
+          <div id="inq-list" style="overflow:auto; flex:1; background:#c0c0c0; padding:8px;"></div>
+        </div>`;
+      body.querySelectorAll("menu[role=tablist] li").forEach(li =>
+        li.addEventListener("click", e => { e.preventDefault(); render(li.dataset.tab).catch(err); }));
+    }
+    render("open").catch(err);
   };
 })();
 
@@ -2331,6 +2552,7 @@ function buildWindows() {
   WM.make("changes", "Recent Changes", 560, 380, cascade(3) + 140, 130);
   WM.make("search", "Search", 480, 420, cascade(4) + 200, 90);
   WM.make("oracle", "Oracle.exe", Math.min(540, W - 40), 480, cascade(5) + 260, 60);
+  WM.make("inquest", "Inquest.exe", Math.min(600, W - 40), 520, cascade(6) + 150, 70);
   WM.make("why", "why.exe", Math.min(640, W - 40), 540, cascade(6) + 220, 50);
   WM.make("settings", "Settings", 350, 500, cascade(7) + 260, 60);
   WM.make("about", "About PFC", 400, 560, cascade(8) + 300, 40);
@@ -2380,6 +2602,22 @@ function showLogon(msg) {
 
 /* ---------------- Demo data (public-safe: PFC's own meta pages) ---------------- */
 const DEMO_FILES = {
+"gates/open.md": `# Open gates — matters awaiting Andrew's ruling
+
+## G-2026-08-03-01 · contradiction · wiki/celeste.md
+**Q:** Does Celeste write original Japanese-language songs, with you as her translator?
+**A:** Yes — in the 2025-09-24 session you say "these are original compositions by my wife, she's given me permission to translate."
+**B:** No — on 2026-08-02 you corrected the backfill directly: she is not a Japanese music producer.
+**Evidence:** [[celeste]] · [[japanese-music]]
+**Raised:** 2026-08-03 by granularity pass
+
+## G-2026-08-03-03 · verification · wiki/financial-precarity.md
+**Q:** Is the contract rate $40/hr or $42/hr — did it change, or was one a rounding?
+**A:** $42/hr — stated 2026-01-17 when you worked out take-home pay.
+**B:** $40/hr — the figure you used yourself in the 2026-07-22 hours audit.
+**Evidence:** [[financial-precarity]]
+**Raised:** 2026-08-03 by granularity pass
+`,
 "README.md": `# PFC — Post Frontal Cortex\n\nAndrew De Young's second brain and personal OS. A private, plain-markdown wiki maintained by Claude Cowork sessions, with a Windows-98-styled web front end. The system distills scattered inputs — conversations, captures, screenshots, sibling projects — into a compounding wiki, and re-surfaces connections as they emerge.\n\n**If you are a Claude session: read \`protocol/BRAIN.md\` before doing anything.**\n\n## Architecture in one breath\n\n**Spine** — a private repo, the single source of truth. **Brain** — Cowork sessions: a daily cloud heartbeat and interactive deep sessions. **Face** — this shell: zero cognition, all content client-side.\n\n*(Demo excerpt — the live About reads the repo's actual README.)*`,
 "index.md": `# PFC Wiki Index\n\n## Meta / Projects\n- [[post-frontal-cortex]] — this system: spine (repo) + brain (Cowork) + face (98.css).\n- [[facebot]] — constitution-governed sibling protocol.\n\n## Concepts\n- [[karpathy-llm-wiki]] — the memory pattern this wiki implements.\n- [[98-css]] — Windows-98 CSS library; front-end north star.\n- [[cowork-platform-findings]] — measured platform behaviors.\n\n## Sources\n- [[claude-chat-corpus]] — 577 conversations, 2023-11 → 2026-08.\n`,
 "log.md": `# PFC Operations Log\n\n## [2026-08-02] admin | repo founded: protocol/, wiki skeleton, site placeholder\n## [2026-08-02] ingest | facebot docs distilled → wiki/facebot.md, wiki/cowork-platform-findings.md\n## [2026-08-02] ingest | chat export analyzed (577 convs) → wiki/claude-chat-corpus.md\n## [2026-08-02] surface | inaugural: 1 connection, 0 proposals\n## [2026-08-02] heartbeat | quiet — no inbox, no new raw\n`,
