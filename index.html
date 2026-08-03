@@ -2,6 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<!-- Invariant 11, enforced by the browser rather than by hope. The app is one inline
+     script, so script-src cannot be strict without a build-step hash — but connect-src
+     and img-src are the ones that carry the weight: even if injected markup runs, it
+     has nowhere to send the token. frame-src none kills embeds that arrived inside
+     ingested transcripts. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.github.com https://api.open-meteo.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#008080">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1099,12 +1105,42 @@ function renderMd(md, el) {
       const exists = cache.tree && cache.tree.some(e => e.path === `wiki/${slug}.md`);
       return `<a class="wikilink${exists ? "" : " missing"}" data-page="${slug}">${name}</a>`;
     })).join("");
+  /* Untrusted content is data, not markup (Invariant 11). Wiki pages, sessions and
+     captures are markdown, but the corpus already contains raw HTML that arrived
+     inside ingested transcripts — live <iframe> embeds among it. marked does not
+     sanitize (the option was removed in v5) and this page holds a GitHub token, so
+     everything rendered goes through here first. A <template> is inert: assigning to
+     its innerHTML neither executes script nor fetches resources, so the scrub happens
+     before anything can fire. */
+  const VOID_TAGS = new Set(["SCRIPT","IFRAME","OBJECT","EMBED","FORM","LINK","META",
+                             "STYLE","BASE","APPLET","FRAME","FRAMESET"]);
+  /* shared escaper — several modules define a local `esc` that shadows this; the ones
+     that don't (Inquest, Recent Changes) use it directly. */
+  window.escHtml = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                                 .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  function scrubHtml(dirty) {
+    const tpl = document.createElement("template");
+    tpl.innerHTML = dirty;
+    for (const el of [...tpl.content.querySelectorAll("*")]) {
+      if (VOID_TAGS.has(el.tagName)) { el.remove(); continue; }
+      for (const a of [...el.attributes]) {
+        const n = a.name.toLowerCase(), v = (a.value || "").trim();
+        // every on* handler, and any url scheme that can execute
+        if (n.startsWith("on") || n === "srcdoc" ||
+            ((n === "href" || n === "src" || n === "xlink:href" || n === "action") &&
+             /^\s*(javascript|vbscript)\s*:/i.test(v)) ||
+            (n === "src" && /^\s*data\s*:/i.test(v) && !/^\s*data:image\//i.test(v)))
+          el.removeAttribute(a.name);
+      }
+    }
+    return tpl.innerHTML;
+  }
   let chips = "";
   ["type", "created", "updated", "tags"].forEach(k => {
     if (meta[k]) chips += `<span class="frontmatter-chip">${k}: ${meta[k].replace(/[\[\]]/g, "")}</span>`;
   });
   el.innerHTML = (chips ? `<div style="padding:8px 14px 0">${chips}</div>` : "") +
-                 `<div class="md">${html}</div>`;
+                 `<div class="md">${scrubHtml(html)}</div>`;
   el.querySelectorAll("a.wikilink").forEach(a =>
     a.addEventListener("click", () => a.dataset.path
       ? (WM.show("explorer"), Explorer.openPath(a.dataset.path))
@@ -1422,7 +1458,7 @@ const WALL = (() => {
      The hills show the actual sky: cloud cover -> cloud count, rain rains,
      fog banks the horizon, wind drives the drift, birds sit storms out. ----*/
   let WX = { code: 1, clouds: 35, wind: 10, ts: 0 };
-  const WX_LOC = { lat: 37.93, lon: -121.70 };
+  const WX_LOC = { lat: 37.9, lon: -121.7 }; // one decimal on purpose: same forecast, ~11km instead of ~1km
   const FORCE_WX = new URLSearchParams(location.search).get("wx");
   const FORCE_MOON = parseFloat(new URLSearchParams(location.search).get("moon"));
   const isRain = c => (c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95;
@@ -2800,7 +2836,7 @@ const Explorer = (() => {
         the next pulse applies it — within the hour — supersedes the old claim, and chases
         the same error across every other page.</p>
       <textarea rows="3" style="width:100%; box-sizing:border-box; font-family:Arial; font-size:14px;"
-                placeholder="e.g. the rate was $40/hr the whole time, not $42"></textarea>
+                placeholder="e.g. this date is wrong — it was March, not May"></textarea>
       <div style="display:flex; gap:4px; justify-content:flex-end; margin-top:6px;">
         <button class="default">Send flag</button><button data-x>Cancel</button></div>`;
     view.appendChild(box);
@@ -3953,7 +3989,7 @@ const Explorer = (() => {
     const rows = cats ? ops.filter(o => cats.includes(o[2])) : ops;
     body.querySelector("#log-list").innerHTML = rows.map(m => `
       <div class="log-line"><span class="d">${m[1]}</span>
-        <span class="p">${m[2]}</span><span>${m[3]}</span></div>`).join("")
+        <span class="p">${m[2]}</span><span>${escHtml(m[3])}</span></div>`).join("")
       || "<div class='md'><p>Nothing in this category yet.</p></div>";
     body.querySelectorAll("[role=tab]").forEach(li =>
       li.setAttribute("aria-selected", li.dataset.tab === cur));
@@ -4132,7 +4168,7 @@ const Search = (() => {
     }
     return out;
   }
-  const linkify = t => t.replace(/\[\[([^\]|]+)\]\]/g, (_, n) => {
+  const linkify = t => escHtml(t).replace(/\[\[([^\]|]+)\]\]/g, (_, n) => {
     const path = n.includes("/") ? (n.endsWith(".md") ? n : n + ".md") : `wiki/${n}.md`;
     return `<a class="wikilink" data-path="${path}">${n.split("/").pop()}</a>`;
   }).replace(/`([^`]+)`/g, "<code>$1</code>")
@@ -4218,7 +4254,7 @@ const Search = (() => {
           const { meta, body: txt } = splitFrontmatter(raw);
           const head = meta.page ? `FLAG · ${meta.page}` : `RULING · ${meta.gate || ""} · ${meta.ruling || ""}`;
           el.innerHTML = `<div class="gid"><b>${head}</b> · ${(meta.captured || "").slice(0, 16).replace("T", " ")}</div>
-                          <div style="margin-top:6px">${linkify(txt.trim() || "(no note)")}</div>
+                          <div style="margin-top:6px">${scrubHtml(linkify(txt.trim() || "(no note)"))}</div>
                           <div class="ev">pending — the pulse applies it within the hour</div>`;
         } catch (e) { el.textContent = path; }
         list.appendChild(el);
