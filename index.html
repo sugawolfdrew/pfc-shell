@@ -51,8 +51,8 @@
                 box-shadow: inset -1px -1px #808080, inset 1px 1px #fff, 1px 1px 0 #000; }
   .mon .base { width: 84px; height: 7px; background: #c0c0c0; margin: 0 auto;
                box-shadow: inset -1px -1px #808080, inset 1px 1px #fff, 1px 1px 0 #000; }
-  .desktop-icons { position: absolute; top: 8px; left: 8px; display: flex;
-                   flex-direction: column; gap: 14px; }
+  .desktop-icons { position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+                   display: flex; flex-direction: column; gap: 14px; }
   .desktop-icon { width: 84px; text-align: center; color: white; cursor: pointer;
                   user-select: none; -webkit-user-select: none; }
   .desktop-icon .ico { height: 32px; }
@@ -224,7 +224,8 @@
     ul.tree-view { line-height: 2.1; font-size: 15px; }
     ul.tree-view li { padding: 1px 0; }
     .toolbar { flex-wrap: wrap; }
-    .desktop-icons { flex-direction: row; flex-wrap: wrap; top: auto; bottom: 40px; }
+    .desktop-icons { flex-direction: row; flex-wrap: wrap; top: auto; bottom: 40px;
+                     left: 8px; right: 8px; transform: none; justify-content: center; }
   }
 </style>
 </head>
@@ -1024,15 +1025,19 @@ const WALL = (() => {
       g.fillRect(0, y, W, 1);
     }
     g.fillStyle = "#00e8d8"; g.fillRect(0, hor, W, 1); // horizon glow
-    // logotype, top right, on the deep end of the ombre — node colors, chrome sweep
-    const NODE = ["#ff4848", "#ffe040", "#48e858", "#c070ff", "#40d8f8"];
+    // logotype, top right, on the deep end of the ombre — chrome letters,
+    // and the color rides the sweep: a magenta-violet band passing through
     const lsc = Math.max(1, Math.min(3, Math.floor((W * 0.7) / 36)));
     const tw = 5 * 6 * lsc - lsc;
     const lx = W - tw - 4 - lsc, ly = 4 + lsc;
-    const sweep = ((t % 110) / 110) * (tw + 26 * lsc) - 13 * lsc;
+    const sweep = ((t % 110) / 110) * (tw + 34 * lsc) - 17 * lsc;
     drawText(g, "PFC98", lx, ly, lsc, (gi, px, py) => {
-      const rel = (px - lx - sweep) + (py - ly) * 0.6;
-      return Math.abs(rel) < 1.7 * lsc ? "#ffffff" : NODE[gi];
+      const rel = Math.abs((px - lx - sweep) + (py - ly) * 0.6);
+      if (rel < 0.9 * lsc) return "#ffe8fa";
+      if (rel < 1.9 * lsc) return "#f070d0";
+      if (rel < 2.9 * lsc) return "#9058d8";
+      const row = (py - ly) / lsc; // chrome: bright crown fading to cool lavender
+      return row < 2.5 ? "#f4f2f8" : row < 4.5 ? "#cfc8e8" : "#a49cc4";
     }, "#000006");
   }
 
