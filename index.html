@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#008080">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Postfrontal Cortex</title>
+<title>Postfrontal Cortex 98</title>
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="apple-touch-icon" href="assets/pfc-touch.png">
 <!-- Vendored assets: no CDN dependency, works offline, loads fast -->
@@ -163,6 +163,12 @@
   .tree-collapsed #explorer-tree { display: none; }
   .tree-collapsed #explorer-left { width: auto; }
   #explorer-view { flex: 1; overflow: auto; background: #fff; margin: 2px 2px 2px 0; }
+  /* The vendored MS Sans Serif is a bitmap face: crisp only at its native size,
+     and this shell runs a global zoom. Chrome (title bars, buttons, menus, status
+     bars) keeps it — that's the period look. Surfaces you READ and TYPE in get a
+     scalable face instead, so they stay smooth at any zoom. */
+  ul.tree-view, .window-body textarea, .window-body input, #win-search input,
+  #explorer-view, .status-bar { font-family: Arial, Helvetica, sans-serif; }
   ul.tree-view { border: none; box-shadow: none; }
   ul.tree-view li { cursor: pointer; }
   ul.tree-view li.sel > span { background: #000080; color: #fff; }
@@ -287,7 +293,7 @@
 <div id="logon" class="hidden">
   <div class="window">
     <div class="title-bar">
-      <div class="title-bar-text">Welcome to Postfrontal Cortex</div>
+      <div class="title-bar-text">Welcome to Postfrontal Cortex 98</div>
     </div>
     <div class="window-body">
       <div class="intro">
@@ -1467,14 +1473,14 @@ const WM = (() => {
 const APPS = {
   surface: { title: "Surface.exe" },
   explorer: { title: "Wiki Explorer" },
-  note: { title: "New Note" },
+  note: { title: "Notepad+++" },
   changes: { title: "Recent Changes" },
   search: { title: "Search" },
   oracle: { title: "Oracle.exe" },
   inquest: { title: "Inquest.exe" },
   why: { title: "why.exe" },
   settings: { title: "Settings" },
-  about: { title: "About PFC" },
+  about: { title: "About PFC98" },
 };
 
 /* ----- Surface.exe ----- */
@@ -1563,7 +1569,7 @@ const Surface = (() => {
         .replace(/\[\[|\]\]|\*\*/g, "").replace(/\s+/g, " ").slice(0, 160);
       const pulse = (md.match(/^## Pulse\n(.+)$/m) || [,""])[1];
       setTicker([pulse, conn && ("LATEST: " + conn)].filter(Boolean).join("  \u2726  ") ||
-                "Postfrontal Cortex \u2014 it remembers for you, and brings the right thing back");
+                "Postfrontal Cortex 98 \u2014 it remembers for you, and brings the right thing back");
     } catch (e) {}
   }
   APPS.surface.onOpen = () => render().catch(err);
@@ -2494,31 +2500,48 @@ const Search = (() => {
   };
 })();
 
-/* ----- About ----- */
+/* ----- About PFC98 ----- */
 (() => {
-  APPS.about.onOpen = async () => {
+  APPS.about.onOpen = () => {
     const body = document.querySelector("#win-about .window-body");
     body.innerHTML = `<div style="padding:10px 4px 0">
-      <img src="assets/pfc-logo.png" alt="PFC — a brain, wired to its nodes"
-           style="display:block; width:148px; height:148px; margin:0 auto 6px;
-                  image-rendering:pixelated;">
-      <h1 style="text-align:center; font-size:22px; margin:0 0 4px">Postfrontal Cortex</h1>
+      <img src="assets/pfc-logo.png" alt="" style="display:block; width:132px; height:132px;
+           margin:0 auto 6px; image-rendering:pixelated;">
+      <h1 style="text-align:center; font-size:21px; margin:0">Postfrontal Cortex 98</h1>
+      <p style="text-align:center; margin:2px 0 0; font-family:Arial; font-size:12px; color:#444">
+        Version 2.0 &nbsp;·&nbsp; Build 2026-08-03 &nbsp;·&nbsp; Andrew De Young</p>
       </div>
-      <div id="about-readme"><p style="padding:0 14px; font-family:Arial; font-size:14px;">
-        Reading the spine's README…</p></div>`;
-    WM.status("about", "README.md — live from the spine");
-    try {
-      let md = await getFile("README.md");
-      md = md.replace(/<img[^>]*pfc-logo[^>]*>\s*/g, "")   // the hero above already shows it
-             .replace(/^# PFC[^\n]*\n/m, "")               // and the title
-             .replace(/site\/assets\//g, "assets/");
-      renderMd(md, document.getElementById("about-readme"));
-    } catch (e) {
-      document.getElementById("about-readme").innerHTML = `<div class="md">
-        <p><b>The face.</b> A data-free shell over the private spine at
-        <code>github.com/${CFG.owner}/${CFG.repo}</code>.</p>
-        <p style="color:#800000">Couldn't load README.md — ${e.message}</p></div>`;
-    }
+      <div class="md" style="padding:0 14px 14px">
+      <hr>
+      <p><b>A second brain that gives things back.</b></p>
+
+      <p>Three years of thinking-out-loud with Claude — plus captures, exports, and
+      whatever else gets dropped in — distilled into one wiki of plain markdown pages
+      that link to each other. It lives in a private repository. Scheduled Claude
+      sessions tend it on their own clock: filing what arrived, hunting for connections
+      between this week and 2024, leaving a brief in the morning.</p>
+
+      <p>The problem was never storage. Notes apps store, which is why they fill up and
+      go quiet. This one is built for the opposite motion — the moment it says
+      <i>you screenshotted a ceramics studio in March, and last night you asked about
+      kiln temperatures.</i> Storage is table stakes. Re-emergence is the product.</p>
+
+      <p><b>The bet.</b> No embeddings, no vector database. The memory is a wiki the
+      model reads the way a person would: index, follow the links, grep when it must.
+      Run head-to-head against conventional retrieval over the same corpus, it scored
+      <b>32/32 against 19/32</b> — and cost less per question. Near-tied on single
+      facts; the gap doubles on synthesis; on anything that unfolded over time it isn't
+      close.</p>
+
+      <p><b>Requires</b> a browser. <b>Runs on</b> a monthly plan rather than a metered
+      API. <b>Stores</b> nothing here: this window is glass. The wiki loads from the
+      repository into this tab and goes no further — no server of ours ever sees it.</p>
+
+      <p style="color:#444; font-size:13px">Spine: <code>github.com/sugawolfdrew/PFC</code>
+      &nbsp;·&nbsp; Brain: Claude Cowork &nbsp;·&nbsp; Memory: the Karpathy LLM-Wiki
+      pattern &nbsp;·&nbsp; Chrome: 98.css</p>
+      </div>`;
+    WM.status("about", "Postfrontal Cortex 98 \u2014 PFC98");
   };
 })();
 
@@ -2635,14 +2658,14 @@ function buildWindows() {
   const W = Math.round(innerWidth / Z), cascade = (i) => 90 + i * 26;
   WM.make("surface", "Surface.exe", Math.min(560, W - 40), 520, cascade(0) + 90, 40);
   WM.make("explorer", "Wiki Explorer", Math.min(720, W - 40), 500, cascade(1) + 60, 70);
-  WM.make("note", "New Note", 380, 300, cascade(2) + 240, 110);
+  WM.make("note", "Notepad+++", 380, 300, cascade(2) + 240, 110);
   WM.make("changes", "Recent Changes", 560, 380, cascade(3) + 140, 130);
   WM.make("search", "Search", 480, 420, cascade(4) + 200, 90);
   WM.make("oracle", "Oracle.exe", Math.min(540, W - 40), 480, cascade(5) + 260, 60);
   WM.make("inquest", "Inquest.exe", Math.min(600, W - 40), 520, cascade(6) + 150, 70);
   WM.make("why", "why.exe", Math.min(640, W - 40), 540, cascade(6) + 220, 50);
   WM.make("settings", "Settings", 350, 500, cascade(7) + 260, 60);
-  WM.make("about", "About PFC", 400, 560, cascade(8) + 300, 40);
+  WM.make("about", "About PFC98", 400, 560, cascade(8) + 300, 40);
 }
 
 async function boot() {
@@ -2726,7 +2749,7 @@ const DEMO_FILES = {
 "protocol/BRAIN.md": `# BRAIN.md — the PFC genome (demo excerpt)\n\nEvery session loads this file first. The repo is the brain's only memory.\n\n## Invariants (excerpt)\n1. raw/ is immutable.\n2. Log everything, append-only.\n3. Silence over noise.\n4. Human gate on merges and deletions.\n5. Supersede, don't decay.\n`,
 };
 
-setTicker("Postfrontal Cortex \u2014 it remembers for you, and brings the right thing back");
+setTicker("Postfrontal Cortex 98 \u2014 it remembers for you, and brings the right thing back");
 /* boot */
 window.addEventListener("error", e => console.error("[pfc]", e.message));
 boot();
