@@ -1562,7 +1562,22 @@ const Explorer = (() => {
       li.classList.toggle("sel", li.dataset.path === path));
     const view = document.getElementById("explorer-view");
     const md = await getFile(path);
-    renderMd(md, view);
+    const PREVIEW = 3200; // ~500 words; sessions render a preview, expand on demand
+    if (/^sessions\//.test(path) && md.length > PREVIEW + 800) {
+      let cut = md.indexOf("\n**", PREVIEW);
+      if (cut === -1) cut = PREVIEW;
+      renderMd(md.slice(0, cut) + "\n\n*…preview — the full session is below the fold.*", view);
+      const btn = document.createElement("button");
+      btn.textContent = `Show the whole session (${Math.round(md.length / 1000)} KB)`;
+      btn.style.cssText = "margin:4px 14px 14px; display:block;";
+      btn.onclick = () => {
+        renderMd(md, view);
+        WM.status("explorer", path + " — complete");
+      };
+      view.appendChild(btn);
+    } else {
+      renderMd(md, view);
+    }
     view.scrollTop = 0;
     current = path;
     if (/^wiki\//.test(path)) {
