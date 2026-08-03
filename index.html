@@ -74,8 +74,13 @@
                 box-shadow: inset -1px -1px #808080, inset 1px 1px #fff, 1px 1px 0 #000; }
   .mon .base { width: 84px; height: 7px; background: #c0c0c0; margin: 0 auto;
                box-shadow: inset -1px -1px #808080, inset 1px 1px #fff, 1px 1px 0 #000; }
-  .desktop-icons { position: absolute; top: 8px; left: 8px; display: flex;
-                   flex-direction: column; gap: 14px; }
+  /* Icons flow down the left edge, Windows-style, and wrap into a new column to the
+     right when they reach the bottom — #desktop already ends above the taskbar, so a
+     bounded height is all the wrap needs. Without the bound the column just kept
+     growing and the tail slid under the taskbar on any short screen. */
+  .desktop-icons { position: absolute; top: 8px; left: 8px; bottom: 8px;
+                   display: flex; flex-flow: column wrap; align-content: flex-start;
+                   gap: 14px; max-width: calc(100% - 16px); }
   .desktop-icon { width: 84px; text-align: center; color: white; cursor: pointer;
                   user-select: none; -webkit-user-select: none; }
   .desktop-icon .ico { height: 32px; }
@@ -568,8 +573,9 @@
     ul.tree-view { line-height: 2.1; font-size: 15px; }
     ul.tree-view li { padding: 1px 0; }
     .toolbar { flex-wrap: wrap; }
-    .desktop-icons { flex-direction: row; flex-wrap: wrap; top: auto; bottom: 40px;
-                     left: 8px; right: 8px; transform: none; justify-content: center; }
+    .desktop-icons { flex-flow: row wrap; align-content: flex-end;
+                     top: 8px; bottom: 40px; left: 8px; right: 8px;
+                     transform: none; justify-content: center; max-width: none; }
   }
 </style>
 </head>
