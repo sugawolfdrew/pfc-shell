@@ -761,20 +761,34 @@ const WALL = (() => {
     } });
     return c;
   }
-  const CLOUD1 = bake([
-    "......wwww......",
-    "...wwwwwwwww....",
-    ".wwwwwwwwwwwww..",
-    "wwwwwwwwwwwwwwww",
-    "wwwwwwwwwwwwwwww",
-    ".ssssssssssssss.",
-  ]);
-  const CLOUD2 = bake([
-    "...wwww...",
-    ".wwwwwwww.",
-    "wwwwwwwwww",
-    ".ssssssss.",
-  ]);
+  const CLOUD_ART = [
+    ["......wwww......",
+     "...wwwwwwwww....",
+     ".wwwwwwwwwwwww..",
+     "wwwwwwwwwwwwwwww",
+     "wwwwwwwwwwwwwwww",
+     ".ssssssssssssss."],
+    ["...wwww...",
+     ".wwwwwwww.",
+     "wwwwwwwwww",
+     ".ssssssss."],
+    ["........wwww........",
+     "..wwwwwwwwwwwww.....",
+     "wwwwwwwwwwwwwwwwwwww",
+     "..sssss...ssssss...."],
+    ["......ww......",
+     "....wwwwww....",
+     "...wwwwwwww...",
+     "..wwwwwwwwww..",
+     ".wwwwwwwwwwww.",
+     "wwwwwwwwwwwwww",
+     ".sssssssssss.."],
+    ["..www..",
+     "wwwwwww",
+     ".sssss."],
+  ];
+  const CLOUDS = CLOUD_ART.map(a => bake(a));
+  const CLOUDS_GRAY = CLOUD_ART.map(a => bake(a, { ...PAL, w: "#b0b0bc", s: "#787884" }));
   const TREE_PAL = { day: { g: "#0a5828", Y: "#6a4818" }, dawn: { g: "#0a4820", Y: "#584014" },
                      dusk: { g: "#083818", Y: "#443010" }, night: { g: "#062812", Y: "#30240c" } };
   const treeC = {};
@@ -861,6 +875,37 @@ const WALL = (() => {
   }
 
   /* ---- dynamic bits ---- */
+  /* ---- weather: Open-Meteo, no key, Andrew's corner of the East Bay.
+     The hills show the actual sky: cloud cover -> cloud count, rain rains,
+     fog banks the horizon, wind drives the drift, birds sit storms out. ----*/
+  let WX = { code: 1, clouds: 35, wind: 10, ts: 0 };
+  const WX_LOC = { lat: 37.93, lon: -121.70 };
+  const FORCE_WX = new URLSearchParams(location.search).get("wx");
+  const FORCE_MOON = parseFloat(new URLSearchParams(location.search).get("moon"));
+  const isRain = c => (c >= 51 && c <= 67) || (c >= 80 && c <= 82) || c >= 95;
+  const isSnow = c => (c >= 71 && c <= 77) || c === 85 || c === 86;
+  const isFog = c => c === 45 || c === 48;
+  function applyWX(code, cl, wind) {
+    WX = { code, clouds: cl, wind, ts: Date.now() };
+    makeClouds(); skyKey = ""; frame();
+  }
+  async function fetchWX() {
+    if (FORCE_WX) return;
+    try {
+      const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${WX_LOC.lat}&longitude=${WX_LOC.lon}&current=weather_code,cloud_cover,wind_speed_10m`);
+      const d = await r.json();
+      applyWX(d.current.weather_code, d.current.cloud_cover, d.current.wind_speed_10m);
+      localStorage.setItem("pfc_wx", JSON.stringify(WX));
+    } catch (e) { /* offline or blocked: the sky stays fair */ }
+  }
+  function loadWX() {
+    if (FORCE_WX) { const p = FORCE_WX.split(",").map(Number); applyWX(p[0] || 0, p[1] ?? 30, p[2] ?? 10); return; }
+    try {
+      const c = JSON.parse(localStorage.getItem("pfc_wx"));
+      if (c && Date.now() - c.ts < 45 * 60000) { WX = c; return; }
+    } catch (e) {}
+    fetchWX();
+  }
   let stars = [], clouds = [];
   function starCount() {
     try {
@@ -876,8 +921,13 @@ const WALL = (() => {
   }
   function makeClouds() {
     seed = 1313; clouds = [];
-    for (let i = 0; i < 4; i++)
-      clouds.push({ x: rnd() * W, y: (4 + rnd() * H * 0.26) | 0, big: i % 2 === 0, v: 0.35 + rnd() * 0.45 });
+    const n = Math.max(1, Math.min(6, 1 + Math.round(WX.clouds / 20)));
+    const gray = isRain(WX.code) || isSnow(WX.code) || WX.code >= 95;
+    const drift = 0.55 + Math.min(2.2, WX.wind / 16);
+    for (let i = 0; i < n; i++)
+      clouds.push({ x: rnd() * W, y: (3 + rnd() * H * 0.28) | 0,
+                    shape: (rnd() * CLOUDS.length) | 0, sc: i % 2 === 0 ? 2 : 1,
+                    v: (0.3 + rnd() * 0.35) * drift, gray });
   }
   function sunPos(m) { // daylight arc, 5:50 -> 20:30
     if (m < 350 || m > 1230) return null;
@@ -894,30 +944,103 @@ const WALL = (() => {
     g.globalAlpha = alpha;
     for (const cl of clouds) {
       cl.x += cl.v;
-      const spr = cl.big ? CLOUD1 : CLOUD2, sc = cl.big ? 2 : 1;
+      const spr = (cl.gray ? CLOUDS_GRAY : CLOUDS)[cl.shape], sc = cl.sc;
       if (cl.x > W + 8) cl.x = -spr.width * sc - 8;
       g.drawImage(spr, cl.x | 0, cl.y, spr.width * sc, spr.height * sc);
     }
     g.globalAlpha = 1;
   }
+  /* ---- birds: sparse flocks on fair days, wings on a two-frame beat ---- */
+  let flock = null;
+  function tickBirds(ph) {
+    if (ph === "night" || isRain(WX.code) || isSnow(WX.code) || WX.wind > 40) { flock = null; return; }
+    if (!flock) {
+      if (((t * 2654435761) >>> 12) % 480 === 7) {
+        seed = t;
+        const dir = rnd() < 0.5 ? 1 : -1, n = 3 + ((rnd() * 3) | 0);
+        flock = { dir, v: dir * (0.8 + rnd() * 0.5), x: dir > 0 ? -20 : W + 20,
+                  y: (H * (0.10 + rnd() * 0.22)) | 0,
+                  m: Array.from({ length: n }, () => ({ ox: (rnd() * 18) | 0, oy: (rnd() * 9) | 0 })) };
+      }
+      return;
+    }
+    flock.x += flock.v;
+    if ((flock.dir > 0 && flock.x > W + 26) || (flock.dir < 0 && flock.x < -26)) { flock = null; return; }
+    g.fillStyle = "#101024";
+    for (const b of flock.m) {
+      const bx = (flock.x - b.ox * flock.dir) | 0, by = flock.y + b.oy;
+      if (((t + b.ox) >> 2) & 1) {
+        g.fillRect(bx - 1, by - 1, 1, 1); g.fillRect(bx + 1, by - 1, 1, 1); g.fillRect(bx, by, 1, 1);
+      } else {
+        g.fillRect(bx - 1, by, 1, 1); g.fillRect(bx, by, 1, 1); g.fillRect(bx + 1, by, 1, 1);
+      }
+    }
+  }
+  function drawWeather() {
+    const c = WX.code;
+    if (isFog(c)) {
+      g.globalAlpha = 0.22; g.fillStyle = "#c8c8d4";
+      for (let i = 0; i < 3; i++) g.fillRect(0, hillHor - 15 + i * 9, W, 5);
+      g.globalAlpha = 1;
+    }
+    if (isRain(c)) {
+      const n = c >= 95 ? 42 : (c >= 63 && c <= 67) || c >= 80 ? 26 : 13;
+      g.fillStyle = "rgba(150,168,200,0.55)";
+      for (let i = 0; i < n; i++)
+        g.fillRect((i * 97 + t * 5) % W, ((i * 53 + t * 11) % (H + 12)) - 6, 1, 3);
+    }
+    if (isSnow(c)) {
+      g.fillStyle = "rgba(240,240,248,0.85)";
+      for (let i = 0; i < 20; i++)
+        g.fillRect((i * 89 + t + (((t >> 3) + i) % 3) - 1) % W, ((i * 47 + t * 2) % (H + 8)) - 4, 1, 1);
+    }
+  }
+  /* ---- the moon, as it actually is tonight ---- */
+  function moonPhase() {
+    if (!isNaN(FORCE_MOON)) return ((FORCE_MOON % 1) + 1) % 1;
+    const days = (Date.now() - Date.UTC(2000, 0, 6, 18, 14)) / 86400000;
+    return ((days / 29.530588853) % 1 + 1) % 1;
+  }
+  function drawMoon(x, y, r) {
+    const p = moonPhase();
+    disk(x, y, r, "#181828");
+    const glow = p > 0.46 && p < 0.54; // full-ish: a faint halo
+    for (let dy = -r; dy <= r; dy++) {
+      const w2 = Math.floor(Math.sqrt(r * r - dy * dy));
+      const xt = Math.round(w2 * Math.cos(2 * Math.PI * p));
+      const a = p < 0.5 ? xt : -w2, b = p < 0.5 ? w2 : -xt;
+      if (b > a) { g.fillStyle = "#e8e8d0"; g.fillRect(x + a, y + dy, b - a + 1, 1); }
+    }
+    if (glow) { g.fillStyle = "rgba(232,232,208,0.18)";
+      g.fillRect(x - r - 1, y - r - 1, 2 * r + 3, 1); g.fillRect(x - r - 1, y + r + 1, 2 * r + 3, 1);
+      g.fillRect(x - r - 1, y - r, 1, 2 * r + 1); g.fillRect(x + r + 1, y - r, 1, 2 * r + 1); }
+  }
 
   /* ---- scenes ---- */
+  const mixGray = h => {
+    const c = hex(h), k = 0.55;
+    return "#" + [0, 1, 2].map(i => Math.round(c[i] + ([152, 156, 166][i] - c[i]) * k)
+      .toString(16).padStart(2, "0")).join("");
+  };
   function drawHillsScene(m, ph) {
-    if (skyKey !== "h" + ph + W) { skyC = bakeSky(SKIES[ph], H); skyKey = "h" + ph + W; }
+    const gloom = isRain(WX.code) || isSnow(WX.code) || isFog(WX.code) || WX.clouds >= 85;
+    const key = "h" + ph + W + (gloom ? "g" : "");
+    if (skyKey !== key) { skyC = bakeSky(gloom ? SKIES[ph].map(mixGray) : SKIES[ph], H); skyKey = key; }
     g.drawImage(skyC, 0, 0);
     if (ph === "night") {
       g.fillStyle = "#e8e8f8";
       for (const s of stars) if (((t + s.p) % 26) > 3) g.fillRect(s.x, s.y, 1, 1);
       const mp = moonPos(m);
-      if (mp) { disk(mp.x, mp.y, 6, "#e8e8d0"); g.save();
-        disk(mp.x + 3, mp.y - 1, 5, SKIES.night[1]); g.restore(); }
-    } else {
+      if (mp) drawMoon(mp.x, mp.y, 6);
+    } else if (!gloom) {
       const sp = sunPos(m);
       if (sp) disk(sp.x, sp.y, 7, "#f8ee58", "#f0b030");
     }
     drawClouds(ph === "night" ? 0.45 : ph === "day" ? 1 : 0.8);
+    tickBirds(ph);
     if (hillsKey !== ph + W) { hillsC = bakeHills(ph); hillsKey = ph + W; }
     g.drawImage(hillsC, 0, 0);
+    drawWeather();
   }
   function bakeMatter(light) { // the sky IS grey matter — Andrew's art, cover-cropped;
     const hor = (H * 0.62) | 0; // seeded walkers stand in until/unless it loads
@@ -1042,7 +1165,7 @@ const WALL = (() => {
     c.style.display = s === "teal" ? "none" : "block";
     document.getElementById("wall-logo").style.display = s === "pfc98" ? "block" : "none";
     skyKey = hillsKey = "";
-    makeStars();
+    makeStars(); makeClouds();
     frame();
   }
   function renderTo(pc, s) { // Settings preview: one still frame at native res, offscreen
@@ -1069,6 +1192,8 @@ const WALL = (() => {
     document.getElementById("wall-logo").style.display = scene === "pfc98" ? "block" : "none";
     if (iv !== null) { resize(); return; }
     resize();
+    loadWX();
+    setInterval(fetchWX, 30 * 60000);
     let rz = null;
     addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(resize, 200); });
     document.addEventListener("visibilitychange", frame);
