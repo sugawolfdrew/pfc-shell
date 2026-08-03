@@ -375,11 +375,35 @@ function bakeIcon(rows, targetCss) {
   });
   return { src: c.toDataURL(), px: (16 * S) / (Z * dpr) };
 }
+/* Authentic Win98 icons, when present. Drop PNGs at site/assets/icons/<app-id>.png
+   (from win98icons.alexmeub.com) and they take over automatically; anything missing
+   falls back to the hand-drawn pixel art below. Both render pixel-crisp: the drawn
+   size is snapped so one source pixel covers a whole number of device pixels. */
+const PNG_ICONS = new Map(); // name -> HTMLImageElement | false (tried and absent)
+function pngIcon(name) {
+  if (PNG_ICONS.has(name)) return PNG_ICONS.get(name);
+  const im = new Image();
+  im.onload = () => { PNG_ICONS.set(name, im); refreshIcons(); };
+  im.onerror = () => { PNG_ICONS.set(name, false); };
+  im.src = `assets/icons/${name}.png`;
+  PNG_ICONS.set(name, null); // in flight
+  return null;
+}
 function refreshIcons() {
   document.querySelectorAll("img[data-icon]").forEach(img => {
-    const rows = ART[img.dataset.icon];
+    const name = img.dataset.icon, target = +img.dataset.sz || 32;
+    const png = pngIcon(name);
+    if (png) {
+      const dpr = window.devicePixelRatio || 1;
+      const n = png.naturalWidth || 32;
+      const S = Math.max(1, Math.round(target * Z * dpr / n)); // integer source-pixel scale
+      img.src = png.src;
+      img.style.width = img.style.height = ((n * S) / (Z * dpr)) + "px";
+      return;
+    }
+    const rows = ART[name];
     if (!rows) return;
-    const { src, px } = bakeIcon(rows, +img.dataset.sz || 32);
+    const { src, px } = bakeIcon(rows, target);
     img.src = src;
     img.style.width = img.style.height = px + "px";
   });
