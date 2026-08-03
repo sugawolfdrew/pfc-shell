@@ -113,7 +113,8 @@
   #start-menu .side { width: 24px; background: #000080; color: #fff;
                       writing-mode: vertical-rl; transform: rotate(180deg);
                       font-weight: bold; font-size: 15px; padding: 8px 2px;
-                      letter-spacing: 1px; }
+                      letter-spacing: 1px; display: flex; align-items: flex-end;
+                      justify-content: center; white-space: nowrap; overflow: hidden; }
   #start-menu ul { list-style: none; margin: 0; padding: 0; flex: 1; }
   #start-menu li { padding: 10px 12px; display: flex; gap: 10px; cursor: pointer;
                    font-size: 14px; align-items: center; }
@@ -318,7 +319,7 @@
   <div id="ticker"><div class="tape" id="ticker-tape"></div></div><div id="tray"><span id="clock">--:--</span></div>
 </div>
 <div id="start-menu">
-  <div class="side">PFC&nbsp;98</div>
+  <div class="side">Postfrontal&nbsp;Cortex&nbsp;98</div>
   <ul id="start-items"></ul>
 </div>
 
@@ -638,7 +639,31 @@ const ART = {
 };
 
 /* ---------------- GitHub data layer ---------------- */
-const cache = { tree: null, files: new Map() };
+const cache = { tree: null, files: new Map(), hidden: null };
+/* Pages kept out of the Explorer's main index — for when the Face is on screen in
+   front of colleagues. Not secrecy: the repo is private and these load like any
+   other page. Manifest at hidden.md; the Explorer's ⊘ button toggles membership. */
+async function getHidden(force) {
+  if (cache.hidden && !force) return cache.hidden;
+  let list = [];
+  try {
+    const txt = await getFile("hidden.md", force);
+    list = [...txt.matchAll(/^\s*[-*]\s+([a-z0-9-]+)\s*$/gm)].map(m => m[1]);
+  } catch (e) { /* no manifest yet: nothing hidden */ }
+  cache.hidden = new Set(list);
+  return cache.hidden;
+}
+async function setHidden(slug, on) {
+  const { text, sha } = await getFileFull("hidden.md").catch(() => ({ text: "", sha: null }));
+  const head = text.trim() ? text.split(/\n(?=- )/)[0].split("\n").filter(l => !/^\s*[-*]\s/.test(l)).join("\n")
+    : `# Hidden pages\n\nKept out of the Explorer's main index and collapsed by default — for when the\nFace is on screen in front of others. Not secrecy: this repo is private and these\npages load exactly like any other. Toggle with the \u2298 button in the Explorer.\nLaw: protocol/BRAIN.md.\n`;
+  const cur = new Set([...(await getHidden(true))]);
+  on ? cur.add(slug) : cur.delete(slug);
+  const body = head.replace(/\n+$/, "") + "\n\n" + [...cur].sort().map(x => `- ${x}`).join("\n") + "\n";
+  if (DEMO) { cache.hidden = cur; return; }
+  await putFileSha("hidden.md", body, `hidden: ${on ? "add" : "remove"} ${slug}`, sha);
+  cache.hidden = cur; cache.files.delete("hidden.md");
+}
 
 function token() { return localStorage.getItem(LS_KEY) || ""; }
 
@@ -1569,16 +1594,21 @@ const Explorer = (() => {
     applyCollapse(localStorage.getItem("pfc_tree_collapsed") === "1");
   }
 
+  let HIDDEN_OPEN = false; // expanded == "I'm alone": hidden pages rejoin Search
   async function renderTree() {
     const tree = await getTree();
     const root = document.getElementById("tree-root");
+    const hid = await getHidden();
+    const wiki = tree.filter(e => /^wiki\/.+\.md$/.test(e.path));
+    const isHid = e => hid.has(e.path.slice(5, -3));
     const groups = {
-      "Wiki": tree.filter(e => /^wiki\/.+\.md$/.test(e.path)),
+      "Wiki": wiki.filter(e => !isHid(e)),
       "Protocol": tree.filter(e => /^protocol\/.+\.md$/.test(e.path)),
       "Surface": tree.filter(e => /^surface\/.+\.md$/.test(e.path)).slice(-14).reverse(),
       "Sessions · claude": tree.filter(e => /^sessions\/claude\/.+\.md$/.test(e.path)),
       "Sessions · gemini": tree.filter(e => /^sessions\/gemini\/.+\.md$/.test(e.path)),
       "Root": tree.filter(e => /^(index|log)\.md$/.test(e.path)),
+      "Hidden": wiki.filter(isHid),
     };
     root.innerHTML = "";
     for (const [g, items] of Object.entries(groups)) {
@@ -1586,6 +1616,7 @@ const Explorer = (() => {
       const li = document.createElement("li");
       const det = document.createElement("details");
       det.open = g === "Wiki";
+      if (g === "Hidden") det.addEventListener("toggle", () => { HIDDEN_OPEN = det.open; });
       det.innerHTML = `<summary>${g} (${items.length})</summary>`;
       const ul = document.createElement("ul");
       if (g !== "Surface") items.sort((a, b) => a.path.localeCompare(b.path)); // Surface stays newest-first
@@ -1654,6 +1685,29 @@ const Explorer = (() => {
       flag.title = "Tell the brain this page is wrong — it fixes it on the next beat";
       flag.onclick = () => flagPage(path, view);
       bar.appendChild(flag);
+      const hide = document.createElement("button");
+      hide.style.marginLeft = "6px";
+      getHidden().then(h => {
+        const on = h.has(slug);
+        hide.textContent = on ? "\u2298 In hidden index" : "\u2298 Hide from index";
+        hide.title = on ? "Move back into the main wiki index"
+                        : "Keep out of the Explorer's main index — for when others are looking";
+      });
+      hide.onclick = async () => {
+        hide.disabled = true;
+        const on = (await getHidden()).has(slug);
+        WM.status("explorer", on ? "Restoring to the index\u2026" : "Moving to the hidden index\u2026");
+        try {
+          await setHidden(slug, !on);
+          hide.textContent = !on ? "\u2298 In hidden index" : "\u2298 Hide from index";
+          await renderTree();
+          WM.status("explorer", !on ? `${slug} hidden — collapsed group at the foot of the tree`
+                                    : `${slug} back in the main index`);
+        } catch (e) {
+          WM.status("explorer", e.message === "rate" ? "GitHub rate limit — try again in a minute." : "Could not update — " + e.message);
+        } finally { hide.disabled = false; }
+      };
+      bar.appendChild(hide);
       view.appendChild(bar);
       backlinksFor(slug).then(bl => {
         if (current !== path) return; // user already navigated elsewhere
@@ -1718,7 +1772,7 @@ const Explorer = (() => {
     renderTree().catch(err);
     if (!current) openPath("wiki/postfrontal-cortex.md").catch(() => {});
   };
-  return { openPage, openPath };
+  return { openPage, openPath, hiddenOpen: () => HIDDEN_OPEN, refreshTree: renderTree };
 })();
 
 /* ----- Notes: Write | Prior tabs, edit pending notes with upstream-change watcher ----- */
@@ -1905,6 +1959,11 @@ const Search = (() => {
     })();
     return indexPromise;
   }
+  async function visible(docs) { // hidden pages rejoin Search only while the Hidden group is expanded
+    if (typeof Explorer !== "undefined" && Explorer.hiddenOpen && Explorer.hiddenOpen()) return docs;
+    const hid = await getHidden();
+    return docs.filter(d => !(/^wiki\//.test(d.path) && hid.has(d.path.slice(5, -3))));
+  }
   APPS.search.onOpen = () => {
     const body = document.querySelector("#win-search .window-body");
     if (body.dataset.ready) return;
@@ -1919,7 +1978,7 @@ const Search = (() => {
       const term = q.value.trim().toLowerCase();
       if (!term) return;
       WM.status("search", "Indexing…");
-      const ix = await buildIndex();
+      const ix = await visible(await buildIndex());
       if (q.value.trim().toLowerCase() !== term) return; // superseded by a newer query
       const scored = ix.map(d => {
         const t = d.text.toLowerCase();
@@ -2630,6 +2689,9 @@ function showLogon(msg) {
 
 /* ---------------- Demo data (public-safe: PFC's own meta pages) ---------------- */
 const DEMO_FILES = {
+"hidden.md": `# Hidden pages\n\nKept out of the Explorer\u2019s main index.\n\n- cannabis\n- rand\n`,
+"wiki/rand.md": `---\ntitle: Rand\ntype: person\ncreated: 2026-08-03\n---\n\nA director at the cosmetics contract.\n`,
+"wiki/cannabis.md": `---\ntitle: Cannabis\ntype: interest\ncreated: 2026-08-02\n---\n\nGrower chemistry to craft live resin.\n`,
 "gates/open.md": `# Open gates — matters awaiting Andrew's ruling
 
 ## G-2026-08-03-01 · contradiction · wiki/celeste.md
