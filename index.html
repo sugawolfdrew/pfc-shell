@@ -199,10 +199,15 @@
     to   { clip-path: inset(0 0 0 0); }
   }
 
-  /* Oracle */
+  /* Oracle.exe, skinned as the Haruspex (Spex's diviner) */
+  #oracle-mast { margin: 0 6px; padding: 3px 8px; text-align: center;
+                 font-family: Arial; font-size: 11px; font-weight: bold;
+                 letter-spacing: 3px; color: #5a1030; background: #ece4d0;
+                 box-shadow: inset -1px -1px #fff, inset 1px 1px #808080; }
   .oracle-item { padding: 4px 6px 10px; border-bottom: 2px groove #dfdfdf; }
   .oracle-item.pending { padding: 10px 12px; font-family: Arial; font-size: 14px; }
-  .oracle-item .fine { color: #444; font-size: 12px; margin-top: 3px; }
+  .oracle-item.pending b { color: #5a1030; }
+  .oracle-item .fine { color: #444; font-size: 12px; margin-top: 3px; font-style: italic; }
 
   /* Logon + dialogs */
   #logon { position: fixed; inset: 0; background: #008080; z-index: 9999;
@@ -1831,18 +1836,20 @@ const Search = (() => {
     for (const p of pending) {
       let q = "";
       try { q = splitFrontmatter(await getFile(p)).body.trim().split("\n")[0]; } catch (e) {}
-      html += `<div class="oracle-item pending"><b>\u231B ${q || p}</b><div class="fine">awaiting the next beat</div></div>`;
+      html += `<div class="oracle-item pending"><b>\u231B ${q || p}</b><div class="fine">the entrails are laid \u2014 the next pulse reads them</div></div>`;
     }
     for (const p of answers) {
       html += `<div class="oracle-item" data-md-path="${p}"></div>`;
     }
     body.querySelector("#oracle-list").innerHTML =
-      html || `<div class="md"><p>No questions yet. Ask one — the next heartbeat answers
-               from the full three-tier memory, and it lands here with the morning brief.</p></div>`;
+      html || `<div class="md"><p><i>Haruspex; friends call me Spex.</i></p>
+               <p>Put a question to the archive. I read what is written in the
+               tiers — wiki, sessions, raw — and I invent nothing. The next
+               beat carries the reading here, morning brief at the latest.</p></div>`;
     for (const el of body.querySelectorAll("[data-md-path]")) {
       try { renderMd(await getFile(el.dataset.mdPath), el); } catch (e) {}
     }
-    WM.status("oracle", `${answers.length} answered · ${pending.length} awaiting the beat`);
+    WM.status("oracle", `${answers.length} reading${answers.length === 1 ? "" : "s"} \u00b7 ${pending.length} on the altar`);
   }
   APPS.oracle.onOpen = () => {
     const body = document.querySelector("#win-oracle .window-body");
@@ -1851,11 +1858,12 @@ const Search = (() => {
       body.classList.remove("white");
       body.innerHTML = `
         <div class="row" style="display:flex; gap:4px; padding:6px;">
-          <input id="oracle-q" placeholder="Ask the brain\u2026" style="flex:1">
-          <button id="oracle-ask" class="default">Ask</button>
+          <input id="oracle-q" placeholder="Put a question to the archive\u2026" style="flex:1">
+          <button id="oracle-ask" class="default">Divine</button>
         </div>
+        <div id="oracle-mast">HARVSPEX \u00b7 READS THE ARCHIVE \u00b7 INVENTS NOTHING</div>
         <div id="oracle-list" class="sunken-panel" style="overflow:auto; background:#fff;
-             margin:0 6px 6px; height:calc(100% - 46px);"></div>`;
+             margin:6px 6px; height:calc(100% - 72px);"></div>`;
       const q = body.querySelector("#oracle-q"), btn = body.querySelector("#oracle-ask");
       btn.onclick = async () => {
         const text = q.value.trim();
