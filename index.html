@@ -219,6 +219,12 @@
                 white-space: nowrap; color: #000; }
   .sf-gate .a { flex: none; font-size: 11px; color: #444; }
   .sf-empty { padding: 9px 10px; font-family: Arial, sans-serif; font-size: 13px; color: #3a3a3a; }
+  /* One look for "we could not read all of it" — the opposite of an empty state, and
+     it must never be mistakable for one. Warning yellow, not the error red we reserve
+     for a failure that stopped the render outright. */
+  .sf-unread { margin: 0 0 4px; padding: 6px 9px; background: #ffffe1; border: 1px solid #b8b060;
+               font-family: Arial, sans-serif; font-size: 12px; color: #3a3a3a; }
+  .sf-unread b { color: #000; }
   .sf-foot { display: flex; align-items: center; gap: 8px; margin-top: 7px;
              font-family: Arial, sans-serif; font-size: 12px; color: #3a3a3a; }
   .sf-foot .sp { flex: 1; }
@@ -475,6 +481,12 @@
   ul.tree-view li.sel > span { background: #000080; color: #fff; }
   #backlinks { padding: 8px 16px 12px; font-size: 14px; background: #c0c0c0;
                box-shadow: inset 0 1px 0 #808080, inset 0 2px 0 #fff; }
+  #backlinks .bl-unread { color: #7a5c00; }
+  /* A tree that could not be read. Deliberately unlike an empty tree. */
+  li.tree-fail { list-style: none; margin: 6px; padding: 7px 9px; background: #ffffe1;
+                 border: 1px solid #b8b060; font-family: Arial, sans-serif;
+                 font-size: 12px; line-height: 1.5; color: #3a3a3a; }
+  li.tree-fail a { color: #000080; text-decoration: underline; cursor: pointer; }
 
   /* Recent changes */
   .log-line { display: flex; gap: 8px; padding: 6px 10px; font-size: 14px;
@@ -1054,7 +1066,14 @@ async function getFile(path, force) {
     const d = await gh(`/repos/${CFG.owner}/${CFG.repo}/contents/${encodeURIComponent(path).replace(/%2F/g, "/")}?ref=${CFG.branch}`);
     text = b64decode(d.content);
   }
+  /* Forced and cached reads of one file used to let two windows drift inside a single
+     session — Recent Changes forces log.md, Surface reads it cached, and whichever
+     painted first kept showing the older text with nothing to indicate it. A forced
+     read that genuinely changes content now announces itself. */
+  const prev = cache.files.get(path);
   cache.files.set(path, text);
+  if (force && prev !== undefined && prev !== text)
+    document.dispatchEvent(new CustomEvent("pfc:changed", { detail: { path } }));
   return text;
 }
 
@@ -1067,6 +1086,35 @@ async function readOr(path, fallback, force) {
     if (e && e.absent) return { v: fallback, ok: true, absent: true };
     return { v: fallback, ok: false, absent: false, err: e };
   }
+}
+
+/* Read many files, bounded concurrency, and REPORT WHAT WAS MISSED. Search's index
+   and the Explorer's backlink scan both used to walk ~100 paths sequentially inside a
+   bare `catch {}`, so one blip dropped a page from the answer — and Search memoised
+   that partial index for the rest of the session, then printed "No matches." with the
+   confidence of a real miss. A miss is now a number the caller has to render. */
+async function readMany(paths, force) {
+  const docs = [], settled = new Set();
+  let i = 0, fatal = null;
+  const worker = async () => {
+    while (i < paths.length && !fatal) {
+      const p = paths[i++];
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try { docs.push({ path: p, text: await getFile(p, force && attempt === 0) });
+              settled.add(p); break; }
+        catch (e) {
+          if (e && e.absent) { settled.add(p); break; }      // genuinely gone: not a miss
+          /* auth and rate are whole-session conditions — retrying 90 more paths just
+             burns the budget and slows the failure down. Stop, and let the caller
+             count everything unread as unread. */
+          if (e && (e.message === "auth" || e.message === "rate")) { fatal = e.message; break; }
+          if (!attempt) await new Promise(r => setTimeout(r, 250));
+        }
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(6, paths.length) }, worker));
+  return { docs, missed: paths.filter(p => !settled.has(p)), fatal };
 }
 
 async function getFileFull(path) { // fresh, uncached, with sha (for editing)
@@ -1099,6 +1147,134 @@ async function putCapture(text, kind = "web", meta = null) {
   cache.tree = null; // tree changed
   return path;
 }
+
+/* ---------------- Shared predicates ----------------
+   Four things in this app were computed in more than one place, by more than one
+   author, and the copies disagreed. Each disagreement was invisible because every
+   copy also computed its own denominator, so nothing ever looked missing. The rule
+   from here: one definition per question, and the consumers ask it. */
+
+/* --- inbox stage. Oracle, Inquest, Surface and Notepad each wrote this, and two
+   reached for `.*` where they needed `[^/]` — so `inbox/processed/…` matched the
+   pending pattern and answered questions sat "on the altar" forever. Findings 5
+   and 6 of the gremlin hunt were one bug written twice. */
+const INBOX_RX = /^inbox\/(?:(processed)\/[^/]+\/)?([^/]+)\.md$/;
+function inboxItem(path) {
+  const m = INBOX_RX.exec(path);
+  if (!m || m[2] === "README") return null;
+  return { path, stage: m[1] ? "processed" : "pending", name: m[2],
+           kind: (m[2].match(/-([a-z]+)$/) || [, "note"])[1] };
+}
+/* isInbox(path, "pending"|"processed"|"any", kind?) — the only inbox test in the app. */
+function isInbox(path, stage = "any", kind = null) {
+  const it = inboxItem(path);
+  return !!it && (stage === "any" || it.stage === stage) && (!kind || it.kind === kind);
+}
+const inboxOf = (tree, stage, kind) => tree.filter(e => isInbox(e.path, stage, kind));
+
+/* --- wikilink target. Five copies of this existed; four branched on "/" and the
+   fifth slugified the whole path, so `[[wiki/gardening.md]]` rendered as
+   "wiki-gardening-md" and linked to a page that cannot exist — live on the only
+   capture ever filed under the `became:` contract. */
+function resolveLink(name) {
+  const n = String(name).trim();
+  if (n.includes("/")) {                       // tier link: sessions/…, protocol/…
+    const path = n.endsWith(".md") ? n : n + ".md";
+    return { path, slug: null, label: n.split("/").pop().replace(/\.md$/, ""), tier: true };
+  }
+  const slug = n.endsWith(".md") ? slugify(n.slice(0, -3)) : slugify(n);
+  return { path: `wiki/${slug}.md`, slug, label: n, tier: false };
+}
+const linkExists = path => !!(cache.tree && cache.tree.some(e => e.path === path));
+
+/* --- hidden scope. hidden.md is a list of WIKI slugs, but the Explorer was
+   applying it to session basenames too — a category error that read as a working
+   filter and filtered nothing, because a session is named
+   `2025-09-24-obsessive-love-…`, never `cannabis`. Since this is a shoulder-surfing
+   measure and not access control (BRAIN.md), the resolution errs toward hiding: a
+   session whose name carries a hidden slug as a whole hyphen-delimited token is
+   hidden with it. False positives cost nothing here; a false negative is the exact
+   moment the feature exists for. */
+function isHiddenPath(path, hidden) {
+  if (!hidden || !hidden.size) return false;
+  const w = /^wiki\/([^/]+)\.md$/.exec(path);
+  if (w) return hidden.has(w[1]);
+  const s = /^sessions\/[^/]+\/([^/]+)\.md$/.exec(path);
+  if (!s) return false;
+  const toks = new Set(s[1].split("-"));
+  for (const slug of hidden) {
+    const parts = slug.split("-");
+    if (parts.every(p => toks.has(p))) return true;
+  }
+  return false;
+}
+
+/* --- log.md. Three consumers (Recent Changes, the tending chart, the beat band)
+   each parsed this file with their own regex. BRAIN.md declares six verbs; the log
+   actually carries eleven, so `design`, `oracle` and `flag` entries appeared in no
+   Recent Changes tab at all and were silently counted as "built" by the chart.
+   One parser, one vocabulary, and anything outside it is loudly Other. */
+const LOG_CLASS = {                       // verb -> what kind of work it was
+  ingest: "took", correct: "took",
+  surface: "conn", oracle: "conn", query: "conn", lint: "conn", gate: "conn", flag: "conn",
+  build: "built", design: "built", admin: "built", heartbeat: "built",
+};
+const LOG_RX = /^##\s*\[(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}(?::\d{2})?))?\]\s*([a-z][a-z-]*)\s*\|[ \t]*(.*)$/gm;
+const logWarned = new Set();
+function logOps(md) {
+  const ops = [];
+  for (const m of String(md || "").matchAll(LOG_RX)) {
+    const verb = m[3], known = Object.prototype.hasOwnProperty.call(LOG_CLASS, verb);
+    if (!known && !logWarned.has(verb)) {
+      logWarned.add(verb);
+      console.warn(`[log] verb "${verb}" is outside the BRAIN.md vocabulary — ` +
+                   `shown under Other, counted as built. Add it to LOG_CLASS and BRAIN.md.`);
+    }
+    ops.push({ day: m[1], time: m[2] || "", verb, known,
+               cls: known ? LOG_CLASS[verb] : "built", text: m[4].trim() });
+  }
+  return ops;   // file order; consumers reverse if they want newest first
+}
+
+/* --- what counts as a gate. parseGates (Surface) and parseDocket (Inquest) stay two
+   separate functions on purpose — they read gates/open.md for genuinely different
+   jobs, and their independence is what made the 2026-08-03 failure visible at all.
+   What they must not disagree about is which headings ARE gates: Surface required a
+   `G-` id and Inquest accepted any non-empty heading, so one stray `## Notes` line in
+   the docket produced "2 gates open" in one window, "3 awaiting your ruling" in the
+   other, and a phantom card carrying live ruling buttons. */
+const isGateId = id => /^G-\d{4}-\d{2}-\d{2}-\d+[a-z]?$/i.test(String(id || "").trim());
+
+/* --- the tripwire. The gremlin hunt's own conclusion was that the redundancy is
+   load-bearing and should not be collapsed — two readers of one file is what caught
+   the bug — but that nothing was comparing the two answers. Now something is. Each
+   reader reports what it counted; a disagreement raises a banner in both windows
+   instead of waiting for a human to happen to notice. */
+const AGREE = (() => {
+  const seen = new Map(), subs = new Set();
+  function report(q, who, n) {
+    if (!seen.has(q)) seen.set(q, new Map());
+    seen.get(q).set(who, n);
+    const c = conflict(q);
+    if (c) console.warn(`[agree] readers disagree about ${q} — ${c}`);
+    subs.forEach(f => { try { f(q, c); } catch (e) {} });
+    return c;
+  }
+  function conflict(q) {
+    const m = seen.get(q);
+    if (!m || m.size < 2 || new Set(m.values()).size < 2) return null;
+    return [...m].map(([k, v]) => `${k} says ${v}`).join(", ");
+  }
+  return { report, conflict, onChange: f => subs.add(f) };
+})();
+
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
+/* Internals the verification harness reaches for. The gremlin hunt's own finding was
+   that reasoning about this app is unreliable and every claim has to be reproduced in
+   a browser — which means the parsers have to be reachable from outside their IIFEs.
+   Read-only handles; nothing here mutates state. verify/integration.mjs is the caller. */
+const PFCT = (window.__pfc = window.__pfc || {});
 
 /* ---------------- Markdown helpers ---------------- */
 function slugify(s) { return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
@@ -1169,14 +1345,10 @@ function renderMd(md, el) {
   // Linkify [[wikilinks]] — but never inside code/pre, where they are literal syntax
   html = html.split(/(<pre[\s\S]*?<\/pre>|<code[\s\S]*?<\/code>)/g).map((seg, i) =>
     i % 2 === 1 ? seg : seg.replace(/\[\[([^\]|]+)\]\]/g, (_, name) => {
-      if (name.includes("/")) { // tier link (e.g. sessions/claude/…): open by path
-        const path = name.endsWith(".md") ? name : name + ".md";
-        const label = name.split("/").pop();
-        return `<a class="wikilink" data-path="${path}">${label}</a>`;
-      }
-      const slug = slugify(name);
-      const exists = cache.tree && cache.tree.some(e => e.path === `wiki/${slug}.md`);
-      return `<a class="wikilink${exists ? "" : " missing"}" data-page="${slug}">${name}</a>`;
+      const t = resolveLink(name);
+      if (t.tier) return `<a class="wikilink" data-path="${escHtml(t.path)}">${escHtml(t.label)}</a>`;
+      return `<a class="wikilink${linkExists(t.path) ? "" : " missing"}" ` +
+             `data-page="${escHtml(t.slug)}">${escHtml(t.label)}</a>`;
     })).join("");
   let chips = "";
   ["type", "created", "updated", "tags"].forEach(k => {
@@ -1979,18 +2151,19 @@ const Surface = (() => {
   const longDate = d => `${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}`;
   const clock    = d => `${d.getHours() % 12 || 12}:${pad(d.getMinutes())} ${d.getHours() < 12 ? "AM" : "PM"}`;
   const daysAgo  = (s, today) => Math.round((dateOf(iso(today)) - dateOf(s)) / 864e5);
-  const plural   = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  /* plural() is now a top-level helper — Search needs it too. */
   const mobile   = () => matchMedia("(max-width: 700px)").matches;
   const el       = () => document.querySelector("#win-surface .window-body");
 
   /* ---------- state ---------- */
   let briefs = [], idx = 0;              // findings-log files, newest first
-  let cards = [], cardI = 0, otdMode = "exact", scope = null;
+  let cards = [], cardI = 0, otdMode = "exact", scope = null, scopeTotal = 0;
+  const OTD_MAX = 12;                    // how many cards the dots row can carry
   let stat = { pages: 0, sessions: 0, inbox: 0, gates: 0 };
   let tab = localStorage.getItem("pfc_sf_tab") || "archive";
   let asTable = { archive: false, tending: false };
   let D = {};                            // the loaded data for this paint
-  let statusTimer = null, warned = new Set();
+  let statusTimer = null, lastGood = null;   // when the last COMPLETE render landed
 
   /* ================= status bar (§9) — three fields ================= */
   function statusFields() {
@@ -2023,10 +2196,10 @@ const Surface = (() => {
   /* h is derived as v1 derived lastBeat, but the whole line is kept so a future
      "## [date HH:MM] heartbeat" tightens the resolution with no rewrite. */
   function readBeat(log, unread) {
-    const rx = /^## \[(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}(?::\d{2})?))?\]\s*heartbeat\b[^\n]*/gm;
     let best = null;
-    for (const m of String(log || "").matchAll(rx)) {
-      const when = new Date(`${m[1]}T${m[2] || "00:00"}${(m[2] || "").length === 5 ? ":00" : ""}`);
+    for (const o of logOps(log)) {                     // one parser; see LOG_RX
+      if (o.verb !== "heartbeat") continue;
+      const when = new Date(`${o.day}T${o.time || "00:00"}${o.time.length === 5 ? ":00" : ""}`);
       if (!best || when > best) best = when;
     }
     if (!best || isNaN(best)) return { state: "COLD", key: "cold", frac: 0, h: null,
@@ -2092,17 +2265,31 @@ const Surface = (() => {
       .sort((a, b) => (b.year - a.year) || (b.size - a.size) || (a.path < b.path ? -1 : 1))
       .slice(0, 5) };
   }
-  function monthPool(tree, year, month, hidden) {        // archive cell -> scoped pool
-    const rx = /^sessions\/(claude|gemini)\/(\d{4})-(\d{2})-(\d{2})/;
-    return tree.map(e => { const m = rx.exec(e.path); return m &&
-              { path: e.path, size: e.size || 0, year: +m[2], md: `${m[3]}-${m[4]}`, src: m[1] }; })
+  /* The heat-map and the list its click produces have to be the same set, and they
+     were not. The grid counted every session file; the pool then dropped hidden ones
+     and everything over 200 KB, and the caller sliced to 12 — so a cell read 37 and
+     its click produced 12, and ten of the largest sessions (one of them cited as
+     evidence on an open gate) were unreachable from the archive entirely. One list,
+     filtered once, and the truncation is now stated rather than performed silently. */
+  const SESSION_RX = /^sessions\/(claude|gemini)\/(\d{4})-(\d{2})-(\d{2})/;
+  const BIG_SESSION = 200000;   // too big to fetch for a one-line opener — listed, not previewed
+  function sessionCards(tree, hidden) {
+    return tree.map(e => { const m = SESSION_RX.exec(e.path); return m &&
+              { path: e.path, size: e.size || 0, year: +m[2], md: `${m[3]}-${m[4]}`, src: m[1],
+                big: (e.size || 0) >= BIG_SESSION }; })
       .filter(Boolean)
+      .filter(s => !isHiddenPath(s.path, hidden));
+  }
+  function monthPool(tree, year, month, hidden) {        // archive cell -> scoped pool
+    return sessionCards(tree, hidden)
       .filter(s => s.year === year && +s.md.slice(0, 2) === month + 1)
-      .filter(s => !hidden.has(s.path.split("/").pop().replace(/\.md$/, "")))
-      .filter(s => s.size < 200000)
       .sort((a, b) => (b.md < a.md ? -1 : b.md > a.md ? 1 : 0) || (b.size - a.size));
   }
-  async function openerOf(path) {
+  async function openerOf(path, big) {
+    /* A 200 KB session is a slow fetch for one line of preview. It is still listed,
+       still openable, still counted — it just arrives without an opener instead of
+       being deleted from the archive to keep the fetch cheap. */
+    if (big) return { opener: "", title: "" };
     const txt = await getFile(path);
     const opener = (txt.match(/^\*\*H:\*\*\s*([\s\S]*?)(?:\n\n|\n\*\*A:\*\*)/m) || [, ""])[1]
                      .replace(/\s+/g, " ").trim();
@@ -2116,9 +2303,9 @@ const Surface = (() => {
                            (o.length >= 40 && o.length <= 320 ? 1 : 0);
   async function orderCards(list) {
     if (!list.length) return list;
-    const a = { ...list[0], ...(await openerOf(list[0].path)) };
+    const a = { ...list[0], ...(await openerOf(list[0].path, list[0].big)) };
     if (list.length < 2 || scoreOpener(a.opener) === 3) return [a, ...list.slice(1)];
-    const b = { ...list[1], ...(await openerOf(list[1].path)) };
+    const b = { ...list[1], ...(await openerOf(list[1].path, list[1].big)) };
     return scoreOpener(b.opener) > scoreOpener(a.opener)
       ? [b, a, ...list.slice(2)] : [a, b, ...list.slice(2)];
   }
@@ -2128,13 +2315,10 @@ const Surface = (() => {
      slugs get .missing when the tree has no page for them. */
   function linkify(s) {
     return esc(s).replace(/\[\[([^\]|]+)\]\]/g, (_, name) => {
-      if (name.includes("/")) {
-        const path = name.endsWith(".md") ? name : name + ".md";
-        return `<a class="wikilink" data-path="${esc(path)}">${esc(name.split("/").pop())}</a>`;
-      }
-      const slug = slugify(name);
-      const exists = cache.tree && cache.tree.some(e => e.path === `wiki/${slug}.md`);
-      return `<a class="wikilink${exists ? "" : " missing"}" data-page="${esc(slug)}">${esc(name)}</a>`;
+      const t = resolveLink(name);
+      if (t.tier) return `<a class="wikilink" data-path="${esc(t.path)}">${esc(t.label)}</a>`;
+      return `<a class="wikilink${linkExists(t.path) ? "" : " missing"}" ` +
+             `data-page="${esc(t.slug)}">${esc(t.label)}</a>`;
     }).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>");
   }
   /* Every bullet in the file, heading or no heading. SURFACE.md dropped fixed
@@ -2176,7 +2360,7 @@ const Surface = (() => {
     const out = [];
     for (const block of String(md || "").split(/^## /m).slice(1)) {
       const bits = block.split("\n")[0].trim().split("\u00b7").map(x => x.trim());
-      if (!/^G-/.test(bits[0] || "")) continue;
+      if (!isGateId(bits[0])) continue;              // one definition of "is a gate"
       out.push({ id: bits[0], kind: (bits[1] || "").toLowerCase(),
                  q: ((block.match(/^\*\*Q:\*\*\s*(.+)$/m) || [, ""])[1] || "").trim(),
                  raised: (block.match(/^\*\*Raised:\*\*\s*(\d{4}-\d{2}-\d{2})/m) || [, ""])[1] || "" });
@@ -2196,12 +2380,10 @@ const Surface = (() => {
   }
 
   /* ================= §8.1 The archive ================= */
-  function archiveGrid(tree) {
-    const rx = /^sessions\/(?:claude|gemini)\/(\d{4})-(\d{2})-/;
+  function archiveGrid(tree, hidden) {
     const grid = {}; let total = 0, first = null, last = null;
-    for (const e of tree) {
-      const m = rx.exec(e.path); if (!m) continue;
-      const y = +m[1], mo = +m[2] - 1;
+    for (const c of sessionCards(tree, hidden)) {        // same list the click produces
+      const y = c.year, mo = +c.md.slice(0, 2) - 1;
       (grid[y] = grid[y] || new Array(12).fill(0))[mo]++;
       total++;
       const k = y * 12 + mo;
@@ -2254,20 +2436,16 @@ const Surface = (() => {
   /* ================= §8.2 The tending ================= */
   /* BRAIN.md's vocabulary is six verbs; log.md carries more. Folded into three
      classes; an unknown verb lands in "built" and is reported once, not swallowed. */
-  const VERB = { ingest: "took", correct: "took",
-                 surface: "conn", oracle: "conn", query: "conn", lint: "conn",
-                 build: "built", admin: "built", heartbeat: "built" };
+  /* The verb -> class map moved to LOG_CLASS at the top of the script. It lived here
+     while only this chart used it, and while it lived here it was missing `design`,
+     `flag` and `gate` — which the chart then counted as "built" behind a console
+     warning nobody reads. */
   function tendingData(log) {
-    const byDay = {}; let first = null, unknown = [];
-    for (const m of String(log || "").matchAll(/^## \[(\d{4}-\d{2}-\d{2})[^\]]*\]\s*([a-z][a-z-]*)/gm)) {
-      const day = m[1], verb = m[2];
-      let cls = VERB[verb];
-      if (!cls) { cls = "built"; if (!warned.has(verb)) { warned.add(verb); unknown.push(verb); } }
-      (byDay[day] = byDay[day] || { took: 0, conn: 0, built: 0 })[cls]++;
-      if (!first || day < first) first = day;
+    const byDay = {}; let first = null;
+    for (const o of logOps(log)) {                     // one parser, one vocabulary
+      (byDay[o.day] = byDay[o.day] || { took: 0, conn: 0, built: 0 })[o.cls]++;
+      if (!first || o.day < first) first = o.day;
     }
-    if (unknown.length) console.warn("[surface] log verb outside the BRAIN.md vocabulary, " +
-                                     "counted as built: " + unknown.join(", "));
     return { byDay, first };
   }
   const TND = { PL: 22, PR: 3, PT: 15, PB: 13, PH: 52, CW: 30, GAP: 4 };
@@ -2358,8 +2536,12 @@ const Surface = (() => {
     const yrs = gap < 10 ? `${ORD[gap]} YEAR${gap === 1 ? "" : "S"}` : `${gap} YEARS`;
     let head, foot;
     if (scope) {
-      head = `<b>${MON[scope.month].toUpperCase()} ${scope.year}</b> \u00b7 ${cards.length} KEPT`;
-      foot = `${cardI + 1} of ${cards.length} kept in ${MON[scope.month]} ${scope.year}`;
+      /* The heading quotes the same number the heat-map cell does. When the deck is
+         shorter than the month, the foot says so \u2014 it used to just say 12. */
+      head = `<b>${MON[scope.month].toUpperCase()} ${scope.year}</b> \u00b7 ${scopeTotal} KEPT`;
+      foot = scopeTotal > cards.length
+        ? `${cardI + 1} of ${cards.length} shown \u00b7 ${scopeTotal} kept in ${MON[scope.month]} ${scope.year}`
+        : `${cardI + 1} of ${cards.length} kept in ${MON[scope.month]} ${scope.year}`;
     } else if (otdMode === "widened") {
       head = `<b>${longDate(when).toUpperCase()}</b> \u00b7 NEAREST KEPT DAY, ${yrs} AGO`;
       foot = `${cardI + 1} of ${cards.length} within three days`;
@@ -2397,13 +2579,19 @@ const Surface = (() => {
     });
   }
   async function fillCard(c) {
-    if (c && c.opener === undefined) Object.assign(c, await openerOf(c.path).catch(() => ({ opener: "", title: "" })));
+    if (c && c.opener === undefined) Object.assign(c, await openerOf(c.path, c.big).catch(() => ({ opener: "", title: "" })));
   }
   async function rebuildOTD() {
     cardI = 0;
-    if (scope) { cards = await orderCards(monthPool(D.tree, scope.year, scope.month, D.hidden).slice(0, 12)); }
-    else { const r = onThisDay(D.tree, D.today, D.hidden); otdMode = r.widened ? "widened" : "exact";
-           cards = await orderCards(r.cards); }
+    if (scope) {
+      const pool = monthPool(D.tree, scope.year, scope.month, D.hidden);
+      scopeTotal = pool.length;          // the heat-map cell's number; cards is what fits
+      cards = await orderCards(pool.slice(0, OTD_MAX));
+    } else {
+      scopeTotal = 0;
+      const r = onThisDay(D.tree, D.today, D.hidden); otdMode = r.widened ? "widened" : "exact";
+      cards = await orderCards(r.cards);
+    }
   }
 
   /* ================= paint: What connected ================= */
@@ -2468,6 +2656,8 @@ const Surface = (() => {
   function paintGates() {
     const host = el().querySelector("#sf-gates"); if (!host) return;
     const g = D.gates;
+    if (!D.gatesUnread) AGREE.report("gates/open.md", "Surface", g.length);
+    const clash = AGREE.conflict("gates/open.md");
     const rows = g.slice(0, 3).map(x => {
       const age = x.raised ? daysAgo(x.raised, D.today) : null;
       const when = age === null ? "" : age <= 0 ? "today" : `${age}d`;
@@ -2485,6 +2675,9 @@ const Surface = (() => {
                       reached, so this panel does not know what is waiting \u2014 this is a read failure,
                       <b>not</b> a clear docket. Press Refresh.</div></div>`
                    : `<div class="well"><div class="sf-empty">Nothing is waiting. The docket is clear.</div></div>`}
+      ${clash ? `<div class="sf-unread"><b>Two windows disagree about this file.</b>
+                 ${esc(clash)}. One of them is wrong; the docket is the file, not either
+                 count. Refresh both, and if it persists the parser has drifted.</div>` : ""}
       <div class="sf-foot">
         <span><b>${g.length}</b> gate${g.length === 1 ? "" : "s"} \u00b7 <b>${D.flags}</b> flag${D.flags === 1 ? "" : "s"} \u00b7 <b>${props}</b> proposal${props === 1 ? "" : "s"}</span>
         <span class="sp"></span><button id="sf-inq">Open Inquest</button>
@@ -2596,61 +2789,92 @@ const Surface = (() => {
   }
 
   /* ================= render ================= */
+  /* The Instruments tab reads D synchronously when you click it. render() used to
+     blank D on its very first line and refill it over a dozen awaits, so a click
+     landing in that window threw on `D.archive` and left the panel empty for
+     seconds. The fix is not a guard in the painters: it is to never publish a
+     half-built D. Everything below fills a local object, and D is swapped for it in
+     one statement once it is complete — so a click mid-render reads the PREVIOUS
+     render, which is stale but true, instead of a hole. */
   async function render() {
     statusFields();
     say("Loading\u2026");
     const body = el();
+    try { await renderInner(body); lastGood = new Date(); }
+    catch (e) {
+      /* A failed refresh used to leave the previous render on screen underneath a
+         "Loading…" that never cleared — presenting the last read as current. */
+      const when = lastGood ? clock(lastGood) : null;
+      const bar = body.querySelector("#sf-stale") || document.createElement("div");
+      bar.id = "sf-stale"; bar.className = "sf-unread";
+      bar.innerHTML = `<b>Refresh failed</b> \u2014 ${esc((e && e.message) || "unknown error")}. ` +
+        (when ? `Everything below is the read from ${esc(when)}, not now.`
+              : `Nothing below has been confirmed against the repo.`);
+      if (!bar.parentNode) body.insertBefore(bar, body.firstChild);
+      say("refresh failed \u2014 showing the previous read", true);
+      throw e;
+    }
+  }
+  async function renderInner(body) {
     const tree = await getTree();
     const today = new Date();
-    D = { tree, today };
+    const N = { tree, today };
 
     /* status-bar counts — the same filters v1's pulse() ran, plus sessions */
     stat.pages    = tree.filter(e => /^wiki\/.+\.md$/.test(e.path)).length;
-    stat.inbox    = tree.filter(e => /^inbox\/[^/]+\.md$/.test(e.path) && !e.path.endsWith("README.md")).length;
+    stat.inbox    = inboxOf(tree, "pending").length;
     stat.sessions = tree.filter(e => /^sessions\/(claude|gemini)\/.+\.md$/.test(e.path)).length;
-    D.flags       = tree.filter(e => /^inbox\/[^/]*-flag\.md$/.test(e.path)).length;
+    N.flags       = inboxOf(tree, "pending", "flag").length;
 
     /* Every one of these used to collapse a failed read into the same value an empty
        file produces, so "we could not look" rendered as a confident "there is nothing
        there". readOr keeps the two apart: `.ok` false means unread, and every panel
        below must say so rather than assert a clean slate. */
+    /* hidden first: the archive is counted from the same filtered list the archive's
+       own click produces, and that filter needs it. */
+    try { N.hidden = await getHidden(); } catch (e) { N.hidden = new Set(); }
+
     const logR = await readOr("log.md", "");
-    D.logUnread = !logR.ok;
-    D.beat    = readBeat(logR.v, !logR.ok);
-    D.tending = tendingData(logR.v);
-    D.archive = archiveGrid(tree);
+    N.logUnread = !logR.ok;
+    N.beat    = readBeat(logR.v, !logR.ok);
+    N.tending = tendingData(logR.v);
+    N.archive = archiveGrid(tree, N.hidden);
 
     const gatesR = await readOr("gates/open.md", "");
-    D.gatesUnread = !gatesR.ok;
-    D.gates = parseGates(gatesR.v);
-    stat.gates = D.gates.length;
-
-    try { D.hidden = await getHidden(); } catch (e) { D.hidden = new Set(); }
+    N.gatesUnread = !gatesR.ok;
+    N.gates = parseGates(gatesR.v);
+    stat.gates = N.gates.length;
 
     /* The findings log: written only when a beat found something, so there is
        routinely no file for today. The newest one is the current one. */
     briefs = tree.filter(e => /^surface\/\d{4}-\d{2}-\d{2}\.md$/.test(e.path))
                  .map(e => e.path).sort().reverse();
     if (idx >= briefs.length) idx = 0;
-    D.brief = ""; D.briefUnread = false;
+    N.brief = ""; N.briefUnread = false;
     if (briefs.length) {
       const bR = await readOr(briefs[idx], "");
-      D.brief = bR.v; D.briefUnread = !bR.ok;
+      N.brief = bR.v; N.briefUnread = !bR.ok;
     }
     /* Quiet legacy entry: reach one file back for the last real connection. */
-    D.lastConn = null;
-    if (briefs.length && !findings(D.brief).list.length) {
-      for (let j = idx + 1; j < Math.min(briefs.length, idx + 4) && !D.lastConn; j++) {
+    N.lastConn = null;
+    if (briefs.length && !findings(N.brief).list.length) {
+      for (let j = idx + 1; j < Math.min(briefs.length, idx + 4) && !N.lastConn; j++) {
         try {
           const b = splitBullet((findings(await getFile(briefs[j])).list || [])[0] || "");
           if (b.head) { const dd = briefs[j].slice(8, 18), a = daysAgo(dd, today);
-            D.lastConn = { head: b.head, rel: a === 1 ? "yesterday" : `${a} days ago` }; }
+            N.lastConn = { head: b.head, rel: a === 1 ? "yesterday" : `${a} days ago` }; }
         } catch (e) {}
       }
     }
 
-    if (!scope) { const r = onThisDay(tree, today, D.hidden); otdMode = r.widened ? "widened" : "exact";
-                  cards = r.cards; } else { cards = monthPool(tree, scope.year, scope.month, D.hidden).slice(0, 12); }
+    if (!scope) {
+      scopeTotal = 0;
+      const r = onThisDay(tree, today, N.hidden); otdMode = r.widened ? "widened" : "exact";
+      cards = r.cards;
+    } else {                                  // same two lines as rebuildOTD, on purpose
+      const pool = monthPool(tree, scope.year, scope.month, N.hidden);
+      scopeTotal = pool.length; cards = pool.slice(0, OTD_MAX);
+    }
     try { cards = await orderCards(cards); } catch (e) { await fillCard(cards[0]); }
     if (cardI >= cards.length) cardI = 0;
 
@@ -2658,6 +2882,7 @@ const Surface = (() => {
                    : briefs.length ? `${dateOf(briefs[idx].slice(8, 18)).getDate()} ${MON3[dateOf(briefs[idx].slice(8, 18)).getMonth()]}`
                    : mobile() ? `${today.getDate()} ${MON3[today.getMonth()]}` : longDate(today);
 
+    D = N;                    // one statement: the only moment D is ever partly built
     body.classList.remove("white");
     body.classList.add("sf2");
     body.innerHTML = `
@@ -2711,7 +2936,27 @@ const Surface = (() => {
                 "Postfrontal Cortex 98 \u2014 it remembers for you, and brings the right thing back");
     } catch (e) {}
   }
+  /* The other half of the drift fix: when any window forces a read that genuinely
+     changes a file this brief is built from, say so rather than quietly ageing. */
+  document.addEventListener("pfc:changed", ev => {
+    const p = ev.detail && ev.detail.path;
+    if (!p || !(p === "log.md" || p === "gates/open.md" || /^surface\//.test(p))) return;
+    const body = el();
+    if (!body || !body.classList.contains("sf2")) return;
+    let bar = body.querySelector("#sf-changed");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "sf-changed"; bar.className = "sf-unread";
+      body.insertBefore(bar, body.firstChild);
+    }
+    bar.innerHTML = `<b>${esc(p)} changed</b> after this was drawn, so what you are ` +
+                    `reading is one version behind. <a id="sf-reread">Re-read it</a>.`;
+    const a = bar.querySelector("#sf-reread");
+    if (a) a.onclick = () => { bar.remove(); render().catch(err); };
+  });
   APPS.surface.onOpen = () => render().catch(err);
+  Object.assign(PFCT, { sfD: () => D, sfMonthPool: monthPool, sfParseGates: parseGates,
+                     sfPaintGates: paintGates, sfPaintInstruments: paintInstruments });
   return { render };
 })();
 /* ----- Wiki Explorer ----- */
@@ -2740,20 +2985,43 @@ const Explorer = (() => {
   }
 
   let HIDDEN_OPEN = false; // expanded == "I'm alone": hidden pages rejoin Search
+  /* The selection highlight used to be applied by openPath before renderTree had built
+     a single row, so the first page opened in a session was never marked. One function,
+     called from both, and called last. */
+  function markSelected() {
+    document.querySelectorAll("#tree-root li[data-path]").forEach(li =>
+      li.classList.toggle("sel", li.dataset.path === current));
+  }
   async function renderTree() {
-    const tree = await getTree();
     const root = document.getElementById("tree-root");
+    let tree;
+    try { tree = await getTree(); }
+    catch (e) {
+      /* An empty tree is the strongest false statement this app can make — it tells
+         someone their wiki is empty, in the window whose whole job is holding it. */
+      root.innerHTML = `<li class="tree-fail"><b>Could not read the repository.</b><br>` +
+        escHtml(e && e.message === "auth" ? "The token was refused (401)."
+              : e && e.message === "rate" ? "GitHub is rate-limiting this token."
+              : (e && e.message) || "Unknown error") +
+        `<br>This is a read failure, <b>not</b> an empty wiki. <a id="tree-retry">Try again</a>.</li>`;
+      const again = document.getElementById("tree-retry");
+      if (again) again.onclick = () => { cache.tree = null; renderTree().catch(err); };
+      WM.status("explorer", "index unread \u2014 " + ((e && e.message) || "error"));
+      throw e;
+    }
     const hid = await getHidden();
+    const isHid = e => isHiddenPath(e.path, hid);   // wiki slugs AND the sessions naming them
     const wiki = tree.filter(e => /^wiki\/.+\.md$/.test(e.path));
-    const isHid = e => hid.has(e.path.slice(5, -3));
+    const sess = src => tree.filter(e => e.path.startsWith("sessions/" + src + "/")
+                                      && e.path.endsWith(".md"));
     const groups = {
       "Wiki": wiki.filter(e => !isHid(e)),
       "Protocol": tree.filter(e => /^protocol\/.+\.md$/.test(e.path)),
       "Surface": tree.filter(e => /^surface\/.+\.md$/.test(e.path)).slice(-14).reverse(),
-      "Sessions · claude": tree.filter(e => /^sessions\/claude\/.+\.md$/.test(e.path)),
-      "Sessions · gemini": tree.filter(e => /^sessions\/gemini\/.+\.md$/.test(e.path)),
+      "Sessions · claude": sess("claude").filter(e => !isHid(e)),
+      "Sessions · gemini": sess("gemini").filter(e => !isHid(e)),
       "Root": tree.filter(e => /^(index|log)\.md$/.test(e.path)),
-      "Hidden": wiki.filter(isHid),
+      "Hidden": [...wiki, ...sess("claude"), ...sess("gemini")].filter(isHid),
     };
     root.innerHTML = "";
     for (const [g, items] of Object.entries(groups)) {
@@ -2775,35 +3043,40 @@ const Explorer = (() => {
         ul.appendChild(item);
       });
       if (g.startsWith("Sessions")) { // lazy: 600+ episodic files build on first expand
-        det.addEventListener("toggle", () => { if (det.open && !ul.childElementCount) build(); }, { once: false });
+        det.addEventListener("toggle", () => {
+          if (det.open && !ul.childElementCount) { build(); markSelected(); } }, { once: false });
       } else build();
       det.appendChild(ul); li.appendChild(det); root.appendChild(li);
     }
+    markSelected();                     // last: the first open of a session is now marked
   }
 
+  /* "↩ No backlinks yet" used to be printable when seven fetches had failed — in a
+     system whose stated law is that every belief links down to its source. The scan
+     now reports how many pages it could not read, and the caller must say so. */
   async function backlinksFor(slug) {
     const tree = await getTree();
-    const pages = tree.filter(e => /^wiki\/.+\.md$/.test(e.path));
-    const hits = [];
-    for (const p of pages) {
-      if (p.path === `wiki/${slug}.md`) continue;
-      try {
-        const txt = await getFile(p.path);
-        const links = [...txt.matchAll(/\[\[([^\]|]+)\]\]/g)].map(m => slugify(m[1]));
-        if (links.includes(slug)) hits.push(p.path.slice(5, -3));
-      } catch (e) {}
-    }
-    return hits;
+    const paths = tree.filter(e => /^wiki\/.+\.md$/.test(e.path) && e.path !== `wiki/${slug}.md`)
+                      .map(e => e.path);
+    const { docs, missed } = await readMany(paths);
+    const hits = docs.filter(d => [...d.text.matchAll(/\[\[([^\]|]+)\]\]/g)]
+                     .some(m => resolveLink(m[1]).slug === slug))
+                     .map(d => d.path.slice(5, -3)).sort();
+    return { hits, missed: missed.length };
   }
 
   async function openPath(path) {
     pending = path;
     await ensureLayout();
     WM.status("explorer", "Loading " + path);
-    document.querySelectorAll("#tree-root li").forEach(li =>
-      li.classList.toggle("sel", li.dataset.path === path));
+    current = path;                     // set before marking, so markSelected agrees
+    markSelected();
     const view = document.getElementById("explorer-view");
     const md = await getFile(path);
+    /* Nobody awaits openPath, so two of them can be in flight at once and the slower
+       one used to win by resolving last. `current` is claimed before the fetch, so a
+       superseded open now bails instead of overwriting the page you actually asked for. */
+    if (current !== path) return;
     const PREVIEW = 3200; // ~500 words; sessions render a preview, expand on demand
     if (/^sessions\//.test(path) && md.length > PREVIEW + 800) {
       let cut = md.indexOf("\n**", PREVIEW);
@@ -2821,7 +3094,6 @@ const Explorer = (() => {
       renderMd(md, view);
     }
     view.scrollTop = 0;
-    current = path;
     if (/^wiki\//.test(path)) {
       const slug = path.slice(5, -3);
       const bar = document.createElement("div");
@@ -2855,17 +3127,29 @@ const Explorer = (() => {
       };
       bar.appendChild(hide);
       view.appendChild(bar);
-      backlinksFor(slug).then(bl => {
+      backlinksFor(slug).then(({ hits, missed }) => {
         if (current !== path) return; // user already navigated elsewhere
         const div = document.createElement("div");
         div.id = "backlinks";
-        div.innerHTML = bl.length
-          ? "↩ Linked from: " + bl.map(s =>
-              `<a class="wikilink" data-page="${s}">${s}</a>`).join(" · ")
+        const tail = missed ? `<span class="bl-unread"> · ${plural(missed, "page")} unread, ` +
+                              `so this list may be short</span>` : "";
+        div.innerHTML = hits.length
+          ? "↩ Linked from: " + hits.map(s =>
+              `<a class="wikilink" data-page="${escHtml(s)}">${escHtml(s)}</a>`).join(" · ") + tail
+          : missed
+          /* Never "no backlinks" when the scan could not finish — that is a claim
+             about the wiki's shape made without reading the wiki. */
+          ? `↩ Backlinks unknown — ${plural(missed, "page")} could not be read.`
           : "↩ No backlinks yet.";
         view.appendChild(div);
         div.querySelectorAll("a.wikilink").forEach(a =>
           a.addEventListener("click", () => openPage(a.dataset.page)));
+      }).catch(e => {
+        if (current !== path) return;
+        const div = document.createElement("div");
+        div.id = "backlinks";
+        div.textContent = "↩ Backlinks unread — " + (e && e.message || "error");
+        view.appendChild(div);
       });
     }
     if (pending === path) pending = null;
@@ -3224,8 +3508,15 @@ const Explorer = (() => {
       } catch (e) { /* index.md optional: Tier A still works, Tier B stays shut */ }
       const list = [...slugs].sort();
       list.forEach(s => title.set(s, titleOf(s.split("-").filter(Boolean))));
-      PAGES = { list, section, title };
-      ENTS = buildEntities(list, section);
+      /* Hidden pages were offered by name in the [[ list and, worse, auto-capitalised
+         into the body of notes by Tidy — a page you took off the index re-entering
+         your text unprompted. Tidy never sees them now. The [[ list follows the same
+         rule Search does: they come back while the Explorer's Hidden group is open,
+         which is the app's idiom for "I'm alone". */
+      let hidden = new Set();
+      try { hidden = await getHidden(); } catch (e) { /* unread: assume nothing hidden */ }
+      PAGES = { list, section, title, hidden };
+      ENTS = buildEntities(list.filter(x => !hidden.has(x)), section);
       return PAGES;
     })();
     return PAGES_LOAD;
@@ -3427,11 +3718,21 @@ const Explorer = (() => {
      text" is `composing`, and the trigger is keydown-gated besides — dictation inserts
      through input/composition events and never synthesises a bracket keypress — so a
      popup can still not open mid-dictation. */
+  /* One definition of "pages this control can offer", so the denominator in the
+     header can never claim more than the list is willing to show. */
+  const acAlone = () => typeof Explorer !== "undefined" && Explorer.hiddenOpen && Explorer.hiddenOpen();
+  const acPool = () => !PAGES ? 0
+    : acAlone() || !PAGES.hidden ? PAGES.list.length
+    : PAGES.list.filter(x => !PAGES.hidden.has(x)).length;
+  Object.assign(PFCT, { noteLoadPages: loadPages, noteAcPool: () => acPool(),
+                     noteEntHas: slug => !!(ENTS.map && ENTS.map.has(slug)) });
   function acOpen(q, start) {
     if (!PAGES || composing) return acClose();
     const t = q.toLowerCase();
     const pre = [], mid = [];
+    const alone = acAlone();
     PAGES.list.forEach(slug => {
+      if (!alone && PAGES.hidden && PAGES.hidden.has(slug)) return;
       const title = PAGES.title.get(slug) || slug;
       const hay = slug + " " + title.toLowerCase();
       if (!t) pre.push(slug);
@@ -3450,7 +3751,7 @@ const Explorer = (() => {
       ? (dest ? "Tap a page to file to it" : "Tap a page to link it · tap the text to dismiss")
       : `↑↓ choose · Enter ${dest ? "file here" : "link"} · Esc close`;
     ac.innerHTML =
-      `<div class="hd">${dest ? "File to page" : "Link to page"} — ${shown} of ${PAGES.list.length}</div><ul>` +
+      `<div class="hd">${dest ? "File to page" : "Link to page"} — ${shown} of ${acPool()}</div><ul>` +
       acRows.map((slug, i) =>
         `<li role="option" data-slug="${esc(slug)}" aria-selected="${i === acSel}">
            <span class="tt">${esc(PAGES.title.get(slug) || slug)}</span>
@@ -3463,8 +3764,8 @@ const Explorer = (() => {
     placeAc();
     const sel = ac.querySelector("li[aria-selected=true]");
     if (sel) sel.scrollIntoView({ block: "nearest" });
-    say(dest ? `Choose a page — ${PAGES.list.length} in the wiki.`
-      : `Linking — showing ${shown} of ${PAGES.list.length} pages. Prefix matches first.`);
+    say(dest ? `Choose a page — ${acPool()} in the wiki.`
+      : `Linking — showing ${shown} of ${acPool()} pages. Prefix matches first.`);
   }
   /* Desktop anchors to the caret with a mirror div; mobile does not, because caret
      geometry is unreliable once the soft keyboard is up — there the panel is static
@@ -3580,9 +3881,9 @@ const Explorer = (() => {
       return { id: p, kind: s.kind, path: p, stage, ts: s.d ? s.d.getTime() : 0,
         when: s.when, name: gists.get(p) || "", queued: log[p] && log[p].queued || null };
     };
-    const pushed = tree.filter(e => /^inbox\/[^/]+\.md$/.test(e.path) && !e.path.endsWith("README.md"))
+    const pushed = inboxOf(tree, "pending")
       .map(e => mk(e.path, "pushed"));
-    const filed = tree.filter(e => /^inbox\/processed\/.+\.md$/.test(e.path))
+    const filed = inboxOf(tree, "processed")
       .map(e => mk(e.path, "filed"));
     rows = q.concat(pushed, filed).sort((a, b) => b.ts - a.ts);
     if (filed.length > 30) rows = rows.filter(r => r.stage !== "filed").concat(
@@ -4035,26 +4336,34 @@ const Explorer = (() => {
 /* ----- Recent Changes (98.css tabs = filter) ----- */
 (() => {
   let ops = [], cur = "all";
+  /* Every verb must live in exactly one tab. `design`, `oracle` and `flag` used to
+     live in none — invisible in every filter, and invisible in the denominator too,
+     because the denominator was computed from the same regex that skipped them. The
+     assertion below is what stops that happening again: anything not claimed by a tab
+     falls into Other, which only appears when it has something in it. */
   const TABS = [
     ["all", "All", null],
-    ["ingest", "Ingest", ["ingest"]],
-    ["surface", "Surface", ["surface"]],
+    ["ingest", "Ingest", ["ingest", "correct"]],
+    ["surface", "Surface", ["surface", "oracle", "gate", "flag"]],
     ["beats", "Beats", ["heartbeat"]],
-    ["build", "Build", ["build"]],
-    ["meta", "Meta", ["admin", "correct", "lint", "query"]],
+    ["build", "Build", ["build", "design"]],
+    ["meta", "Meta", ["admin", "lint", "query"]],
   ];
+  const CLAIMED = new Set(TABS.flatMap(t => t[2] || []));
   function renderList(body) {
-    const cats = TABS.find(t => t[0] === cur)[2];
-    const rows = cats ? ops.filter(o => cats.includes(o[2])) : ops;
-    body.querySelector("#log-list").innerHTML = rows.map(m => `
-      <div class="log-line"><span class="d">${m[1]}</span>
-        <span class="p">${m[2]}</span><span>${escHtml(m[3])}</span></div>`).join("")
+    const tab = TABS.find(t => t[0] === cur);
+    const cats = tab ? tab[2] : null;
+    const rows = cur === "other" ? ops.filter(o => !CLAIMED.has(o.verb))
+               : cats ? ops.filter(o => cats.includes(o.verb)) : ops;
+    body.querySelector("#log-list").innerHTML = rows.map(o => `
+      <div class="log-line"><span class="d">${o.day}</span>
+        <span class="p">${escHtml(o.verb)}</span><span>${escHtml(o.text)}</span></div>`).join("")
       || "<div class='md'><p>Nothing in this category yet.</p></div>";
     body.querySelectorAll("[role=tab]").forEach(li =>
       li.setAttribute("aria-selected", li.dataset.tab === cur));
-    WM.status("changes", cats
-      ? `${rows.length} of ${ops.length} operations · ${cur}`
-      : `${ops.length} operations logged`);
+    WM.status("changes", cur === "all"
+      ? `${plural(ops.length, "operation")} logged`
+      : `${rows.length} of ${ops.length} operations · ${cur}`);
   }
   APPS.changes.onOpen = async () => {
     const body = document.querySelector("#win-changes .window-body");
@@ -4062,12 +4371,15 @@ const Explorer = (() => {
     WM.status("changes", "Loading…");
     try {
       const log = await getFile("log.md", true);
-      ops = [...log.matchAll(/^## \[([0-9-]+)\] (\w+) \| (.+)$/gm)].reverse();
+      ops = logOps(log).reverse();                     // one parser; newest first
+      const orphans = ops.filter(o => !CLAIMED.has(o.verb)).length;
+      if (!orphans && cur === "other") cur = "all";
+      const tabs = orphans ? [...TABS, ["other", `Other (${orphans})`, null]] : TABS;
       body.innerHTML = `
         <div style="padding:8px 8px 0 8px;">
           <menu role="tablist" style="margin:0;">
-            ${TABS.map(([id, label]) =>
-              `<li role="tab" data-tab="${id}" aria-selected="${id === cur}"><a href="#log">${label}</a></li>`).join("")}
+            ${tabs.map(([id, label]) =>
+              `<li role="tab" data-tab="${id}" aria-selected="${id === cur}"><a href="#log">${escHtml(label)}</a></li>`).join("")}
           </menu>
         </div>
         <div id="log-list" class="sunken-panel" style="overflow:auto; background:#fff;
@@ -4088,20 +4400,23 @@ const Search = (() => {
     indexPromise = (async () => {
       const tree = await getTree();
       const paths = tree.filter(e => /\.md$/.test(e.path) &&
-        /^(wiki|protocol|surface)\//.test(e.path) || /^(index|log)\.md$/.test(e.path))
+        (/^(wiki|protocol|surface)\//.test(e.path) || /^(index|log)\.md$/.test(e.path)))
         .map(e => e.path);
-      const docs = [];
-      for (const p of paths) {
-        try { docs.push({ path: p, text: await getFile(p) }); } catch (e) {}
-      }
-      return docs;
+      const { docs, missed, fatal } = await readMany(paths);
+      /* Never memoise a partial index. This is the whole bug: one blip during the
+         ~100-file walk removed a page from EVERY search for the rest of the session,
+         and "No matches." was printed with the same confidence as a real miss. A
+         partial index is still returned so the search works — it just isn't cached,
+         so the next query tries the missing files again. */
+      if (missed.length) indexPromise = null;
+      return { docs, missed, fatal, total: paths.length };
     })();
     return indexPromise;
   }
   async function visible(docs) { // hidden pages rejoin Search only while the Hidden group is expanded
     if (typeof Explorer !== "undefined" && Explorer.hiddenOpen && Explorer.hiddenOpen()) return docs;
     const hid = await getHidden();
-    return docs.filter(d => !(/^wiki\//.test(d.path) && hid.has(d.path.slice(5, -3))));
+    return docs.filter(d => !isHiddenPath(d.path, hid));
   }
   APPS.search.onOpen = () => {
     const body = document.querySelector("#win-search .window-body");
@@ -4117,7 +4432,8 @@ const Search = (() => {
       const term = q.value.trim().toLowerCase();
       if (!term) return;
       WM.status("search", "Indexing…");
-      const ix = await visible(await buildIndex());
+      const built = await buildIndex();
+      const ix = await visible(built.docs);
       if (q.value.trim().toLowerCase() !== term) return; // superseded by a newer query
       const scored = ix.map(d => {
         const t = d.text.toLowerCase();
@@ -4130,18 +4446,32 @@ const Search = (() => {
           .replace(new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "ig"), "<b>$1</b>");
         return { path: d.path, score: n + titleHit, snip };
       }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, 30);
-      res.innerHTML = scored.map(s => `
+      /* A partial index must never be allowed to read as a complete answer. */
+      const warn = built.fatal
+        ? `<div class="sf-unread">Search is incomplete — ${built.fatal === "auth"
+             ? "the token was refused" : "GitHub is rate-limiting"}. ` +
+          `${built.docs.length} of ${built.total} pages were read.</div>`
+        : built.missed.length
+        ? `<div class="sf-unread">${plural(built.missed.length, "page")} could not be read, ` +
+          `so this list may be short. Searching again retries them.</div>` : "";
+      res.innerHTML = warn + (scored.map(s => `
         <div class="result" data-path="${s.path}">
           <div class="t">${s.path}</div><div class="s">…${s.snip}…</div>
-        </div>`).join("") || "<div class='md'><p>No matches.</p></div>";
+        </div>`).join("") ||
+        (built.missed.length || built.fatal
+          ? "<div class='md'><p>No matches <b>in the pages that could be read</b>.</p></div>"
+          : "<div class='md'><p>No matches.</p></div>"));
       res.querySelectorAll(".result").forEach(r => r.addEventListener("click", () => {
         WM.show("explorer"); Explorer.openPath(r.dataset.path);
       }));
-      WM.status("search", `${scored.length} result${scored.length === 1 ? "" : "s"} for “${term}”`);
+      WM.status("search", `${scored.length} result${scored.length === 1 ? "" : "s"} for “${term}”` +
+        (built.missed.length ? ` · ${built.missed.length} unread` : ""));
     }
     body.querySelector("#go").onclick = run;
     q.onkeydown = e => { if (e.key === "Enter") run(); };
   };
+  Object.assign(PFCT, { searchBuildIndex: buildIndex,
+                     searchMemoised: () => indexPromise !== null });
   return { invalidate };
 })();
 
@@ -4153,7 +4483,7 @@ const Search = (() => {
     const tree = await getTree();
     const answers = tree.filter(e => /^oracle\/\d{4}-.*\.md$/.test(e.path))
       .map(e => e.path).sort().reverse().slice(0, 10);
-    const pending = tree.filter(e => /^inbox\/[^/]*-oracle\.md$/.test(e.path)).map(e => e.path);
+    const pending = inboxOf(tree, "pending", "oracle").map(e => e.path);
     let html = "";
     for (const p of pending) {
       let q = "";
@@ -4217,19 +4547,25 @@ const Search = (() => {
       const head = block.split("\n")[0].trim();
       const bits = head.split("·").map(x => x.trim());
       const g = { id: bits[0] || "", kind: (bits[1] || "").toLowerCase(), scope: bits.slice(2).join(" · ") };
+      /* `$` under the m flag is end-of-LINE, so the lazy body always stopped at the
+         first newline and every field was silently truncated to one line — in a
+         reader whose source files hard-wrap at ~90 columns. `$(?![\s\S])` is true
+         end-of-input, which is what was meant. */
       const grab = k => {
-        const m = block.match(new RegExp("^\\*\\*" + k + ":\\*\\*\\s*([\\s\\S]*?)(?=\\n\\*\\*|$)", "m"));
-        return m ? m[1].trim() : "";
+        const m = block.match(new RegExp(
+          "^\\*\\*" + k + ":\\*\\*[ \\t]*([\\s\\S]*?)(?=\\n\\*\\*|\\n##\\s|$(?![\\s\\S]))", "m"));
+        return m ? m[1].replace(/\s*\n\s*/g, " ").trim() : "";
       };
       g.q = grab("Q"); g.a = grab("A"); g.b = grab("B");
       g.ev = grab("Evidence"); g.raised = grab("Raised");
-      if (g.id) out.push(g);
+      if (isGateId(g.id)) out.push(g);               // one definition of "is a gate"
     }
     return out;
   }
+  Object.assign(PFCT, { inqParseDocket: parseDocket });
   const linkify = t => escHtml(t).replace(/\[\[([^\]|]+)\]\]/g, (_, n) => {
-    const path = n.includes("/") ? (n.endsWith(".md") ? n : n + ".md") : `wiki/${n}.md`;
-    return `<a class="wikilink" data-path="${path}">${n.split("/").pop()}</a>`;
+    const r = resolveLink(n);
+    return `<a class="wikilink" data-path="${escHtml(r.path)}">${escHtml(r.label)}</a>`;
   }).replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
 
@@ -4269,11 +4605,18 @@ const Search = (() => {
         WM.status("inquest", "docket empty"); return;
       }
       const gates = parseDocket(md);
+      const clash = AGREE.report("gates/open.md", "Inquest", gates.length);
+      /* Rendered AFTER the list is cleared, or the clear would eat it. */
+      const clashHTML = clash
+        ? `<div class="sf-unread"><b>Surface and Inquest disagree about the docket.</b> ` +
+          `${escHtml(clash)}. Both read <code>gates/open.md</code>; one parser has drifted.</div>`
+        : "";
       if (!gates.length) {
-        list.innerHTML = `<div id="inq-empty">Nothing awaiting you. The brain has no open questions.</div>`;
+        list.innerHTML = clashHTML +
+          `<div id="inq-empty">Nothing awaiting you. The brain has no open questions.</div>`;
         WM.status("inquest", "0 open"); return;
       }
-      list.innerHTML = "";
+      list.innerHTML = clashHTML;
       for (const g of gates) {
         const el = document.createElement("div");
         el.className = "gate"; el.dataset.gid = g.id;
@@ -4318,9 +4661,9 @@ const Search = (() => {
       WM.status("inquest", `${gates.length} awaiting your ruling`);
     } else {
       const tree = await getTree(true);
-      const want = tab === "flags" ? /^inbox\/[^/]*-flag\.md$/ : /^inbox\/[^/]*-gate\.md$/;
-      const paths = tree.filter(e => want.test(e.path) &&
-                    /^inbox\//.test(e.path)).map(e => e.path).sort().reverse().slice(0, 25);
+      const wantKind = tab === "flags" ? "flag" : "gate";
+      const paths = inboxOf(tree, "pending", wantKind)
+                    .map(e => e.path).sort().reverse().slice(0, 25);
       if (!paths.length) {
         list.innerHTML = `<div id="inq-empty">${tab === "flags"
           ? "No flags pending. Flag a wrong page from the Explorer — the ⚑ button by its title."
@@ -4598,14 +4941,25 @@ const Search = (() => {
         try {
           const now = new Date(), pad = n => String(n).padStart(2, "0");
           const stamp = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-          const items = [];
+          const items = [], undecodable = [];
           for (let i = 0; i < files.length; i++) {
             WM.status("why", `Preparing ${i+1}/${files.length}\u2026`);
             try {
               const r = await resizeToJpeg(files[i]);
               items.push({ b64: r.b64, sha: await gitBlobSha(r.b64),
                            path: `why/photos/${stamp}-${String(i).padStart(3,"0")}${r.tag}.jpg` });
-            } catch (e) { /* unreadable file: skip */ }
+            } catch (e) { undecodable.push(files[i].name || `file ${i + 1}`); }
+          }
+          /* "All 0 already in the pool — nothing to add" was printable when every
+             single file had failed to decode, and nothing else in the app would ever
+             contradict it. The real trigger is HEIC straight off an iPhone, which the
+             canvas decoder cannot read at all. */
+          if (!items.length) {
+            WM.status("why", undecodable.length
+              ? `Could not read ${plural(undecodable.length, "file")} \u2014 nothing was added. ` +
+                `iPhone HEIC is the usual cause; share or export as JPEG first.`
+              : "No files chosen \u2014 nothing was added.");
+            return;
           }
           if (DEMO) { WM.status("why", "Demo \u2014 nothing is saved."); return; }
           const tree = await getTree(true);
@@ -4613,7 +4967,8 @@ const Search = (() => {
           const fresh = items.filter(it => !have.has(it.sha));
           const skipped = items.length - fresh.length;
           if (!fresh.length) {
-            WM.status("why", `All ${items.length} already in the pool \u2014 nothing to add.`);
+            WM.status("why", `All ${plural(items.length, "photo")} already in the pool \u2014 nothing to add.` +
+              (undecodable.length ? ` ${plural(undecodable.length, "file")} could not be read.` : ""));
             return;
           }
           const entries = [];
