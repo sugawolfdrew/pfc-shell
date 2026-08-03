@@ -1,6 +1,6 @@
 # pfc-shell
 
-The public, data-free front end of [Post Frontal Cortex](https://github.com/sugawolfdrew/PFC) —
+The public, data-free front end of [Postfrontal Cortex](https://github.com/sugawolfdrew/PFC) —
 a personal second brain: a private markdown wiki maintained by Claude Cowork sessions,
 browsed through a faithful Windows 98 interface ([98.css](https://github.com/jdan/98.css)).
 
