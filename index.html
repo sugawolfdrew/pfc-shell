@@ -755,26 +755,6 @@ const WALL = (() => {
     "wwwwwwwwww",
     ".ssssssss.",
   ]);
-  const BRAIN = bake([
-    ".........kkkkkkkkkk.........",
-    ".......kkppppppppppkk.......",
-    ".....kkppwwpppPPPppppkk.....",
-    "....kppwwpPPPppppPPppppk....",
-    "...kppwpPPpppPPppppPPpppk...",
-    "..kpppPPppPPPppPPPpppppPk...",
-    "..kppPpppPpppPPpppPPPppppk..",
-    ".kpppPPpPPppPPpppPPpppPPppk.",
-    ".kppPpppppPPpppPPpppPPppppk.",
-    ".kpppPPPpppppPPppppPPpppPpk.",
-    ".kppppppPPPpppppPPPppppPPpk.",
-    "..kpPPpppppPPPpppppPPpppk...",
-    "..kppppPPPpppppPPPpppppPk...",
-    "...kPpppppPPpppppppPPppk....",
-    "....kPPpppppppPPPppppPk.....",
-    ".....kkPPPpppppppPPPkk......",
-    ".......kkkPPPPPPPkkk........",
-    ".........kkkkkkkkk..........",
-  ]);
   const TREE_PAL = { day: { g: "#0a5828", Y: "#6a4818" }, dawn: { g: "#0a4820", Y: "#584014" },
                      dusk: { g: "#083818", Y: "#443010" }, night: { g: "#062812", Y: "#30240c" } };
   const treeC = {};
@@ -938,13 +918,82 @@ const WALL = (() => {
     if (hillsKey !== ph + W) { hillsC = bakeHills(ph); hillsKey = ph + W; }
     g.drawImage(hillsC, 0, 0);
   }
+  let synSites = [];
+  function bakeMatter(light) { // the sky IS grey matter: walked sulci, ridge sheen,
+    const hor = (H * 0.62) | 0; // and a dark ombre pooling in the upper right
+    const T = light
+      ? { base: [160, 154, 160], ridge: [188, 180, 186], sulci: [106, 98, 108], mottle: [174, 167, 173], omb: [10, 10, 18] }
+      : { base: [86, 80, 88], ridge: [110, 102, 110], sulci: [56, 50, 60], mottle: [96, 89, 96], omb: [5, 5, 9] };
+    const map = new Uint8Array(W * hor); // 0 base, 1 sulcus, 2 ridge, 3 mottle
+    seed = 31337;
+    const cell = 13; // jittered-grid spawns pack the folds evenly, edge to edge
+    for (let gy = 0; gy < hor; gy += cell) {
+      for (let gx = 0; gx < W; gx += cell) {
+        let x = gx + rnd() * cell, y = gy + rnd() * cell, a = rnd() * 6.28;
+        let last = -1, last2 = -1;
+        const len = 90 + rnd() * 170;
+        for (let i = 0; i < len; i++) {
+          a += (rnd() - 0.5) * 0.85;
+          x += Math.cos(a); y += Math.sin(a) * 0.85;
+          if (x < 0) x += W; if (x >= W) x -= W;
+          if (y < 0 || y >= hor) { a = -a; y = Math.max(0, Math.min(hor - 1, y)); }
+          const xi = x | 0, yi = y | 0, p = yi * W + xi;
+          if (map[p] === 1 && p !== last && p !== last2) { // another fold: veer, don't cross
+            if (i > 8 && rnd() < 0.35) break;
+            a += Math.PI * (0.4 + rnd() * 0.35);
+            x += Math.cos(a) * 1.6; y += Math.sin(a) * 1.3;
+            continue;
+          }
+          map[p] = 1; last2 = last; last = p;
+          if (rnd() < 0.35 && xi + 1 < W && map[p + 1] !== 1) map[p + 1] = 1;
+          if (yi > 0 && rnd() < 0.55 && map[(yi - 1) * W + xi] === 0) map[(yi - 1) * W + xi] = 2;
+        }
+      }
+    }
+    for (let i = 0; i < W * hor * 0.05; i++) { // faint tissue mottling
+      const p = (rnd() * W * hor) | 0;
+      if (map[p] === 0) map[p] = 3;
+    }
+    const c = document.createElement("canvas"); c.width = W; c.height = hor;
+    const q = c.getContext("2d");
+    const img = q.createImageData(W, hor);
+    synSites = [];
+    const ox = W - 1, oy = 0, R = Math.max(W * 0.85, hor * 1.6);
+    for (let y = 0; y < hor; y++) {
+      for (let x = 0; x < W; x++) {
+        const i = y * W + x;
+        const tone = [T.base, T.sulci, T.ridge, T.mottle][map[i]];
+        // ombre: dark pools at the top-right corner, dither-fades into the matter
+        const d = Math.hypot(x - ox, y - oy);
+        let f = Math.max(0, 1 - d / R); f = f * f * 1.9;
+        f = Math.max(0, Math.min(1, f + ((B4[y & 3][x & 3] / 16) - 0.5) * 0.32));
+        const o = i * 4;
+        img.data[o]     = tone[0] + (T.omb[0] - tone[0]) * f;
+        img.data[o + 1] = tone[1] + (T.omb[1] - tone[1]) * f;
+        img.data[o + 2] = tone[2] + (T.omb[2] - tone[2]) * f;
+        img.data[o + 3] = 255;
+        if (map[i] === 1 && ((x * 7 + y * 13) % 41) === 0) synSites.push([x, y]);
+      }
+    }
+    q.putImageData(img, 0, 0);
+    return c;
+  }
   function drawP98Scene(m, ph) {
     const light = ph === "day" || ph === "dawn";
     const hor = (H * 0.62) | 0;
-    if (skyKey !== "p" + light + W) { skyC = bakeSky(light ? P98.light : P98.dark, hor); skyKey = "p" + light + W; }
+    if (skyKey !== "m" + light + W) { skyC = bakeMatter(light); skyKey = "m" + light + W; }
     g.drawImage(skyC, 0, 0);
-    g.fillStyle = light ? "#b8f0e8" : "#a8f0f0"; // it's space: stars always
-    for (const s of stars) if (((t + s.p) % 26) > 3 && s.y < hor - 6) g.fillRect(s.x, s.y, 1, 1);
+    // synapses firing in the folds
+    if (synSites.length) {
+      for (let i = 0; i < 7; i++) {
+        const s = synSites[(((t / 9) | 0) * 13 + i * 37) % synSites.length];
+        const age = t % 9;
+        if (age < 6) {
+          g.fillStyle = age < 2 ? "#ffffff" : (light ? "#7ae0ff" : "#5ec8f0");
+          g.fillRect(s[0], s[1], 1, 1);
+        }
+      }
+    }
     // ground: the scrolling grid
     g.fillStyle = "#001414"; g.fillRect(0, hor, W, H - hor);
     const cx = W / 2;
@@ -959,22 +1008,10 @@ const WALL = (() => {
       g.fillRect(0, y, W, 1);
     }
     g.fillStyle = "#00e8d8"; g.fillRect(0, hor, W, 1); // horizon glow
-    // the brain, risen like a sun; three thoughts in orbit
-    const sc = Math.max(1, Math.round(W / 170));
-    const bw = BRAIN.width * sc, bh = BRAIN.height * sc;
-    const bx = (cx - bw / 2) | 0, by = hor - bh - 4 * sc + ((t >> 4) % 2 ? 1 : 0);
-    g.drawImage(BRAIN, bx, by, bw, bh);
-    g.fillStyle = "#80fff0";
-    for (let i = 0; i < 3; i++) {
-      const a = t * 0.045 + i * 2.094;
-      const ox = (cx + Math.cos(a) * (bw * 0.72)) | 0;
-      const oy = (by + bh * 0.45 + Math.sin(a) * (bh * 0.62)) | 0;
-      if (Math.sin(a) > -0.25 || ((t + i * 5) % 3)) g.fillRect(ox, oy, 1, 1);
-    }
-    // logotype
+    // logotype, top right, on the deep end of the ombre
     const lsc = Math.max(1, Math.min(3, Math.floor((W * 0.7) / 36)));
-    const tw = 6 * 6 * lsc - lsc;
-    drawText(g, "PFC·98", ((W - tw) / 2) | 0, (H * 0.09) | 0, lsc, "#e8fffc", "#00303c");
+    const tw = 5 * 6 * lsc - lsc;
+    drawText(g, "PFC98", W - tw - 4 - lsc, 4 + lsc, lsc, "#ece8ee", "#000006");
   }
 
   /* ---- plumbing ---- */
