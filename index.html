@@ -890,18 +890,6 @@ const WALL = (() => {
   const CLOUDS = CLOUD_ART.map(a => bake(a));
   const CLOUDS_GRAY = CLOUD_ART.map(a => bake(a, { ...PAL, w: "#b0b0bc", s: "#787884" }));
   const CLOUDS_WARM = CLOUD_ART.map(a => bake(a, { ...PAL, w: "#ffe0d0", s: "#d8a090" }));
-  const TREE_PAL = { day: { g: "#0a5828", Y: "#6a4818" }, dawn: { g: "#0a4820", Y: "#584014" },
-                     dusk: { g: "#083818", Y: "#443010" }, night: { g: "#062812", Y: "#30240c" } };
-  const treeC = {};
-  const TREE_ART = [
-    "..ggg..",
-    ".ggggg.",
-    "ggggggg",
-    "ggggggg",
-    ".ggggg.",
-    "...Y...",
-    "...Y...",
-  ];
   const MATTER = new Image(); // Andrew's grey-matter art (2026-08-03); walkers stay as fallback
   MATTER.onload = () => { skyKey = ""; frame(); };
   MATTER.src = "assets/pfc-matter.png";
@@ -945,65 +933,192 @@ const WALL = (() => {
     q.putImageData(img, 0, 0);
     return c;
   }
+  /* ---- the hills: a lit heightfield, not a stack of silhouettes ----
+     Six receding planes, each a ridgeline whose *slope* is what gets shaded
+     (cartographic relief shading: a flank that falls to the right faces right,
+     so it takes the light from the right), plus a crown that decays downslope
+     and a slow value drift so no plane is one flat tone. Every step of the ramp
+     is resolved with the same 4x4 Bayer matrix the sky uses, so the terrain and
+     the sky dither in one language. Distance is spent, not stacked: each plane
+     back loses contrast, gains haze, and drops a size of grass — 3px blades in
+     front, 2px, 1px pairs, then nothing. Grass is drawn in clumps; a lone pixel
+     is noise, a clump is texture. */
   const HILL_PAL = {
-    day:   { far: ["#68937c", "#7fa78e"], back: ["#2e8846", "#3ea452"], front: ["#1f7c3a", "#35984c"],
-             fleck: "#4cb060", fl1: "#f8f0a0", fl2: "#ffffff" },
-    dawn:  { far: ["#7d7794", "#928ba6"], back: ["#3a7a4a", "#4f9058"], front: ["#2a6c3e", "#408852"],
-             fleck: "#55a066", fl1: "#ffd8b0", fl2: null },
-    dusk:  { far: ["#575070", "#696180"], back: ["#22543a", "#326a48"], front: ["#183c28", "#2a5638"],
-             fleck: "#2f6840", fl1: null, fl2: null },
-    night: { far: ["#101c34", "#182844"], back: ["#0c2c1c", "#143824"], front: ["#081e12", "#102a1a"],
-             fleck: "#153020", fl1: null, fl2: null },
+    // ramp: shadow -> light, hue-shifted (cool in shade, warm in light).
+    // haze: what distance mixes toward. lx: which way the light rakes.
+    day: {
+      ramp: ["#0c3125", "#113e28", "#164c2b", "#1b5c2f", "#236e34", "#2e853b", "#3c9c45", "#50b351", "#70ca63"],
+      haze: "#8fbde6", lx: 0.45, crown: 1.95, rim: 1.25,
+      fl1: "#f6efa6", fl2: "#fffaf0",
+    },
+    dawn: { // low sun off the left, sky-blue bounce in the shade
+      ramp: ["#13232c", "#172c2e", "#1c3830", "#234434", "#2c5339", "#38643f", "#487646", "#658b4b", "#9ea457"],
+      haze: "#b78681", lx: -0.95, crown: 1.5, rim: 2.0,
+      fl1: "#ffd9b4", fl2: null,
+    },
+    dusk: { // almost all shadow; the crests are the only thing still taking sun
+      ramp: ["#08170f", "#0a1c12", "#0d2215", "#102918", "#14311c", "#193a21", "#224327", "#3a5330", "#8f6534"],
+      haze: "#7d5c74", lx: 0.95, crown: 1.4, rim: 2.25,
+      fl1: null, fl2: null,
+    },
+    night: {
+      ramp: ["#030c09", "#04110c", "#06160f", "#081b12", "#0a2015", "#0c2618", "#0f2d1d", "#163828", "#2a4a46"],
+      haze: "#131b38", lx: 0.5, crown: 1.15, rim: 1.35,
+      fl1: null, fl2: null,
+    },
   };
   function bakeHills(ph) {
     const c = document.createElement("canvas"); c.width = W; c.height = H;
     const q = c.getContext("2d");
     const hor = hillHor = (H * 0.58) | 0;
-    const P = HILL_PAL[ph];
+    const P = HILL_PAL[ph], D = Math.max(24, H - hor);
+    const master = P.ramp.map(hex), NR = master.length, haze = hex(P.haze);
     seed = 777;
-    const p1 = rnd() * 6.28, p2 = rnd() * 6.28, p3 = rnd() * 6.28, p4 = rnd() * 6.28;
-    const farY = [], backY = [], frontY = [];
-    for (let x = 0; x < W; x++) {
-      const u = x / W;
-      farY[x]   = (hor + 4 - (Math.sin(u * 3.1 + p4) * 6 + Math.sin(u * 7.3 + p2) * 2.5)) | 0;
-      backY[x]  = (hor + 15 - (Math.sin(u * 4.1 + p1) * 10 + Math.sin(u * 9.7 + p2) * 4)) | 0;
-      frontY[x] = (hor + 34 - (Math.sin(u * 2.3 + p3) * 16 + Math.sin(u * 6.1 + p1) * 6)) | 0;
+
+    const mix3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+    const along = u => { const s = Math.max(0, Math.min(1, u)) * (NR - 1), i = s | 0;
+                         return mix3(master[i], master[Math.min(NR - 1, i + 1)], s - i); };
+    // one ramp per plane: contrast compresses and the hue drifts to haze with distance
+    const rampFor = hz => { const out = [];
+      for (let i = 0; i < NR; i++)
+        out.push(mix3(along(0.5 + (i / (NR - 1) - 0.5) * (1 - 0.46 * hz)), haze, hz * 0.55).map(v => v | 0));
+      return out; };
+    // seeded smooth noise: 1-D bends the ridgelines off the sine, 2-D drifts the value
+    const n1 = wl => { const k = ((W / wl) | 0) + 3, a = [];
+      for (let i = 0; i < k; i++) a.push(rnd() * 2 - 1);
+      return x => { const s = x / wl, i = s | 0, f = s - i, u = f * f * (3 - 2 * f);
+                    return a[i % k] * (1 - u) + a[(i + 1) % k] * u; }; };
+    const n2 = (wx, wy) => { const kx = ((W / wx) | 0) + 3, ky = ((H / wy) | 0) + 3, a = [];
+      for (let i = 0; i < kx * ky; i++) a.push(rnd() * 2 - 1);
+      return (x, y) => {
+        const sx = x / wx, ix = sx | 0, fx = sx - ix, ux = fx * fx * (3 - 2 * fx);
+        const sy = y / wy, iy = sy | 0, fy = sy - iy, uy = fy * fy * (3 - 2 * fy);
+        const r0 = (iy % ky) * kx, r1 = ((iy + 1) % ky) * kx, c0 = ix % kx, c1 = (ix + 1) % kx;
+        return (a[r0 + c0] * (1 - ux) + a[r0 + c1] * ux) * (1 - uy)
+             + (a[r1 + c0] * (1 - ux) + a[r1 + c1] * ux) * uy; }; };
+
+    // y: where the crest sits. a: how far it rolls. k: wavelengths (far hills crumple
+    // faster). hz: haze. band: what fills the valley the next plane hides — haze far
+    // off, cast shadow up close. grass: blade size, 0 = too far to see any.
+    const LS = [
+      { y: hor + D * 0.02, a: D * 0.055, k: [21, 41, 66],   hz: 0.48, base: 5.7,  fall: D * 0.05,  nz: 0.4,  band: 0.16, grass: 0 },
+      { y: hor + D * 0.14, a: D * 0.075, k: [17.5, 34, 55], hz: 0.36, base: 5.45, fall: D * 0.06,  nz: 0.5,  band: 0.15, grass: 0 },
+      { y: hor + D * 0.29, a: D * 0.10,  k: [14.5, 29, 47], hz: 0.26, base: 5.1,  fall: D * 0.075, nz: 0.6,  band: 0.12, grass: 1 },
+      { y: hor + D * 0.47, a: D * 0.125, k: [12, 24, 40],   hz: 0.16, base: 4.7,  fall: D * 0.09,  nz: 0.7,  band: -0.3, grass: 1 },
+      { y: hor + D * 0.67, a: D * 0.145, k: [10, 20, 34],   hz: 0.07, base: 4.25, fall: D * 0.105, nz: 0.7,  band: -0.5, grass: 2 },
+      { y: hor + D * 0.88, a: D * 0.165, k: [8.2, 17, 29],  hz: 0,    base: 4.0,  fall: D * 0.125, nz: 0.65, band: 0,    grass: 3 },
+    ];
+    const AW = [1, 0.34, 0.11];
+    for (const L of LS) {
+      const p = [rnd() * 6.283, rnd() * 6.283, rnd() * 6.283], bend = n1(W * 0.17);
+      L.sm = new Float32Array(W); L.sl = new Float32Array(W); L.top = new Int16Array(W);
+      for (let x = 0; x < W; x++) {
+        const u = x / W;
+        let h = 0;
+        for (let j = 0; j < 3; j++) h += Math.sin(u * L.k[j] + p[j]) * AW[j];
+        L.sm[x] = L.y - (h / 1.45 + bend(x) * 0.5) * L.a;
+      }
+      let mx = 1e-4;
+      for (let x = 0; x < W; x++) {
+        L.sl[x] = (L.sm[Math.min(W - 1, x + 2)] - L.sm[Math.max(0, x - 2)]) / 4;
+        if (Math.abs(L.sl[x]) > mx) mx = Math.abs(L.sl[x]);
+      }
+      for (let x = 0; x < W; x++) L.sl[x] /= mx;
+      // crest tufts: clustered risers so the skyline is grass, not a drawn curve
+      const tf = new Int16Array(W);
+      if (L.grass) {
+        const near = L.grass >= 2;
+        for (let x = 2 + ((rnd() * 6) | 0); x < W; ) {
+          const run = 1 + ((rnd() * (near ? 3 : 2)) | 0);
+          const hi = L.grass === 3 && rnd() < 0.22 ? 2 : 1;
+          for (let i = 0; i < run && x + i < W; i++) tf[x + i] = hi;
+          x += run + 1 + ((rnd() * (near ? 6 : 10)) | 0);
+        }
+      }
+      for (let x = 0; x < W; x++) L.top[x] = Math.round(L.sm[x]) - tf[x];
+      L.ramp = rampFor(L.hz);
     }
-    const seam = (x, y, col) => { if (((x + y) & 1) === 0) { q.fillStyle = col; q.fillRect(x, y, 1, 1); } };
-    for (let x = 0; x < W; x++) {
-      q.fillStyle = P.far[0]; q.fillRect(x, farY[x], 1, H - farY[x]);
-      seam(x, farY[x], P.far[1]); seam(x, farY[x] + 1, P.far[1]);
-    }
-    for (let x = 0; x < W; x++) {
-      q.fillStyle = P.back[0]; q.fillRect(x, backY[x], 1, H - backY[x]);
-      seam(x, backY[x], P.back[1]); seam(x, backY[x] + 1, P.back[1]);
-    }
-    if (!treeC[ph]) treeC[ph] = bake(TREE_ART, { ...PAL, ...TREE_PAL[ph] });
-    const tr = treeC[ph];
-    const t1 = (W * 0.30) | 0;
-    q.drawImage(tr, t1, backY[Math.min(t1 + 3, W - 1)] - 6);
-    for (let x = 0; x < W; x++) {
-      q.fillStyle = P.front[0]; q.fillRect(x, frontY[x], 1, H - frontY[x]);
-      seam(x, frontY[x], P.front[1]); seam(x, frontY[x] + 1, P.front[1]);
-    }
-    seed = 9091;
-    q.fillStyle = P.fleck;
-    for (let i = 0; i < W * 1.6; i++) {
-      const x = (rnd() * W) | 0, y = (hor + 30 + rnd() * (H - hor - 32)) | 0;
-      if (rnd() < 0.55 && y > frontY[x] + 2) q.fillRect(x, y, 1, 1);
-    }
-    if (P.fl1) {
-      seed = 5150;
-      for (let i = 0; i < W / 5; i++) {
-        const x = (rnd() * W) | 0, y = (frontY[x] + 5 + rnd() * Math.max(4, H - frontY[x] - 8)) | 0;
-        if (y < H - 1) { q.fillStyle = rnd() < 0.6 || !P.fl2 ? P.fl1 : P.fl2; q.fillRect(x, y, 1, 1); }
+
+    const img = q.createImageData(W, H), dat = img.data;
+    const lvl = new Uint8Array(W * H), lay = new Uint8Array(W * H);
+    const drift = n2(W * 0.2, D * 0.45), fine = n2(W * 0.07, D * 0.15);
+    const bandPx = Math.max(3, D * 0.065);
+    const put = (x, y, col) => { const o = (y * W + x) << 2;
+      dat[o] = col[0]; dat[o + 1] = col[1]; dat[o + 2] = col[2]; dat[o + 3] = 255; };
+
+    for (let li = 0; li < LS.length; li++) {
+      const L = LS[li], nx = LS[li + 1], R = L.ramp, shade = R[0];
+      for (let x = 0; x < W; x++) {
+        const top = L.top[x], sm = L.sm[x], lam = L.sl[x] * P.lx;
+        const nyr = nx ? nx.top[x] : H;
+        const rimN = 0.82 + 0.4 * fine(x, Math.max(0, top)); // the rim thins and thickens along the ridge
+        for (let y = Math.max(0, top); y < H; y++) {
+          const crown = Math.exp(-Math.max(0, y - sm) / L.fall);
+          // aspect bites hardest at the crest and lets go as the slope turns to face us,
+          // which is what makes a lobe read as a lobe and not a vertical stripe
+          let v = L.base + lam * (0.55 + 0.75 * crown) * 2.1 + (crown - 0.4) * P.crown
+                + (drift(x, y) * 0.74 + fine(x, y) * 0.36) * L.nz;
+          // the crest: lit where the flank turns to the light, cut dark where it turns away,
+          // so each plane keeps a clean silhouette against the one behind it
+          if (y - top < 1) v += P.rim * rimN * Math.max(-0.85, lam * 0.85 + 0.24);
+          const b = B4[y & 3][x & 3] / 16 - 0.5;
+          let i = Math.round(v + b * 1.05);
+          i = i < 0 ? 0 : i > NR - 1 ? NR - 1 : i;
+          let col = R[i];
+          const gap = nyr - y;
+          if (L.band && gap < bandPx) {
+            const e = Math.round((1 - gap / bandPx) * 3 + b * 0.9);
+            if (e > 0) { const k = Math.min(3, e) / 3;
+              col = L.band > 0 ? mix3(col, haze, k * L.band) : mix3(col, shade, k * -L.band); }
+          }
+          put(x, y, col);
+          const o = y * W + x; lvl[o] = i; lay[o] = li + 1;
+          if (y >= nyr) break; // everything below is the next plane's
+        }
+      }
+      if (!L.grass) continue;
+      // grass in clumps: a blade is 2-4px of the neighbouring ramp step, and the
+      // clumps crowd the crest where the light rakes across them
+      const len = [0, 0, 2, 3][L.grass], nC = ((W * [0, 0.11, 0.15, 0.17][L.grass]) | 0);
+      const blade = (x, y, ln, d) => {
+        for (let k = 0; k <= ln; k++) {
+          const yy = y - k, o = yy * W + x;
+          if (x < 0 || x >= W || yy < 0 || yy >= H || lay[o] !== li + 1) continue;
+          put(x, yy, R[Math.max(0, Math.min(NR - 1, lvl[o] + d))]);
+        }
+      };
+      for (let i = 0; i < nC; i++) {
+        const cx = (rnd() * W) | 0, yr = L.top[cx];
+        const vis = Math.min(H, nx ? nx.top[cx] : H) - yr;
+        if (vis < 3) continue;
+        const cy = yr + ((Math.pow(rnd(), 1.9) * vis) | 0), n = 2 + ((rnd() * 4) | 0);
+        const d = rnd() < 0.42 ? 1 : -1;
+        for (let j = 0; j < n; j++) {
+          const bx = cx + ((rnd() * 9) | 0) - 4, by = cy + ((rnd() * 5) | 0) - 2;
+          if (L.grass === 1) { blade(bx, by, 0, d); blade(bx + 1, by, 0, d); } // pairs, never orphans
+          else blade(bx, by, 1 + ((rnd() * len) | 0), d);
+        }
+      }
+      // flowers: a few tight clusters on the near bank only, and only when there is sun
+      if (!P.fl1 || L.grass < 3) continue;
+      const f1 = hex(P.fl1), f2 = P.fl2 ? hex(P.fl2) : null;
+      // touching pixels, so a spray reads as blossom rather than as dust
+      const SPRAY = [[[0, 0], [1, 0], [0, -1], [2, -1], [3, 0], [1, 1]],
+                     [[0, 0], [1, -1], [2, 0], [2, 1], [4, 0], [0, 2]],
+                     [[0, 0], [0, -1], [2, 1], [3, 1], [1, 2], [4, -1]]];
+      for (let i = 0, nF = (W / 40) | 0; i < nF; i++) {
+        const cx = (rnd() * W) | 0, yr = L.top[cx], vis = H - yr;
+        if (vis < 6) continue;
+        const cy = yr + 2 + ((rnd() * (vis - 4)) | 0), n = 3 + ((rnd() * 4) | 0);
+        const sp = SPRAY[(rnd() * 3) | 0], mir = rnd() < 0.5 ? 1 : -1;
+        for (let j = 0; j < n; j++) {
+          const bx = cx + sp[j][0] * mir, by = cy + sp[j][1];
+          if (bx < 0 || bx >= W || by < 0 || by >= H || lay[by * W + bx] !== li + 1) continue;
+          put(bx, by, rnd() < 0.7 || !f2 ? f1 : f2);
+        }
       }
     }
-    const t2 = (W * 0.74) | 0;
-    q.drawImage(tr, t2, frontY[Math.min(t2 + 3, W - 1)] - 6);
-    const t3 = (W * 0.86) | 0;
-    q.drawImage(tr, 0, 0, tr.width, tr.height,
-                t3, frontY[Math.min(t3 + 6, W - 1)] - 13, tr.width * 2, tr.height * 2);
+    q.putImageData(img, 0, 0);
     return c;
   }
 
