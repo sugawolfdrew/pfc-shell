@@ -776,21 +776,27 @@ const WALL = (() => {
     "8": [".XXX.", "X...X", "X...X", ".XXX.", "X...X", "X...X", ".XXX."],
     "·": [".....", ".....", ".....", ".XX..", ".XX..", ".....", "....."],
   };
-  function drawText(q, s, x, y, sc, fill, shadow) {
+  function drawLogo(q, s, x, y, sc, fill) {
+    // bold (double-struck) glyphs, embossed: light rim up-left, deep shadow
+    // down-right, face on top. Advance widens to 7 art px for the weight.
+    const cells = [];
     let cx = x, gi = 0;
     for (const ch of s) {
       const gl = GLYPH[ch];
       if (gl) gl.forEach((row, gy) => { for (let gx = 0; gx < row.length; gx++) {
         if (row[gx] === "X") {
-          const px = cx + gx * sc, py = y + gy * sc;
-          if (shadow) { q.fillStyle = shadow; q.fillRect(px + sc, py + sc, sc, sc); }
-          q.fillStyle = typeof fill === "function" ? fill(gi, px, py) : fill;
-          q.fillRect(px, py, sc, sc);
+          cells.push([cx + gx * sc, y + gy * sc, gi]);
+          cells.push([cx + (gx + 1) * sc, y + gy * sc, gi]); // the bold strike
         }
       } });
-      cx += 6 * sc; gi++;
+      cx += 7 * sc; gi++;
     }
-    return cx - x;
+    q.fillStyle = "#000004"; // inset: the hole's shadowed edge, up-left
+    for (const c of cells) q.fillRect(c[0] - sc, c[1] - sc, sc, sc);
+    q.fillStyle = "#b8b0d8"; // and a soft catch-light below-right
+    for (const c of cells) q.fillRect(c[0] + sc, c[1] + sc, sc, sc);
+    for (const c of cells) { q.fillStyle = fill(c[2], c[0], c[1]); q.fillRect(c[0], c[1], sc, sc); }
+    return cx - x - sc;
   }
   const MATTER = new Image(); // Andrew's grey-matter art (2026-08-03); walkers stay as fallback
   MATTER.onload = () => { skyKey = ""; frame(); };
@@ -1010,20 +1016,20 @@ const WALL = (() => {
       g.fillRect(0, y, W, 1);
     }
     g.fillStyle = "#00e8d8"; g.fillRect(0, hor, W, 1); // horizon glow
-    // logotype, top right, on the deep end of the ombre — chrome letters,
-    // and the color rides the sweep: a magenta-violet band passing through
-    const lsc = Math.max(1, Math.min(3, Math.floor((W * 0.7) / 36)));
-    const tw = 5 * 6 * lsc - lsc;
-    const lx = W - tw - 4 - lsc, ly = 4 + lsc;
+    // logotype, top right, on the deep end of the ombre — bold embossed
+    // chrome; the color rides the sweep: a magenta-violet band passing through
+    const lsc = Math.max(1, Math.min(3, Math.floor((W * 0.7) / 40)));
+    const tw = 4 * 7 * lsc + 6 * lsc;
+    const lx = W - tw - 5 - lsc, ly = 5 + lsc;
     const sweep = ((t % 110) / 110) * (tw + 34 * lsc) - 17 * lsc;
-    drawText(g, "PFC98", lx, ly, lsc, (gi, px, py) => {
+    drawLogo(g, "PFC98", lx, ly, lsc, (gi, px, py) => {
       const rel = Math.abs((px - lx - sweep) + (py - ly) * 0.6);
       if (rel < 0.9 * lsc) return "#ffe8fa";
       if (rel < 1.9 * lsc) return "#f070d0";
       if (rel < 2.9 * lsc) return "#9058d8";
-      const row = (py - ly) / lsc; // chrome: bright crown fading to cool lavender
-      return row < 2.5 ? "#f4f2f8" : row < 4.5 ? "#cfc8e8" : "#a49cc4";
-    }, "#000006");
+      const row = (py - ly) / lsc; // inset face: dark under the lip, lighter toward the light
+      return row < 2.5 ? "#746c9c" : row < 4.5 ? "#8e86b4" : "#a49cc8";
+    });
   }
 
   /* ---- plumbing ---- */
