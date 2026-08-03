@@ -10,7 +10,7 @@ Sizes stay integer-scaled at every zoom level, so both paths render pixel-crisp.
 
 | file           | window         | source icon                  | why |
 |----------------|----------------|------------------------------|-----|
-| `surface.png`  | Surface.exe    | `newspaper`                  | the daily brief, literally a paper |
+| `surface.png`  | Surface.exe    | *Andrew's water-caustics art*| the Surface as a water surface — his pun, 2026-08-03. Cropped to a third so the caustic cells still read at 32px, +15% contrast, 1px keyline so it sits as an object on the wallpaper |
 | `explorer.png` | Wiki Explorer  | `directory_open_file_mydocs` | open folder of documents |
 | `note.png`     | New Note       | `notepad-1`                  | Notepad |
 | `changes.png`  | Recent Changes | `history`                    | clock over a page |
