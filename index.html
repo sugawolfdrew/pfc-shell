@@ -40,6 +40,19 @@
   #desktop { position: fixed; inset: 0 0 var(--tb) 0; overflow: hidden; background: #008080; }
   #wallpaper { position: absolute; inset: 0; width: 100%; height: 100%;
                image-rendering: pixelated; }
+  /* the hero logotype: CLI-banner ASCII, gradient flowing through the glyphs */
+  #wall-logo { position: absolute; top: 10px; right: 14px; margin: 0;
+               border: 0; padding: 0; box-shadow: none;
+               pointer-events: none; user-select: none; -webkit-user-select: none;
+               font-family: Consolas, Menlo, "DejaVu Sans Mono", "Courier New", monospace;
+               font-weight: bold; font-size: clamp(7px, 1.1vw, 13px); line-height: 1.0;
+               background: linear-gradient(115deg, #cfc0ff, #f070d0 30%, #8858d8 55%, #cfc0ff 80%, #f070d0);
+               background-size: 250% 100%;
+               -webkit-background-clip: text; background-clip: text; color: transparent;
+               animation: logo-flow 11s linear infinite;
+               filter: drop-shadow(2px 2px 0 #000006); }
+  @keyframes logo-flow { from { background-position: 0% 0; } to { background-position: 250% 0; } }
+  @media (prefers-reduced-motion: reduce) { #wall-logo { animation: none; } }
   /* Settings.exe: Display-Properties monitor */
   .mon { width: 186px; margin: 4px auto 8px; }
   .mon .bezel { background: #c0c0c0; padding: 7px 7px 9px; border-radius: 4px 4px 2px 2px;
@@ -233,6 +246,12 @@
 
 <div id="desktop">
   <canvas id="wallpaper"></canvas>
+  <pre id="wall-logo" aria-hidden="true">██████╗ ███████╗ ██████╗ █████╗  █████╗
+██╔══██╗██╔════╝██╔════╝██╔══██╗██╔══██╗
+██████╔╝█████╗  ██║     ╚██████║╚█████╔╝
+██╔═══╝ ██╔══╝  ██║      ╚═══██║██╔══██╗
+██║     ██║     ╚██████╗ █████╔╝╚█████╔╝
+╚═╝     ╚═╝      ╚═════╝ ╚════╝  ╚════╝</pre>
   <div class="desktop-icons" id="desktop-icons"></div>
 </div>
 
@@ -768,36 +787,6 @@ const WALL = (() => {
     "...Y...",
     "...Y...",
   ];
-  const GLYPH = {
-    P: ["XXXX.", "X...X", "X...X", "XXXX.", "X....", "X....", "X...."],
-    F: ["XXXXX", "X....", "X....", "XXXX.", "X....", "X....", "X...."],
-    C: [".XXX.", "X...X", "X....", "X....", "X....", "X...X", ".XXX."],
-    "9": [".XXX.", "X...X", "X...X", ".XXXX", "....X", "...X.", ".XX.."],
-    "8": [".XXX.", "X...X", "X...X", ".XXX.", "X...X", "X...X", ".XXX."],
-    "·": [".....", ".....", ".....", ".XX..", ".XX..", ".....", "....."],
-  };
-  function drawLogo(q, s, x, y, sc, fill) {
-    // bold (double-struck) glyphs, embossed: light rim up-left, deep shadow
-    // down-right, face on top. Advance widens to 7 art px for the weight.
-    const cells = [];
-    let cx = x, gi = 0;
-    for (const ch of s) {
-      const gl = GLYPH[ch];
-      if (gl) gl.forEach((row, gy) => { for (let gx = 0; gx < row.length; gx++) {
-        if (row[gx] === "X") {
-          cells.push([cx + gx * sc, y + gy * sc, gi]);
-          cells.push([cx + (gx + 1) * sc, y + gy * sc, gi]); // the bold strike
-        }
-      } });
-      cx += 7 * sc; gi++;
-    }
-    q.fillStyle = "#000004"; // inset: the hole's shadowed edge, up-left
-    for (const c of cells) q.fillRect(c[0] - sc, c[1] - sc, sc, sc);
-    q.fillStyle = "#b8b0d8"; // and a soft catch-light below-right
-    for (const c of cells) q.fillRect(c[0] + sc, c[1] + sc, sc, sc);
-    for (const c of cells) { q.fillStyle = fill(c[2], c[0], c[1]); q.fillRect(c[0], c[1], sc, sc); }
-    return cx - x - sc;
-  }
   const MATTER = new Image(); // Andrew's grey-matter art (2026-08-03); walkers stay as fallback
   MATTER.onload = () => { skyKey = ""; frame(); };
   MATTER.src = "assets/pfc-matter.png";
@@ -1016,20 +1005,6 @@ const WALL = (() => {
       g.fillRect(0, y, W, 1);
     }
     g.fillStyle = "#00e8d8"; g.fillRect(0, hor, W, 1); // horizon glow
-    // logotype, top right, on the deep end of the ombre — bold embossed
-    // chrome; the color rides the sweep: a magenta-violet band passing through
-    const lsc = Math.max(1, Math.min(3, Math.floor((W * 0.7) / 40)));
-    const tw = 4 * 7 * lsc + 6 * lsc;
-    const lx = W - tw - 5 - lsc, ly = 5 + lsc;
-    const sweep = ((t % 110) / 110) * (tw + 34 * lsc) - 17 * lsc;
-    drawLogo(g, "PFC98", lx, ly, lsc, (gi, px, py) => {
-      const rel = Math.abs((px - lx - sweep) + (py - ly) * 0.6);
-      if (rel < 0.9 * lsc) return "#ffe8fa";
-      if (rel < 1.9 * lsc) return "#f070d0";
-      if (rel < 2.9 * lsc) return "#9058d8";
-      const row = (py - ly) / lsc; // inset face: dark under the lip, lighter toward the light
-      return row < 2.5 ? "#746c9c" : row < 4.5 ? "#8e86b4" : "#a49cc8";
-    });
   }
 
   /* ---- plumbing ---- */
@@ -1065,6 +1040,7 @@ const WALL = (() => {
     scene = s; localStorage.setItem(LSW, s);
     const c = document.getElementById("wallpaper");
     c.style.display = s === "teal" ? "none" : "block";
+    document.getElementById("wall-logo").style.display = s === "pfc98" ? "block" : "none";
     skyKey = hillsKey = "";
     makeStars();
     frame();
@@ -1090,6 +1066,7 @@ const WALL = (() => {
     const c = document.getElementById("wallpaper");
     if (!c) return;
     c.style.display = scene === "teal" ? "none" : "block";
+    document.getElementById("wall-logo").style.display = scene === "pfc98" ? "block" : "none";
     if (iv !== null) { resize(); return; }
     resize();
     let rz = null;
