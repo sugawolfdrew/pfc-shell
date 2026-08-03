@@ -122,17 +122,307 @@
   #start-menu li.sep { border-top: 1px solid #808080; border-bottom: 1px solid #fff;
                        padding: 0; margin: 3px 0; }
 
-  /* Pulse stat tiles (dataviz: values in ink, labels muted, no color-as-data) */
-  .pulse { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px; }
-  .stat-tile { flex: 1 1 90px; min-width: 90px; padding: 6px 8px;
-               box-shadow: inset -1px -1px #fff, inset 1px 1px #808080; }
-  .stat-tile .v { font-size: 28px; font-weight: bold; line-height: 1.1; }
-  .stat-tile .v.small { font-size: 18px; padding-top: 5px; white-space: nowrap; }
-  .stat-tile .l { font-size: 12px; color: #444; margin-top: 2px;
-                  text-transform: uppercase; letter-spacing: .5px; }
-  .backfill { margin: 0 6px 6px 6px; }
-  .backfill .l { font-size: 12px; color: #444; margin-bottom: 3px;
-                 text-transform: uppercase; letter-spacing: .5px; }
+  /* ==================== Surface.exe v2 — Custodial Telemetry ====================
+     Every rule is scoped to .sf2 (the Surface window body) or .sf-* so nothing
+     here can reach another window. Palette lives in one place: the .sf2 block.
+     Spec: docs/art/surface-v2/spec.md. Philosophy: philosophy.md.
+     NOTE: this block REPLACES the deleted .pulse / .stat-tile / .backfill rules. */
+  .sf2 { --s1:#6a3890; --s2:#007800; --s3:#a8005c; --s4:#0050c8;
+         --r1:#a868d0; --r2:#6a3890; --r3:#4a1a68;
+         --ok:#0a7a0a; --due:#8a6000; --late:#b34a00; --cold:#b81414;
+         --okT:#c9e2c9; --dueT:#e5dcc7; --lateT:#eed7c7; --coldT:#efcbcb; }
+  /* The face carries chrome only; the wells carry the ink. Colour is a fluid. */
+  .sf2 fieldset { margin: 8px; padding: 7px 9px 8px; min-width: 0; }
+  .sf2 fieldset > * { min-width: 0; }   /* load-bearing: a fieldset's implicit
+       min-content width otherwise lets one nowrap row widen the whole panel */
+  .sf2 .well { background: #fff; position: relative;
+               box-shadow: inset -1px -1px #dfdfdf, inset 1px 1px #808080,
+                           inset -2px -2px #fff,    inset 2px 2px #0a0a0a; }
+  .sf2 svg { display: block; width: 100%; height: auto; }  /* viewBox does the zoom work */
+
+  /* ---- The beat band: the machine's own pulse, admitted once, in the margin ---- */
+  .sf-beat { display: flex; align-items: center; gap: 8px; margin: 6px 8px 0; padding: 5px 8px;
+             box-shadow: inset -1px -1px #fff, inset 1px 1px #808080;
+             font: 12px Arial, sans-serif; color: #3a3a3a; flex-wrap: wrap; row-gap: 4px; }
+  .sf-beat .led { width: 10px; height: 10px; flex: none;
+                  box-shadow: inset -1px -1px #fff, inset 1px 1px #808080; }
+  .sf-beat .state { font-size: 11px; font-weight: bold; letter-spacing: .7px; color: #000; }
+  .sf-beat .said { white-space: nowrap; }
+  .sf-beat .sp { flex: 1; }
+  .sf-meter { position: relative; width: 104px; height: 12px; flex: none; background: #fff;
+              box-shadow: inset -1px -1px #dfdfdf, inset 1px 1px #808080,
+                          inset -2px -2px #fff,    inset 2px 2px #0a0a0a; }
+  .sf-meter i { position: absolute; left: 2px; top: 2px; bottom: 2px; display: block; }
+  .sf-meter .trk { right: 2px; }
+  .sf-meter u { position: absolute; top: 1px; bottom: 1px; width: 1px; background: #000;
+                left: calc(2px + (100% - 4px) * .5); }          /* the 12 h tick */
+
+  /* ---- On this day: the hero. The largest, quietest region is his own voice. ---- */
+  .sf-otd-head { font: bold 10px Arial, sans-serif; letter-spacing: 1.5px;
+                 color: #3a3a3a; margin: 0 0 5px; }
+  .sf-otd-head b { color: #000; }
+  .sf-otd { padding: 13px 15px 11px; }
+  .sf-otd .q { margin: 0; font-family: Arial, sans-serif; font-size: 21px; line-height: 1.4;
+               color: #000; border-left: 4px solid var(--s1); padding-left: 13px; }
+  .sf-otd .q.clamp { display: -webkit-box; -webkit-line-clamp: 5; line-clamp: 5;
+                     -webkit-box-orient: vertical; overflow: hidden; }
+  .sf-otd hr { border: 0; border-top: 1px solid #d4d4d4; margin: 11px 0 8px; }
+  .sf-otd .t { font-family: Arial, sans-serif; font-size: 13px; font-weight: bold; color: #000; }
+  .sf-otd .p { font: 11px "Courier New", monospace; color: #444; margin-top: 2px;
+               word-break: break-all; }
+  .sf-otd-foot { display: flex; align-items: center; gap: 9px; margin-top: 7px;
+                 font-family: Arial, sans-serif; font-size: 12px; color: #3a3a3a; }
+  .sf-otd-foot .sp { flex: 1; }
+  .sf-otd-foot .dots { letter-spacing: 4px; font-size: 13px; color: #808080; }
+  /* the pager is the only way to reach card 2 — the dots are the control */
+  .sf-otd-foot .dots b { color: #808080; cursor: pointer; padding: 4px 0; display: inline-block; }
+  .sf-otd-foot .dots b.on { color: #000; }
+  .sf-otd-foot .dots b:focus { outline: 1px dotted #000; }
+  .sf-otd-none { padding: 9px 10px; font-family: Arial, sans-serif; font-size: 13px; color: #3a3a3a; }
+
+  /* ---- What connected: one finding, verbatim, dated. ---- */
+  .sf-conn { padding: 10px 12px 11px; }
+  .sf-conn .h { font-family: Arial, sans-serif; font-size: 15px; font-weight: bold; margin: 0 0 4px; }
+  .sf-conn .h a { color: #000080; text-decoration: none; border-bottom: 1px dashed #000080;
+                  cursor: pointer; }
+  .sf-conn .h a.missing { color: #800000; border-bottom-color: #800000; }
+  .sf-conn .b { font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5;
+                margin: 0; color: #000; }
+  .sf-conn .e { font-family: Arial, sans-serif; font-size: 11px; color: #444; margin-top: 6px; }
+  .sf-conn .quiet { font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5;
+                    color: #3a3a3a; margin: 0; }
+  .sf-more { margin-top: 6px; font-family: Arial, sans-serif; font-size: 12px; color: #3a3a3a; }
+  .sf-more a { color: #000080; cursor: pointer; }
+
+  /* ---- Waiting on you: the docket, front page ---- */
+  .sf-gate { display: flex; align-items: center; gap: 8px; padding: 5px 7px; min-height: 24px;
+             font-family: Arial, sans-serif; font-size: 13px;
+             border-bottom: 1px solid #efefef; cursor: pointer; }
+  .sf-gate:last-child { border-bottom: 0; }
+  .sf-gate:hover, .sf-gate:focus { background: #000080; color: #fff; outline: none; }
+  .sf-gate:hover .a, .sf-gate:focus .a, .sf-gate:hover .q, .sf-gate:focus .q { color: #fff; }
+  .sf-gate .k { flex: none; width: 88px; text-align: center; padding: 2px 0;
+                font-size: 9px; letter-spacing: .6px; font-family: Arial, sans-serif; color: #3a3a3a;
+                background: #dfdfdf; box-shadow: inset -1px -1px #808080, inset 1px 1px #fff; }
+  .sf-gate .q { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+                white-space: nowrap; color: #000; }
+  .sf-gate .a { flex: none; font-size: 11px; color: #444; }
+  .sf-empty { padding: 9px 10px; font-family: Arial, sans-serif; font-size: 13px; color: #3a3a3a; }
+  .sf-foot { display: flex; align-items: center; gap: 8px; margin-top: 7px;
+             font-family: Arial, sans-serif; font-size: 12px; color: #3a3a3a; }
+  .sf-foot .sp { flex: 1; }
+
+  /* ---- Instruments: the apparatus, last and smallest ---- */
+  .sf-tabs { display: flex; margin: 0 0 -1px; position: relative; z-index: 2; }
+  .sf-tabs button { font-family: "Pixelated MS Sans Serif", Arial, sans-serif; font-size: 12px;
+                    min-height: 0; padding: 3px 12px 4px; margin: 0 2px 0 0; }
+  .sf-tabs button[aria-selected="true"] { font-weight: bold; padding-bottom: 6px;
+    box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #fff,
+                inset -2px -2px #808080, inset 2px 2px #dfdfdf; }
+  .sf-chartwell { padding: 8px 9px 6px; }
+  .sf-legend { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 6px;
+               font-family: Arial, sans-serif; font-size: 11px; color: #3a3a3a; }
+  .sf-legend span { display: flex; align-items: center; gap: 4px; }
+  .sf-legend i { width: 9px; height: 9px; display: block; flex: none; }
+  .sf-legend i.none { background: #fff; box-shadow: 0 0 0 1px #d4d4d4 inset, 0 0 0 1px #d4d4d4; }
+  .sf-legend .sp { flex: 1; }
+  .sf-legend a { color: #000080; cursor: pointer; white-space: nowrap; }
+  .sf-tip { position: absolute; z-index: 5; pointer-events: none; padding: 3px 6px;
+            background: #ffffe1; border: 1px solid #000; font: 11px Arial, sans-serif;
+            color: #000; white-space: pre; }
+  /* the WCAG-clean twin: every number the charts hold, in a table */
+  .sf-table { max-height: 190px; }
+  .sf-table table { font-family: Arial, Helvetica, sans-serif; font-size: 11px;
+                    -webkit-font-smoothing: auto; width: 100%; }
+  .sf-table table > tbody > tr > * { height: 18px; }
+  .sf-table td.n { text-align: right; }
+  .sf-table td.z { color: #808080; }
+
+  /* ---- Mobile (<= 700 px): the deltas ---- */
+  @media (max-width: 700px) {
+    .sf2 .sf-otd .q { font-size: 18px; line-height: 1.38; padding-left: 11px; }
+    .sf2 .sf-gate { min-height: 44px; font-size: 14px; }
+    .sf2 .sf-gate .k { width: 86px; font-size: 8px; letter-spacing: .2px; }
+    .sf2 fieldset { margin: 6px; }
+    /* §14 wants every button >= 44 px on a phone, tabs included — the spec's own
+       mobile CSS only lifts the two panel feet, so this widens it to all of them. */
+    .sf2 button { min-height: 44px; }
+    .sf2 .sf-tabs button { padding: 3px 14px 4px; }
+    .sf2 .sf-otd-foot .dots b { padding: 12px 0; }
+    .sf2 .sf-legend { gap: 8px; }
+    .sf2 .sf-legend .sp { flex-basis: 100%; height: 0; }
+  }
+
+  /* ============ Notepad+++ v2 ============
+     The receiving bench. One well, white, countersunk into a flat #c0c0c0 plate;
+     depth is never cast, only cut. Every token below is copied from the vendored
+     assets/98.css rather than eyeballed, so these controls sit at exactly the same
+     depth as the old ones. Spec: docs/art/notepad-v2/spec.md. */
+  #win-note .window-body { display:flex; flex-direction:column; padding:0; margin:3px;
+      overflow:hidden; background:#c0c0c0; }
+  #np-write, #np-prior { flex:1; min-height:0; display:flex; flex-direction:column; }
+  #np-write { position:relative; }        /* the [[ popup anchors inside this box */
+  .np-tabs { padding:3px 4px 0; flex:none; }
+  .np-tabs menu[role=tablist] { margin:0 0 -2px; }
+
+  /* -- kind bar: toolbar of latching toggle buttons (MS UX Guide, "toolbar button
+        to support actions or set state"). Note is pre-pressed: zero added steps.
+        Tidy sits at the right end as a command, never latching. -- */
+  .np-bar { flex:none; display:flex; align-items:center; gap:2px; padding:4px 4px 4px 5px;
+      box-shadow: inset 0 -1px 0 #808080, inset 0 -2px 0 #fff; }
+  .np-bar .sp { flex:1; }
+  .np-tb { min-width:0; min-height:22px; height:22px; padding:0 6px 0 4px;
+      display:inline-flex; align-items:center; gap:4px; font-size:12px; }
+  .np-tb img { width:16px; height:16px; image-rendering:pixelated; }
+  .np-tb[aria-pressed=true] {
+      box-shadow: inset -1px -1px #fff, inset 1px 1px #0a0a0a,
+                  inset -2px -2px #dfdfdf, inset 2px 2px #808080;
+      background: repeating-conic-gradient(#fff 0 25%, #c0c0c0 0 50%) 0 0/2px 2px; }
+  .np-tb[aria-pressed=true] img { position:relative; left:1px; top:1px; }
+  .np-sep { width:2px; align-self:stretch; margin:1px 3px;
+      box-shadow: inset 1px 0 #808080, inset -1px 0 #fff; }
+
+  /* -- the white well: paper. The only well in the window. -- */
+  #np-text { flex:1; min-height:0; margin:5px 5px 0; resize:none;
+      font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:1.45;
+      padding:5px 6px; }
+  #np-text::placeholder { color:#808080; }
+  #np-text::selection { background:#000080; color:#fff; }
+
+  /* -- destination row: address band. Clear stays here, at 23px, deliberately:
+        a destructive control does not belong at thumb size next to the commit one. -- */
+  .np-dest { flex:none; display:flex; align-items:center; gap:5px; padding:5px; }
+  .np-dest label { font-size:12px; }
+  .np-dest select { flex:1; min-width:0; font-size:12px; }
+
+  /* -- status bar: field 1 is Tidy's count line and the busiest surface here.
+        It must never wrap — a second row would eat a line of paper. -- */
+  #win-note .status-bar-field { white-space:nowrap; overflow:hidden;
+      text-overflow:ellipsis; min-width:0; }
+
+  /* -- commit band: one control, the widest object in the window -- */
+  .np-commit { flex:none; padding:5px; }
+  .np-commit .np-save { width:100%; height:56px; font-size:15px; font-weight:bold;
+      letter-spacing:.3px; }
+
+  /* -- [[ autocomplete: derived from the Win98 Address-bar AutoComplete drop-down -- */
+  /* the shell's own popup material — same bevel as #start-menu */
+  .np-ac { position:absolute; z-index:50; width:264px; background:#c0c0c0; padding:2px;
+      box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #dfdfdf,
+                  inset -2px -2px #808080, inset 2px 2px #fff; }
+  .np-ac .hd { font-size:11px; color:#000; padding:2px 4px 3px;
+      text-transform:uppercase; letter-spacing:.5px; }
+  .np-ac ul { list-style:none; margin:0; padding:0; max-height:120px; overflow:auto;
+      background:#fff; box-shadow: inset -1px -1px #fff, inset 1px 1px #808080,
+                  inset -2px -2px #dfdfdf, inset 2px 2px #0a0a0a; }
+  .np-ac li { font-family:Arial, Helvetica, sans-serif; font-size:13px; height:20px;
+      box-sizing:border-box; padding:2px 5px; display:flex; align-items:center; gap:8px;
+      cursor:pointer; }
+  .np-ac li .tt { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;
+      white-space:nowrap; }
+  .np-ac li .sl { color:#606060; font-size:11px; flex:0 1 auto; min-width:0;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:46%; }
+  .np-ac li[aria-selected=true] { background:#000080; color:#fff; }
+  .np-ac li[aria-selected=true] .sl { color:#c8d0f0; }
+  .np-ac .ft { font-size:11px; color:#444; padding:2px 4px 1px; }
+
+  /* -- Prior: the outbox ledger. Forty rows in register, each carrying its marks at
+        the same four x-positions, is the argument that nothing here gets lost. -- */
+  .np-ptools { flex:none; display:flex; align-items:center; gap:4px; padding:4px 5px;
+      box-shadow: inset 0 -1px 0 #808080, inset 0 -2px 0 #fff; font-size:12px; }
+  .np-ptools .sp { flex:1; }
+  .np-list { flex:1 1 58%; min-height:0; overflow:auto; background:#fff; margin:5px 5px 0;
+      box-shadow: inset -1px -1px #fff, inset 1px 1px #808080,
+                  inset -2px -2px #dfdfdf, inset 2px 2px #0a0a0a; }
+  .np-empty { font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#606060;
+      padding:10px 8px; }
+  .np-row { display:flex; align-items:center; gap:6px; padding:5px 7px;
+      font-family:Arial, Helvetica, sans-serif; font-size:13px;
+      border-bottom:1px solid #dfdfdf; cursor:pointer; }
+  .np-row .g { flex:none; display:flex; gap:1px; width:30px; padding:1px;
+      box-shadow: inset -1px -1px #dfdfdf, inset 1px 1px #808080; }
+  /* fill and void, never hue: an empty stage is an empty socket, so all four cells
+     stay countable at a glance */
+  .np-row .g i { flex:1; height:8px; box-shadow: inset 1px 1px #808080, inset -1px -1px #dfdfdf; }
+  .np-row .g i.on { background:#000080; box-shadow:none; }
+  .np-row .g i.skip { box-shadow:none;
+      background: repeating-conic-gradient(#000080 0 25%, transparent 0 50%) 0 0/2px 2px; }
+  .np-row[aria-selected=true] .g { box-shadow: inset -1px -1px #6a7ac0, inset 1px 1px #000040; }
+  .np-row[aria-selected=true] .g i { box-shadow: inset 1px 1px #000040, inset -1px -1px #6a7ac0; }
+  .np-row[aria-selected=true] .g i.on { background:#fff; box-shadow:none; }
+  .np-row[aria-selected=true] .g i.skip { box-shadow:none;
+      background: repeating-conic-gradient(#fff 0 25%, transparent 0 50%) 0 0/2px 2px; }
+  .np-row .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .np-row .st { flex:none; font-size:11px; text-transform:uppercase; letter-spacing:.5px;
+      color:#444; width:58px; text-align:right; }
+  .np-row .wh { flex:none; font-size:11px; color:#606060; width:44px; text-align:right;
+      font-family:"Courier New", monospace; }
+  .np-row[aria-selected=true] { background:#000080; color:#fff; }
+  .np-row[aria-selected=true] .st, .np-row[aria-selected=true] .wh { color:#fff; }
+  .np-detail { flex:0 0 auto; padding:6px 7px 7px; margin:5px 5px 0;
+      background:#c0c0c0; box-shadow: inset 0 1px 0 #808080, inset 0 2px 0 #fff; }
+  .np-detail .hd { font-family:Arial, Helvetica, sans-serif; font-size:13px;
+      font-weight:bold; margin:2px 0 6px; white-space:nowrap; overflow:hidden;
+      text-overflow:ellipsis; }
+  /* the row's micro-strip at 3x — same four cells, same order, same fill/void
+     grammar, so learning one teaches the other */
+  .np-jt { display:flex; gap:2px; padding:3px; box-shadow: inset -2px -2px #dfdfdf, inset 2px 2px #808080; }
+  .np-jt span { flex:1; height:12px; box-shadow: inset 1px 1px #808080, inset -1px -1px #dfdfdf; }
+  .np-jt span.on { background:#000080; box-shadow:none; }
+  .np-jt span.skip { background: repeating-conic-gradient(#000080 0 25%, #c0c0c0 0 50%) 0 0/2px 2px;
+      box-shadow:none; }
+  .np-jlab { display:flex; gap:2px; margin-top:3px; }
+  .np-jlab div { flex:1; text-align:center; font-size:10px; color:#444;
+      text-transform:uppercase; letter-spacing:.5px; }
+  .np-jlab div b { display:block; font-weight:normal; color:#606060;
+      font-family:"Courier New", monospace; font-size:10px; letter-spacing:0; }
+  .np-jlab div.on { color:#000; }
+  .np-became { font-family:Arial, Helvetica, sans-serif; font-size:12px; margin:7px 0 0;
+      color:#333; }
+  .np-became code { font-family:"Courier New", monospace; font-size:11px; }
+  .np-became a { color:#000080; font-weight:bold; text-decoration:none; cursor:pointer;
+      border-bottom:1px dashed #000080; }
+  .np-acts { display:flex; gap:4px; margin-top:7px; }
+
+  /* -- mobile deltas -- */
+  @media (max-width: 700px) {
+    /* 390 / Z=1.25 leaves 296 layout px for five targets, so the band is tight by
+       construction: clip rather than let a label bleed over its neighbour, and give
+       the icon-to-label gap back to the label. */
+    .np-tb { height:44px; min-height:44px; flex:1; justify-content:center; padding:0 1px;
+             font-size:13px; gap:3px; overflow:hidden; }
+    .np-tb .lb { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+    .np-tb img { flex:none; }
+    /* when even that is not enough (a phone at Z=1.5+), the icon is the part that
+       goes: §4 says the label is the unambiguous half of the pair */
+    .np-bar.tight .np-tb img { display:none; }
+    .np-bar.tight .np-tb { padding:0 1px; }
+    /* Tidy sizes to its own content so "Tidy 12" never wraps inside a 44px target */
+    .np-bar #np-tidy { flex:0 0 auto; min-width:76px; padding:0 7px; }
+    .np-bar { gap:3px; padding:5px; }
+    /* the spacer pushes Tidy right on a desktop; on a phone the buttons are flex:1
+       and already fill the row, so a flex:1 spacer just steals a fifth of the band */
+    .np-bar .sp { display:none; }
+    .np-sep { margin:1px 1px; }
+    /* three fields do not fit at 390px — the draft clock is the one that can go.
+       Field 1 keeps the Tidy count line intact; the outbox count keeps its bold. */
+    #win-note .status-bar .draft { display:none; }
+    /* 16px, not 15: below 16 iOS Safari zooms the page on focus and fights the shell's own zoom */
+    #np-text { font-size:16px; margin:6px 6px 0; }
+    .np-dest { padding:6px; }
+    .np-dest select, .np-dest button { min-height:34px; }
+    .np-commit { padding:6px; }
+    .np-commit .np-save { height:64px; font-size:16px; }
+    /* not caret-anchored on a phone: caret geometry is unreliable once the soft
+       keyboard is up, so the list docks in the flow above the commit row */
+    .np-ac { position:static; width:auto; margin:0 5px; }
+    .np-ac ul { max-height:160px; }
+    .np-ac li { height:40px; padding:2px 8px; font-size:15px; }
+    .np-row { padding:10px 8px; font-size:14px; }
+    .np-acts button { min-height:44px; }
+    .np-detail .np-became { font-size:14px; }
+    .np-list { flex:1 1 52%; }
+  }
 
   /* Markdown rendering */
   .md { padding: 12px 16px; font-size: 16px; line-height: 1.6;
@@ -261,7 +551,8 @@
   @media (max-width: 700px) {
     .window.app { position: fixed !important; left: 0 !important; top: 0 !important;
                   right: 0 !important; bottom: var(--tb) !important;
-                  width: auto !important; height: auto !important; }
+                  width: auto !important; height: auto !important;
+                  min-width: 0 !important; }
     .window.app .title-bar-controls button[aria-label="Maximize"] { display: none; }
     /* Explorer: over/under, not side-by-side — full-width tree, full-width reading */
     #win-explorer .window-body { flex-direction: column; }
@@ -1599,98 +1890,743 @@ const APPS = {
 };
 
 /* ----- Surface.exe ----- */
+/* v2 — "Custodial Telemetry": the needle points away from the machine.
+   The hero is his own sentence, returned; the apparatus is admitted once, small,
+   at the top margin, and never flatteringly. Spec: docs/art/surface-v2/spec.md.
+   Every mark is hand-drawn inline SVG — no chart library, no third origin. */
 const Surface = (() => {
-  let briefs = [], idx = 0;
-  const el = () => document.querySelector("#win-surface .window-body");
+  /* ---------- local formatting (nothing escapes the IIFE) ---------- */
+  const MON  = ["January","February","March","April","May","June",
+                "July","August","September","October","November","December"];
+  const MON3 = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const DOW  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const DOW3 = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const ORD  = ["ZERO","ONE","TWO","THREE","FOUR","FIVE","SIX","SEVEN","EIGHT","NINE"];
+  const pad  = n => String(n).padStart(2, "0");
+  const esc  = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                             .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  /* noon, always: a date-only string parsed at midnight can slip a day across a
+     DST boundary, and every date in this window is a calendar date, not an instant */
+  const dateOf   = s => new Date(s + "T12:00:00");
+  const iso      = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const longDate = d => `${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}`;
+  const clock    = d => `${d.getHours() % 12 || 12}:${pad(d.getMinutes())} ${d.getHours() < 12 ? "AM" : "PM"}`;
+  const daysAgo  = (s, today) => Math.round((dateOf(iso(today)) - dateOf(s)) / 864e5);
+  const plural   = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  const mobile   = () => matchMedia("(max-width: 700px)").matches;
+  const el       = () => document.querySelector("#win-surface .window-body");
 
-  async function pulse() {
-    const tree = await getTree();
-    const pages = tree.filter(e => /^wiki\/.+\.md$/.test(e.path)).length;
-    const inbox = tree.filter(e => /^inbox\/[^/]+\.md$/.test(e.path) && !e.path.endsWith("README.md")).length;
-    let done = 0, total = 28;
-    try {
-      const man = await getFile("raw/chat-exports/PROCESSED.md");
-      done = (man.match(/^\d{4}-\d{2}\s*\|.*\|\s*done/gm) || []).length;
-      const t = man.match(/(\d+)\s+months total/); if (t) total = +t[1];
-    } catch (e) { /* manifest optional */ }
-    let lastBeat = "—";
-    try {
-      const log = await getFile("log.md");
-      const beats = log.match(/## \[([0-9-]+)\] heartbeat[^\n]*/g);
-      if (beats) lastBeat = beats[beats.length - 1].match(/\[([0-9-]+)\]/)[1];
-    } catch (e) {}
-    const pct = Math.round(100 * done / total);
-    return `
-      <div class="pulse">
-        <div class="stat-tile"><div class="v">${pages}</div><div class="l">wiki pages</div></div>
-        <div class="stat-tile"><div class="v">${inbox}</div><div class="l">inbox pending</div></div>
-        <div class="stat-tile"><div class="v small">${lastBeat}</div><div class="l">last heartbeat</div></div>
-      </div>
-      <div class="backfill">
-        <div class="l">corpus backfill — ${done}/${total} months (${pct}%)</div>
-        <div class="progress-indicator segmented">
-          <span class="progress-indicator-bar" style="width:${Math.max(pct,2)}%"></span>
-        </div>
-      </div>`;
+  /* ---------- state ---------- */
+  let briefs = [], idx = 0;              // findings-log files, newest first
+  let cards = [], cardI = 0, otdMode = "exact", scope = null;
+  let stat = { pages: 0, sessions: 0, inbox: 0, gates: 0 };
+  let tab = localStorage.getItem("pfc_sf_tab") || "archive";
+  let asTable = { archive: false, tending: false };
+  let D = {};                            // the loaded data for this paint
+  let statusTimer = null, warned = new Set();
+
+  /* ================= status bar (§9) — three fields ================= */
+  function statusFields() {
+    const sb = document.querySelector("#win-surface .status-bar");
+    if (!sb) return null;
+    if (!sb.dataset.sf) {
+      sb.dataset.sf = "1";
+      sb.innerHTML = `<p class="status-bar-field"></p><p class="status-bar-field"></p>` +
+                     `<p class="status-bar-field"></p>` +
+                     (DEMO ? `<p class="status-bar-field">Demo \u2014 nothing is saved</p>` : "");
+    }
+    return sb.querySelectorAll(".status-bar-field");
+  }
+  function paintStatus() {
+    const f = statusFields(); if (!f) return;
+    f[0].textContent = `${plural(stat.pages, "wiki page")} \u00b7 ${plural(stat.sessions, "session")}`;
+    f[1].textContent = `inbox ${stat.inbox}`;
+    f[2].textContent = stat.gates ? `${plural(stat.gates, "gate")} open` : "docket clear";
+  }
+  /* Transient messages take field 1 (WM.status's field) and hand it back. */
+  function say(msg, restore) {
+    statusFields();
+    WM.status("surface", msg);
+    clearTimeout(statusTimer);
+    if (restore) statusTimer = setTimeout(paintStatus, 6000);
   }
 
+  /* ================= §4 the beat band — honest freshness ================= */
+  /* h is derived as v1 derived lastBeat, but the whole line is kept so a future
+     "## [date HH:MM] heartbeat" tightens the resolution with no rewrite. */
+  function readBeat(log) {
+    const rx = /^## \[(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}(?::\d{2})?))?\]\s*heartbeat\b[^\n]*/gm;
+    let best = null;
+    for (const m of String(log || "").matchAll(rx)) {
+      const when = new Date(`${m[1]}T${m[2] || "00:00"}${(m[2] || "").length === 5 ? ":00" : ""}`);
+      if (!best || when > best) best = when;
+    }
+    if (!best || isNaN(best)) return { state: "COLD", key: "cold", frac: 0, h: null,
+                                       said: "no full beat on record" };
+    const h = Math.max(0, Math.floor((Date.now() - best) / 36e5));
+    const amount = h >= 48 ? `${Math.floor(h / 24)}d` : `${h}h`;
+    const key   = h < 12 ? "ok" : h <= 24 ? "due" : "late";
+    const state = h < 12 ? "KEPT" : h <= 24 ? "DUE" : "LATE";
+    return { state, key, h, frac: Math.min(h / 24, 1),
+             said: key === "late" ? `no full beat for ${amount}` : `last full beat ${amount} ago` };
+  }
+  /* Copy law: the promise is the CHECK, never the beat. The hourly pulse
+     quiet-exits unless inbox/ holds an *-oracle.md or *-beatnow.md. */
+  function nextCheck() {
+    const n = new Date(); n.setMinutes(31, 0, 0);
+    if (n <= Date.now()) n.setHours(n.getHours() + 1);
+    return clock(n);
+  }
+  function beatHTML(b) {
+    const C = `var(--${b.key})`, T = `var(--${b.key}T)`;
+    const seg = c => `repeating-linear-gradient(90deg, ${c} 0 5px, transparent 5px 7px)`;
+    const aria = b.h === null ? "No full beat on record"
+      : b.h >= 48 ? `${Math.floor(b.h / 24)} days since the last full beat`
+      : b.h > 24  ? `${b.h} hours since the last full beat — over the 24 hour mark`
+      : `${b.h} of 24 hours since the last full beat`;
+    return `<div class="sf-beat">
+      <span class="led" style="background:${C}"></span>
+      <span class="state">${b.state}</span>
+      <span class="said">${esc(b.said)}</span>
+      <span class="sf-meter" role="img" aria-label="${esc(aria)}">
+        <i class="trk" style="background:${seg(T)}"></i>
+        <i class="fil" style="width:calc((100% - 4px) * ${b.frac.toFixed(4)});background:${seg(C)}"></i>
+        <u></u>
+      </span>
+      <span class="sp"></span>
+      <span class="said">pulse checks at ${nextCheck()}</span>
+    </div>`;
+  }
+
+  /* ================= §5 On this day ================= */
+  /* getTree() is already ?recursive=1 and cached, so date-matching every session
+     filename in the corpus costs zero additional API calls. */
+  function onThisDay(tree, today, hidden) {
+    const mdOf = d => `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const rx = /^sessions\/(claude|gemini)\/(\d{4})-(\d{2}-\d{2})/;
+    const all = tree.map(e => { const m = rx.exec(e.path); return m &&
+                   { path: e.path, size: e.size || 0, year: +m[2], md: m[3], src: m[1] }; })
+                 .filter(Boolean)
+                 .filter(s => !hidden.has(s.path.split("/").pop().replace(/\.md$/, "")));
+    const hit = s => s.year < today.getFullYear();       // never resurface this year
+    let pool = all.filter(s => s.md === mdOf(today) && hit(s)), widened = false;
+    if (!pool.length) {                                  // widen to +/-3 days, nearest first
+      widened = true;
+      for (let d = 1; d <= 3 && !pool.length; d++)
+        for (const sgn of [-1, 1]) {
+          const t = new Date(today); t.setDate(t.getDate() + sgn * d);
+          pool = pool.concat(all.filter(s => s.md === mdOf(t) && hit(s)));
+        }
+    }
+    return { widened, cards: pool
+      .filter(s => s.size < 200000)                      // one fetch, bounded
+      .sort((a, b) => (b.year - a.year) || (b.size - a.size) || (a.path < b.path ? -1 : 1))
+      .slice(0, 5) };
+  }
+  function monthPool(tree, year, month, hidden) {        // archive cell -> scoped pool
+    const rx = /^sessions\/(claude|gemini)\/(\d{4})-(\d{2})-(\d{2})/;
+    return tree.map(e => { const m = rx.exec(e.path); return m &&
+              { path: e.path, size: e.size || 0, year: +m[2], md: `${m[3]}-${m[4]}`, src: m[1] }; })
+      .filter(Boolean)
+      .filter(s => s.year === year && +s.md.slice(0, 2) === month + 1)
+      .filter(s => !hidden.has(s.path.split("/").pop().replace(/\.md$/, "")))
+      .filter(s => s.size < 200000)
+      .sort((a, b) => (b.md < a.md ? -1 : b.md > a.md ? 1 : 0) || (b.size - a.size));
+  }
+  async function openerOf(path) {
+    const txt = await getFile(path);
+    const opener = (txt.match(/^\*\*H:\*\*\s*([\s\S]*?)(?:\n\n|\n\*\*A:\*\*)/m) || [, ""])[1]
+                     .replace(/\s+/g, " ").trim();
+    const title = ((txt.match(/^title:\s*(.+)$/m) || [, ""])[1] || "").trim();
+    return { opener, title };
+  }
+  /* Ranking rules 2 and 3 are about the opener, which cannot be known without a
+     fetch. So: order by metadata (rules 1/4/5), fetch the leader, and only look
+     one card further when its opener is actually poor. 1 call typical, 2 worst. */
+  const scoreOpener = o => (/\?["'\u201d\u2019)\]]*$/.test(o) ? 2 : 0) +
+                           (o.length >= 40 && o.length <= 320 ? 1 : 0);
+  async function orderCards(list) {
+    if (!list.length) return list;
+    const a = { ...list[0], ...(await openerOf(list[0].path)) };
+    if (list.length < 2 || scoreOpener(a.opener) === 3) return [a, ...list.slice(1)];
+    const b = { ...list[1], ...(await openerOf(list[1].path)) };
+    return scoreOpener(b.opener) > scoreOpener(a.opener)
+      ? [b, a, ...list.slice(2)] : [a, b, ...list.slice(2)];
+  }
+
+  /* ================= §6 What connected ================= */
+  /* Same wikilink pass renderMd() uses, inline: tier links open by path, wiki
+     slugs get .missing when the tree has no page for them. */
+  function linkify(s) {
+    return esc(s).replace(/\[\[([^\]|]+)\]\]/g, (_, name) => {
+      if (name.includes("/")) {
+        const path = name.endsWith(".md") ? name : name + ".md";
+        return `<a class="wikilink" data-path="${esc(path)}">${esc(name.split("/").pop())}</a>`;
+      }
+      const slug = slugify(name);
+      const exists = cache.tree && cache.tree.some(e => e.path === `wiki/${slug}.md`);
+      return `<a class="wikilink${exists ? "" : " missing"}" data-page="${esc(slug)}">${esc(name)}</a>`;
+    }).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>");
+  }
+  /* Bullets under any "## …" that is not Pulse. Wrapped lines are rejoined —
+     the real files hard-wrap at ~90 columns. */
+  function findings(md) {
+    const { body } = splitFrontmatter(md || "");
+    const out = []; let pulse = "";
+    for (const sec of body.split(/^## /m).slice(1)) {
+      const nl = sec.indexOf("\n");
+      const head = (nl < 0 ? sec : sec.slice(0, nl)).trim();
+      const rest = nl < 0 ? "" : sec.slice(nl + 1);
+      if (/^pulse\b/i.test(head)) { pulse = (rest.trim().split("\n")[0] || "").trim(); continue; }
+      let cur = null;
+      for (const raw of rest.split("\n")) {
+        if (/^\s*[-*]\s+/.test(raw)) { if (cur) out.push(cur); cur = raw.replace(/^\s*[-*]\s+/, "").trim(); }
+        else if (cur !== null && raw.trim()) cur += " " + raw.trim();
+        else if (cur !== null) { out.push(cur); cur = null; }
+      }
+      if (cur) out.push(cur);
+    }
+    return { list: out.filter(Boolean), pulse };
+  }
+  function splitBullet(b) {
+    const m = b.match(/^\*\*(.+?)\*\*\s*[\u2014\u2013-]\s*([\s\S]*)$/);
+    if (!m) return { head: "", body: b, evidence: "" };
+    let body = m[2].trim(), evidence = "";
+    const ev = body.match(/\(evidence:\s*([\s\S]*)\)\s*$/i);
+    if (ev) { evidence = ev[1].replace(/\s+/g, " ").trim(); body = body.slice(0, ev.index).trim(); }
+    return { head: m[1].trim(), body, evidence };
+  }
+
+  /* ================= §7 Waiting on you ================= */
+  const CHIP = { contradiction: "CONTRADICTION", verification: "VERIFY", verify: "VERIFY",
+                 proposal: "PROPOSAL", decision: "DECISION", merge: "MERGE",
+                 supersede: "SUPERSEDE" };
+  function parseGates(md) {
+    const out = [];
+    for (const block of String(md || "").split(/^## /m).slice(1)) {
+      const bits = block.split("\n")[0].trim().split("\u00b7").map(x => x.trim());
+      if (!/^G-/.test(bits[0] || "")) continue;
+      out.push({ id: bits[0], kind: (bits[1] || "").toLowerCase(),
+                 q: ((block.match(/^\*\*Q:\*\*\s*(.+)$/m) || [, ""])[1] || "").trim(),
+                 raised: (block.match(/^\*\*Raised:\*\*\s*(\d{4}-\d{2}-\d{2})/m) || [, ""])[1] || "" });
+    }
+    return out.sort((a, b) => (b.raised || b.id).localeCompare(a.raised || a.id));
+  }
+  /* Inquest re-renders its docket on open; wait for the row, then bring it into view. */
+  function openInquest(gid) {
+    WM.show("inquest");
+    if (!gid) return;
+    let tries = 0;
+    const seek = setInterval(() => {
+      const row = document.querySelector(`#win-inquest .gate[data-gid="${gid}"]`);
+      if (row) { row.scrollIntoView({ block: "start" }); clearInterval(seek); }
+      else if (++tries > 25) clearInterval(seek);
+    }, 120);
+  }
+
+  /* ================= §8.1 The archive ================= */
+  function archiveGrid(tree) {
+    const rx = /^sessions\/(?:claude|gemini)\/(\d{4})-(\d{2})-/;
+    const grid = {}; let total = 0, first = null, last = null;
+    for (const e of tree) {
+      const m = rx.exec(e.path); if (!m) continue;
+      const y = +m[1], mo = +m[2] - 1;
+      (grid[y] = grid[y] || new Array(12).fill(0))[mo]++;
+      total++;
+      const k = y * 12 + mo;
+      if (first === null || k < first) first = k;
+      if (last === null || k > last) last = k;
+    }
+    const ys = Object.keys(grid).map(Number);
+    if (ys.length) for (let y = Math.min(...ys); y <= Math.max(...ys); y++)
+      grid[y] = grid[y] || new Array(12).fill(0);
+    return { grid, total, first, last };
+  }
+  const LVL = v => v === 0 ? 0 : v < 15 ? 1 : v < 35 ? 2 : 3;
+  const ARC_FILL = ["#ffffff", "#a868d0", "#6a3890", "#4a1a68"];
+  const ARC = { LB: 30, CW: 40, CH: 19, GAP: 3, TOP: 19 };
+  function archiveSVG(grid, total, today, compact) {
+    const years = Object.keys(grid).map(Number).sort((a, b) => a - b);
+    const { LB, CW, CH, GAP, TOP } = ARC;
+    const W = LB + 12 * (CW + GAP) - GAP;
+    const H = TOP + years.length * (CH + GAP) - GAP + 1;
+    const MONL = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
+    const curM = today.getMonth(), curY = today.getFullYear();
+    let s = `<svg viewBox="0 0 ${W} ${H}" role="img"${compact ? ' data-compact="1"' : ""} ` +
+            `aria-label="Sessions kept per month, ${years[0]} to ${years[years.length - 1]}; ` +
+            `${total} in all.">`;
+    MONL.forEach((m, i) => { const cur = i === curM && years.includes(curY);
+      s += `<text x="${LB + i * (CW + GAP) + CW / 2}" y="14" text-anchor="middle" font-family="Arial" ` +
+           `font-size="${cur ? 10 : 9}" font-weight="${cur ? "bold" : "normal"}" ` +
+           `fill="${cur ? "#000" : "#444"}">${m}</text>`; });
+    years.forEach((y, r) => {
+      const yy = TOP + r * (CH + GAP);
+      s += `<text x="${LB - 6}" y="${yy + CH - 6}" text-anchor="end" font-family="Arial" ` +
+           `font-size="10" fill="#3a3a3a">${y}</text>`;
+      grid[y].forEach((v, i) => {
+        const x = LB + i * (CW + GAP), L = LVL(v);
+        s += `<rect x="${x}" y="${yy}" width="${CW}" height="${CH}" fill="${ARC_FILL[L]}"` +
+             (L === 0 ? ` stroke="#d4d4d4"` : ``) + `/>`;
+        if (v >= 35 && !compact)                          // label the peaks only
+          s += `<text x="${x + CW / 2}" y="${yy + CH - 6}" text-anchor="middle" font-family="Arial" ` +
+               `font-size="9" fill="${L === 1 ? "#000" : "#fff"}">${v}</text>`;
+      });
+    });
+    if (years.includes(curY)) {                           // today's month, outside the cell
+      const tx = LB + curM * (CW + GAP), ty = TOP + years.indexOf(curY) * (CH + GAP);
+      s += `<rect x="${tx - 2}" y="${ty - 2}" width="${CW + 4}" height="${CH + 4}" fill="none" stroke="#000"/>`;
+      s += `<path d="M${tx + CW / 2 - 4} 0 L${tx + CW / 2 + 4} 0 L${tx + CW / 2} 5 Z" fill="#000"/>`;
+    }
+    return s + `</svg>`;
+  }
+
+  /* ================= §8.2 The tending ================= */
+  /* BRAIN.md's vocabulary is six verbs; log.md carries more. Folded into three
+     classes; an unknown verb lands in "built" and is reported once, not swallowed. */
+  const VERB = { ingest: "took", correct: "took",
+                 surface: "conn", oracle: "conn", query: "conn", lint: "conn",
+                 build: "built", admin: "built", heartbeat: "built" };
+  function tendingData(log) {
+    const byDay = {}; let first = null, unknown = [];
+    for (const m of String(log || "").matchAll(/^## \[(\d{4}-\d{2}-\d{2})[^\]]*\]\s*([a-z][a-z-]*)/gm)) {
+      const day = m[1], verb = m[2];
+      let cls = VERB[verb];
+      if (!cls) { cls = "built"; if (!warned.has(verb)) { warned.add(verb); unknown.push(verb); } }
+      (byDay[day] = byDay[day] || { took: 0, conn: 0, built: 0 })[cls]++;
+      if (!first || day < first) first = day;
+    }
+    if (unknown.length) console.warn("[surface] log verb outside the BRAIN.md vocabulary, " +
+                                     "counted as built: " + unknown.join(", "));
+    return { byDay, first };
+  }
+  const TND = { PL: 22, PR: 3, PT: 15, PB: 13, PH: 52, CW: 30, GAP: 4 };
+  const sumDay = r => r ? r.took + r.conn + r.built : 0;
+  function tendingKeys(today, days) {
+    return Array.from({ length: days }, (_, i) => {
+      const d = new Date(today); d.setDate(d.getDate() - (days - 1 - i)); return iso(d); });
+  }
+  function tendingSVG(byDay, keys, total) {
+    const { PL, PR, PT, PB, PH, CW, GAP } = TND, DAYS = keys.length;
+    const W = PL + DAYS * (CW + GAP) - GAP + PR, H = PT + PH + PB;
+    const peak = Math.max(1, ...keys.map(k => sumDay(byDay[k])));
+    /* multiples of 30, so the three gridline steps are always whole numbers */
+    const MAX = Math.max(30, Math.ceil(peak / 30) * 30);
+    const y = v => PT + PH - (v / MAX) * PH;
+    let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Operations logged per day, ` +
+            `last ${DAYS} days; ${total} in all.">`;
+    for (let v = 0; v <= MAX; v += MAX / 3) {
+      s += `<line x1="${PL - 3}" x2="${W - PR}" y1="${y(v)}" y2="${y(v)}" ` +
+           `stroke="${v ? "#d4d4d4" : "#808080"}"/>`;     // baseline is one step darker
+      s += `<text x="${PL - 6}" y="${y(v) + 3}" text-anchor="end" font-family="Arial" ` +
+           `font-size="9" fill="#444">${v}</text>`;
+    }
+    const tallest = keys.reduce((a, k) => sumDay(byDay[k]) > sumDay(byDay[a]) ? k : a, keys[0]);
+    keys.forEach((k, i) => {
+      const x = PL + i * (CW + GAP), rec = byDay[k];
+      if (!rec) {                          // a day with nothing logged: a stub, not a gap
+        s += `<rect x="${x}" y="${y(0) - 1}" width="${CW}" height="1" fill="#d4d4d4"/>`;
+      } else {
+        let acc = 0;
+        [["took", "#007800"], ["conn", "#6a3890"], ["built", "#a8005c"]].forEach(([f, col]) => {
+          const v = rec[f] || 0; if (!v) return;
+          const h = (v / MAX) * PH;
+          s += `<rect x="${x}" y="${y(acc + v)}" width="${CW}" ` +
+               `height="${Math.max(h - 2, 1).toFixed(2)}" fill="${col}"/>`;   // 2-unit surface gap
+          acc += v;
+        });
+        if (DAYS > 10 || k === tallest)    // mobile labels only the tallest column
+          s += `<text x="${x + CW / 2}" y="${(y(acc) - 4).toFixed(2)}" text-anchor="middle" ` +
+               `font-family="Arial" font-size="10" font-weight="bold" fill="#000">${acc}</text>`;
+      }
+      if (i % 2 === 1 || i === DAYS - 1)
+        s += `<text x="${x + CW / 2}" y="${H - 3}" text-anchor="middle" font-family="Arial" ` +
+             `font-size="9" fill="#444">${dateOf(k).getDate()}</text>`;
+    });
+    return s + `</svg>`;
+  }
+
+  /* ================= §8.3 the shared tooltip ================= */
+  /* One absolutely-positioned div per well. Hit resolution is arithmetic on the
+     viewBox, so the target is the mark plus its gap on both pointer types. */
+  function wireTip(well, svg, resolve) {
+    const tip = document.createElement("div");
+    tip.className = "sf-tip"; tip.style.display = "none";
+    well.appendChild(tip);
+    const hide = () => { tip.style.display = "none"; };
+    const move = ev => {
+      const r = svg.getBoundingClientRect();
+      if (!r.width) return hide();
+      const vb = svg.viewBox.baseVal;
+      const txt = resolve((ev.clientX - r.left) * vb.width / r.width,
+                          (ev.clientY - r.top) * vb.height / r.height);
+      if (!txt) return hide();
+      tip.textContent = txt; tip.style.display = "block";
+      const wr = well.getBoundingClientRect();
+      let x = ev.clientX - wr.left + 12, ty = ev.clientY - wr.top + 16;
+      x = Math.max(2, Math.min(x, wr.width - tip.offsetWidth - 4));
+      if (ty + tip.offsetHeight > wr.height - 2) ty = ev.clientY - wr.top - tip.offsetHeight - 8;
+      tip.style.left = x + "px"; tip.style.top = Math.max(2, ty) + "px";
+    };
+    svg.addEventListener("pointermove", move);
+    svg.addEventListener("pointerdown", move);
+    svg.addEventListener("pointerleave", hide);
+    well.addEventListener("pointerleave", hide);
+  }
+
+  /* ================= paint: On this day ================= */
+  function paintOTD() {
+    const host = el().querySelector("#sf-otd"); if (!host) return;
+    if (!cards.length) {
+      host.innerHTML = `<legend>On this day</legend>` +
+        `<div class="sf-otd-none">Nothing kept near this date yet.</div>`;
+      return;
+    }
+    const c = cards[Math.min(cardI, cards.length - 1)];
+    const when = dateOf(`${c.year}-${c.md}`);
+    const gap = D.today.getFullYear() - c.year;
+    const yrs = gap < 10 ? `${ORD[gap]} YEAR${gap === 1 ? "" : "S"}` : `${gap} YEARS`;
+    let head, foot;
+    if (scope) {
+      head = `<b>${MON[scope.month].toUpperCase()} ${scope.year}</b> \u00b7 ${cards.length} KEPT`;
+      foot = `${cardI + 1} of ${cards.length} kept in ${MON[scope.month]} ${scope.year}`;
+    } else if (otdMode === "widened") {
+      head = `<b>${longDate(when).toUpperCase()}</b> \u00b7 NEAREST KEPT DAY, ${yrs} AGO`;
+      foot = `${cardI + 1} of ${cards.length} within three days`;
+    } else {
+      head = `<b>${longDate(when).toUpperCase()}</b> \u00b7 ${yrs} AGO TODAY`;
+      foot = `${cardI + 1} of ${cards.length} kept from this day`;
+    }
+    const q = c.opener || "(this session opens with no question of yours \u2014 open it to read it)";
+    const dots = cards.length > 1 ? `<span class="dots">` + cards.map((_, i) =>
+        `<b class="${i === cardI ? "on" : ""}" data-i="${i}" role="button" tabindex="0" ` +
+        `aria-label="Card ${i + 1} of ${cards.length}">${i === cardI ? "\u25cf" : "\u25cb"}</b>`
+      ).join("") + `</span>` : "";
+    host.innerHTML = `<legend>On this day</legend>
+      <div class="sf-otd-head">${head}</div>
+      <div class="well sf-otd">
+        <p class="q${q.length > 320 ? " clamp" : ""}">${esc(q)}</p>
+        <hr>
+        <div class="t">${esc(c.title || c.path.split("/").pop().replace(/\.md$/, ""))}</div>
+        <div class="p">${esc(c.path)}</div>
+      </div>
+      <div class="sf-otd-foot">
+        <button id="sf-read">Read it</button>
+        ${scope ? `<button id="sf-unscope">\u21ba Today</button>` : ""}
+        <span class="sp"></span>${dots}<span>${esc(foot)}</span>
+      </div>`;
+    host.querySelector("#sf-read").onclick = () => {
+      WM.show("explorer"); Explorer.openPath(c.path).catch(err);
+    };
+    const un = host.querySelector("#sf-unscope");
+    if (un) un.onclick = () => { scope = null; rebuildOTD().then(paintOTD).catch(err); };
+    host.querySelectorAll(".dots b").forEach(b => {
+      const go = () => { cardI = +b.dataset.i; fillCard(cards[cardI]).then(paintOTD).catch(err); };
+      b.onclick = go;
+      b.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };
+    });
+  }
+  async function fillCard(c) {
+    if (c && c.opener === undefined) Object.assign(c, await openerOf(c.path).catch(() => ({ opener: "", title: "" })));
+  }
+  async function rebuildOTD() {
+    cardI = 0;
+    if (scope) { cards = await orderCards(monthPool(D.tree, scope.year, scope.month, D.hidden).slice(0, 12)); }
+    else { const r = onThisDay(D.tree, D.today, D.hidden); otdMode = r.widened ? "widened" : "exact";
+           cards = await orderCards(r.cards); }
+  }
+
+  /* ================= paint: What connected ================= */
+  function paintConn() {
+    const host = el().querySelector("#sf-conn"); if (!host) return;
+    let head = "", inner = "", more = "";
+    if (!briefs.length) {
+      inner = `<div class="well sf-conn"><p class="quiet">Nothing found yet. A findings file ` +
+              `is written only when a beat actually finds something.</p></div>`;
+    } else {
+      const path = briefs[idx], day = path.slice(8, 18), age = daysAgo(day, D.today);
+      const when = longDate(dateOf(day)).toUpperCase();
+      /* The findings log is written only on days that found something, so "no file
+         for today" is the normal case and must never read as an error. Always show
+         the finding's own date; when it is old, say so before showing it. */
+      const rel = age <= 0 ? "TODAY" : age === 1 ? "YESTERDAY"
+                : age < 7 ? `${age} DAYS AGO` : age < 14 ? "LAST WEEK"
+                : age < 60 ? `${Math.round(age / 7)} WEEKS AGO` : `${Math.round(age / 30)} MONTHS AGO`;
+      head = age <= 1
+        ? `<div class="sf-otd-head"><b>${when}</b> \u00b7 ${rel}</div>`
+        : `<div class="sf-otd-head"><b>${when}</b> \u00b7 LAST FINDING \u00b7 ` +
+          `NOTHING NEW FOR ${age < 60 ? plural(age, "DAY").toUpperCase() : rel}</div>`;
+      const f = findings(D.brief);
+      const conn = f.list.map(splitBullet).find(x => x.head) || (f.list.length
+        ? { head: "", body: f.list[0], evidence: "" } : null);
+      if (!conn) {
+        const n = (f.pulse.match(/(\d+)\s+pages/) || [])[1];
+        inner = `<div class="well sf-conn"><p class="quiet">Nothing ${age <= 0 ? "today" : "that day"}. ` +
+                (n ? `${plural(+n, "page")} were read and none of them met anything`
+                   : `Nothing that was read met anything else`) +
+                ` \u2014 the wiki keeps them either way.</p></div>`;
+        if (D.lastConn) more = `<div class="sf-more">Last connection: ` +
+          `${linkify(D.lastConn.head)}, ${esc(D.lastConn.rel)}</div>`;
+      } else {
+        inner = `<div class="well sf-conn">
+          ${conn.head ? `<p class="h">${linkify(conn.head)}</p>` : ""}
+          <p class="b">${linkify(conn.body)}</p>
+          ${conn.evidence ? `<div class="e">evidence \u00b7 ${linkify(conn.evidence)}</div>` : ""}
+        </div>`;
+        const rest = f.list.length - 1;
+        more = `<div class="sf-more">${rest > 0 ? `${plural(rest, "more finding")} that day ` : ""}` +
+               `<a data-open="${esc(path)}">Read the whole entry \u25b8</a></div>`;
+      }
+    }
+    host.innerHTML = `<legend>What connected</legend>${head}${inner}${more}`;
+    wireLinks(host);
+  }
+  function wireLinks(host) {
+    host.querySelectorAll("a.wikilink").forEach(a => a.onclick = () => a.dataset.path
+      ? (WM.show("explorer"), Explorer.openPath(a.dataset.path).catch(err))
+      : Explorer.openPage(a.dataset.page));
+    host.querySelectorAll("a[data-open]").forEach(a => a.onclick = () => {
+      WM.show("explorer"); Explorer.openPath(a.dataset.open).catch(err);
+    });
+  }
+
+  /* ================= paint: Waiting on you ================= */
+  function paintGates() {
+    const host = el().querySelector("#sf-gates"); if (!host) return;
+    const g = D.gates;
+    const rows = g.slice(0, 3).map(x => {
+      const age = x.raised ? daysAgo(x.raised, D.today) : null;
+      const when = age === null ? "" : age <= 0 ? "today" : `${age}d`;
+      return `<div class="sf-gate" tabindex="0" role="button" data-gid="${esc(x.id)}" ` +
+             `title="${esc(x.q)}"><span class="k">${esc(CHIP[x.kind] || x.kind.toUpperCase())}</span>` +
+             `<span class="q">${esc(x.q)}</span><span class="a">${when}</span></div>`;
+    }).join("");
+    /* Proposals are proposal-kind gates: a real ruling flow, not a brief section.
+       The slot is rendered at zero on purpose — a standing request. */
+    const props = g.filter(x => x.kind === "proposal").length;
+    host.innerHTML = `<legend>Waiting on you</legend>
+      ${g.length ? `<div class="well">${rows}</div>`
+                 : `<div class="well"><div class="sf-empty">Nothing is waiting. The docket is clear.</div></div>`}
+      <div class="sf-foot">
+        <span><b>${g.length}</b> gate${g.length === 1 ? "" : "s"} \u00b7 <b>${D.flags}</b> flag${D.flags === 1 ? "" : "s"} \u00b7 <b>${props}</b> proposal${props === 1 ? "" : "s"}</span>
+        <span class="sp"></span><button id="sf-inq">Open Inquest</button>
+      </div>`;
+    host.querySelector("#sf-inq").onclick = () => openInquest(null);
+    host.querySelectorAll(".sf-gate").forEach(r => {
+      r.onclick = () => openInquest(r.dataset.gid);
+      r.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openInquest(r.dataset.gid); } };
+    });
+  }
+
+  /* ================= paint: Instruments ================= */
+  function paintInstruments() {
+    const host = el().querySelector("#sf-inst"); if (!host) return;
+    const t = (id, label) => `<button data-tab="${id}" aria-selected="${tab === id}" ` +
+                             `role="tab">${label}</button>`;
+    host.innerHTML = `<legend>Instruments</legend>
+      <div class="sf-tabs" role="tablist">${t("archive", "The archive")}${t("tending", "The tending")}</div>
+      <div class="well sf-chartwell" id="sf-chart" role="tabpanel"></div>`;
+    host.querySelectorAll(".sf-tabs button").forEach(b => b.onclick = () => {
+      tab = b.dataset.tab; localStorage.setItem("pfc_sf_tab", tab); paintInstruments();
+    });
+    (tab === "tending" ? paintTending : paintArchive)(host.querySelector("#sf-chart"));
+  }
+  function paintArchive(well) {
+    const { grid, total, first, last } = D.archive;
+    const years = Object.keys(grid).map(Number).sort((a, b) => a - b);
+    const span = first === null ? "no sessions yet"
+      : `${plural(total, "session")} \u00b7 ${MON3[first % 12]} ${Math.floor(first / 12)} \u2013 ` +
+        `${MON3[last % 12]} ${Math.floor(last / 12)}`;
+    const sw = (c, lbl, none) => `<span><i${none ? ' class="none"' : ""} style="background:${c}"></i>${lbl}</span>`;
+    const legend = `<div class="sf-legend">
+        ${sw("#fff", "none", true)}${sw(ARC_FILL[1], "1\u201314")}${sw(ARC_FILL[2], "15\u201334")}${sw(ARC_FILL[3], "35+")}
+        <span class="sp"></span><span>${esc(span)}</span>
+        <a data-t="archive">${asTable.archive ? "Chart \u25b8" : "Table \u25b8"}</a>
+      </div>`;
+    if (!years.length) {
+      well.innerHTML = `<div class="sf-empty">No sessions kept yet — the grid fills as they arrive.</div>`;
+      return;
+    }
+    if (asTable.archive) {
+      let h = `<div class="sunken-panel sf-table"><table><thead><tr><th>Year</th>` +
+              MON3.map(m => `<th>${m}</th>`).join("") + `<th>All</th></tr></thead><tbody>`;
+      years.forEach(y => { const row = grid[y], sum = row.reduce((a, b) => a + b, 0);
+        h += `<tr><th scope="row">${y}</th>` +
+             row.map(v => `<td class="n${v ? "" : " z"}">${v || "\u00b7"}</td>`).join("") +
+             `<td class="n"><b>${sum}</b></td></tr>`; });
+      well.innerHTML = h + `</tbody></table></div>` + legend;
+    } else {
+      well.innerHTML = archiveSVG(grid, total, D.today, mobile()) + legend;
+      const svg = well.querySelector("svg");
+      const cellAt = (vx, vy) => {
+        const { LB, CW, CH, GAP, TOP } = ARC;
+        const col = Math.floor((vx - LB) / (CW + GAP));
+        const row = Math.round((vy - TOP - CH / 2) / (CH + GAP));
+        if (col < 0 || col > 11 || row < 0 || row >= years.length) return null;
+        return { row, col, year: years[row], v: grid[years[row]][col] };
+      };
+      wireTip(well, svg, (vx, vy) => { const c = cellAt(vx, vy); return c &&
+        `${MON[c.col]} ${c.year}\n${c.v ? plural(c.v, "session") + " kept" : "nothing kept"}`; });
+      svg.style.cursor = "pointer";
+      svg.onclick = ev => {
+        const r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
+        const c = cellAt((ev.clientX - r.left) * vb.width / r.width,
+                         (ev.clientY - r.top) * vb.height / r.height);
+        if (!c || !c.v) return;
+        scope = { year: c.year, month: c.col };
+        rebuildOTD().then(paintOTD).catch(err);
+      };
+    }
+    well.querySelector("a[data-t]").onclick = () => { asTable.archive = !asTable.archive; paintInstruments(); };
+  }
+  function paintTending(well) {
+    const keys = tendingKeys(D.today, mobile() ? 10 : 14);
+    const total = keys.reduce((a, k) => a + sumDay(D.tending.byDay[k]), 0);
+    const first = D.tending.first;
+    const cap = `${plural(total, "operation")}` +
+                (first ? ` \u00b7 log begins ${dateOf(first).getDate()} ${MON3[dateOf(first).getMonth()]}` : "");
+    const sw = (c, lbl) => `<span><i style="background:${c}"></i>${lbl}</span>`;
+    const legend = `<div class="sf-legend">
+        ${sw("#007800", "took in")}${sw("#6a3890", "connected")}${sw("#a8005c", "built")}
+        <span class="sp"></span><span>${esc(cap)}</span>
+        <a data-t="tending">${asTable.tending ? "Chart \u25b8" : "Table \u25b8"}</a>
+      </div>`;
+    if (asTable.tending) {
+      let h = `<div class="sunken-panel sf-table"><table><thead><tr><th>Day</th><th>took in</th>` +
+              `<th>connected</th><th>built</th><th>all</th></tr></thead><tbody>`;
+      keys.slice().reverse().forEach(k => { const r = D.tending.byDay[k] || { took: 0, conn: 0, built: 0 };
+        const s = sumDay(r);
+        h += `<tr><th scope="row">${DOW3[dateOf(k).getDay()]} ${dateOf(k).getDate()} ${MON3[dateOf(k).getMonth()]}</th>` +
+             [r.took, r.conn, r.built].map(v => `<td class="n${v ? "" : " z"}">${v || "\u00b7"}</td>`).join("") +
+             `<td class="n"><b>${s || "\u00b7"}</b></td></tr>`; });
+      well.innerHTML = h + `</tbody></table></div>` + legend;
+    } else {
+      well.innerHTML = tendingSVG(D.tending.byDay, keys, total) + legend;
+      const svg = well.querySelector("svg");
+      wireTip(well, svg, vx => {
+        const i = Math.floor((vx - TND.PL) / (TND.CW + TND.GAP));
+        if (i < 0 || i >= keys.length) return "";
+        const k = keys[i], r = D.tending.byDay[k], d = dateOf(k);
+        const when = `${DOW3[d.getDay()]} ${d.getDate()} ${MON3[d.getMonth()]}`;
+        if (!r) return `${when} \u2014 nothing logged`;
+        const parts = [["built", r.built], ["took in", r.took], ["connected", r.conn]]
+                        .filter(p => p[1]).map(p => `${p[0]} ${p[1]}`);
+        return `${when} \u2014 ${sumDay(r)} ops\n${parts.join(" \u00b7 ")}`;
+      });
+    }
+    well.querySelector("a[data-t]").onclick = () => { asTable.tending = !asTable.tending; paintInstruments(); };
+  }
+
+  /* ================= render ================= */
   async function render() {
-    WM.status("surface", "Loading…");
+    statusFields();
+    say("Loading\u2026");
+    const body = el();
     const tree = await getTree();
+    const today = new Date();
+    D = { tree, today };
+
+    /* status-bar counts — the same filters v1's pulse() ran, plus sessions */
+    stat.pages    = tree.filter(e => /^wiki\/.+\.md$/.test(e.path)).length;
+    stat.inbox    = tree.filter(e => /^inbox\/[^/]+\.md$/.test(e.path) && !e.path.endsWith("README.md")).length;
+    stat.sessions = tree.filter(e => /^sessions\/(claude|gemini)\/.+\.md$/.test(e.path)).length;
+    D.flags       = tree.filter(e => /^inbox\/[^/]*-flag\.md$/.test(e.path)).length;
+
+    let log = "";
+    try { log = await getFile("log.md"); } catch (e) { /* the log may not exist yet */ }
+    D.beat    = readBeat(log);
+    D.tending = tendingData(log);
+    D.archive = archiveGrid(tree);
+
+    try { D.gates = parseGates(await getFile("gates/open.md")); }
+    catch (e) { D.gates = []; }
+    stat.gates = D.gates.length;
+
+    try { D.hidden = await getHidden(); } catch (e) { D.hidden = new Set(); }
+
+    /* The findings log: written only when a beat found something, so there is
+       routinely no file for today. The newest one is the current one. */
     briefs = tree.filter(e => /^surface\/\d{4}-\d{2}-\d{2}\.md$/.test(e.path))
                  .map(e => e.path).sort().reverse();
     if (idx >= briefs.length) idx = 0;
-    const body = el();
-    const pulseHtml = await pulse();
-    if (!briefs.length) {
-      body.innerHTML = pulseHtml + `<div class="md"><p>No surface briefs yet.</p></div>`;
-      WM.status("surface", "No briefs"); return;
+    D.brief = "";
+    if (briefs.length) { try { D.brief = await getFile(briefs[idx]); } catch (e) {} }
+    /* Quiet legacy entry: reach one file back for the last real connection. */
+    D.lastConn = null;
+    if (briefs.length && !findings(D.brief).list.length) {
+      for (let j = idx + 1; j < Math.min(briefs.length, idx + 4) && !D.lastConn; j++) {
+        try {
+          const b = splitBullet((findings(await getFile(briefs[j])).list || [])[0] || "");
+          if (b.head) { const dd = briefs[j].slice(8, 18), a = daysAgo(dd, today);
+            D.lastConn = { head: b.head, rel: a === 1 ? "yesterday" : `${a} days ago` }; }
+        } catch (e) {}
+      }
     }
-    const path = briefs[idx];
-    const md = await getFile(path);
+
+    if (!scope) { const r = onThisDay(tree, today, D.hidden); otdMode = r.widened ? "widened" : "exact";
+                  cards = r.cards; } else { cards = monthPool(tree, scope.year, scope.month, D.hidden).slice(0, 12); }
+    try { cards = await orderCards(cards); } catch (e) { await fillCard(cards[0]); }
+    if (cardI >= cards.length) cardI = 0;
+
+    const dateNote = briefs.length && !mobile() ? longDate(dateOf(briefs[idx].slice(8, 18)))
+                   : briefs.length ? `${dateOf(briefs[idx].slice(8, 18)).getDate()} ${MON3[dateOf(briefs[idx].slice(8, 18)).getMonth()]}`
+                   : mobile() ? `${today.getDate()} ${MON3[today.getMonth()]}` : longDate(today);
+
+    body.classList.remove("white");
+    body.classList.add("sf2");
     body.innerHTML = `
       <div class="toolbar">
-        <button id="sf-prev" ${idx >= briefs.length - 1 ? "disabled" : ""}>◀ Older</button>
-        <button id="sf-next" ${idx <= 0 ? "disabled" : ""}>Newer ▶</button>
-        <span class="note">${path.slice(8, 18)}</span>
+        <button id="sf-prev" ${idx >= briefs.length - 1 ? "disabled" : ""}>\u25c0 Older</button>
+        <button id="sf-next" ${idx <= 0 ? "disabled" : ""}>Newer \u25b6</button>
+        <span class="note">${esc(dateNote)}</span>
         <div class="spacer"></div>
         <button id="sf-beat" title="Signal the hourly pulse to run a full beat">\u2665 Beat now</button>
         <button id="sf-refresh">Refresh</button>
       </div>
-      ${pulseHtml}<div id="sf-md"></div>`;
-    renderMd(md, body.querySelector("#sf-md"));
-    body.querySelector("#sf-prev").onclick = () => { idx++; render(); };
-    body.querySelector("#sf-next").onclick = () => { idx--; render(); };
+      ${beatHTML(D.beat)}
+      <fieldset id="sf-otd"></fieldset>
+      <fieldset id="sf-conn"></fieldset>
+      <fieldset id="sf-gates"></fieldset>
+      <fieldset id="sf-inst"></fieldset>`;
+    paintOTD(); paintConn(); paintGates(); paintInstruments();
+
+    body.querySelector("#sf-prev").onclick = () => { idx++; render().catch(err); };
+    body.querySelector("#sf-next").onclick = () => { idx--; render().catch(err); };
     body.querySelector("#sf-beat").onclick = async () => {
       const btn = body.querySelector("#sf-beat");
       btn.disabled = true;
-      WM.status("surface", "Signaling…");
+      say("Signaling\u2026");
       try {
-        const now = new Date(), pad = n => String(n).padStart(2, "0");
+        const now = new Date();
         const stamp = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
         await putFileSha(`inbox/${stamp}-beatnow.md`,
           `---\nvia: face\ntype: beat-request\nrequested: ${now.toISOString()}\n---\nFull beat requested from Surface.exe.\n`,
           "signal: beat now");
-        WM.status("surface", "Beat requested \u2014 the pulse checks hourly and will run a full beat.");
-      } catch (e) { WM.status("surface", "Signal failed \u2014 " + e.message); }
+        say("Beat requested \u2014 the pulse checks hourly and will run a full beat.", true);
+      } catch (e) { say("Signal failed \u2014 " + e.message, true); }
       finally { btn.disabled = false; }
     };
     body.querySelector("#sf-refresh").onclick = async () => {
-      cache.tree = null; cache.files.clear(); Search.invalidate(); render();
+      cache.tree = null; cache.files.clear(); cache.hidden = null; Search.invalidate(); render().catch(err);
     };
-    WM.status("surface", `${briefs.length} brief${briefs.length > 1 ? "s" : ""} · ${path}`);
-    try { // feed the ticker: pulse line + first connection, markdown stripped
-      const conn = (md.match(/^- \*\*(.+)$/m) || [,""])[1]
-        .replace(/\[\[|\]\]|\*\*/g, "").replace(/\s+/g, " ").slice(0, 160);
-      const pulse = (md.match(/^## Pulse\n(.+)$/m) || [,""])[1];
-      setTicker([pulse, conn && ("LATEST: " + conn)].filter(Boolean).join("  \u2726  ") ||
+    paintStatus();
+
+    try { // feed the ticker: pulse line + first connection; on this day when there is none
+      const f = findings(D.brief);
+      const b = f.list.length ? splitBullet(f.list[0]) : null;
+      const conn = b && (b.head || b.body)
+        ? (b.head ? b.head + " \u2014 " : "") + b.body : "";
+      const card = cards[cardI];
+      const otd = card && card.opener
+        ? `ON THIS DAY ${card.year}: ${card.opener}` : "";
+      setTicker([f.pulse, conn ? "LATEST: " + conn.replace(/\[\[|\]\]|\*\*/g, "").replace(/\s+/g, " ").slice(0, 160) : "",
+                 conn ? "" : otd.replace(/\s+/g, " ").slice(0, 160)]
+                .filter(Boolean).join("  \u2726  ") ||
                 "Postfrontal Cortex 98 \u2014 it remembers for you, and brings the right thing back");
     } catch (e) {}
   }
   APPS.surface.onOpen = () => render().catch(err);
   return { render };
 })();
-
 /* ----- Wiki Explorer ----- */
 const Explorer = (() => {
   let current = null;
@@ -1803,7 +2739,7 @@ const Explorer = (() => {
       bar.style.cssText = "padding:8px 14px 2px; display:flex;";
       const flag = document.createElement("button");
       flag.className = "flag-btn"; flag.textContent = "\u2691 Flag this page";
-      flag.title = "Tell the brain this page is wrong — it fixes it on the next beat";
+      flag.title = "Tell the brain this page is wrong — the next pulse fixes it, within the hour";
       flag.onclick = () => flagPage(path, view);
       bar.appendChild(flag);
       const hide = document.createElement("button");
@@ -1855,7 +2791,7 @@ const Explorer = (() => {
     box.innerHTML = `
       <p style="margin:0 0 6px; font-family:Arial; font-size:13px;">
         What's wrong on <b>${path}</b>? Say what it should be if you know —
-        the brain applies it on the next beat, supersedes the old claim, and chases
+        the next pulse applies it — within the hour — supersedes the old claim, and chases
         the same error across every other page.</p>
       <textarea rows="3" style="width:100%; box-sizing:border-box; font-family:Arial; font-size:14px;"
                 placeholder="e.g. the rate was $40/hr the whole time, not $42"></textarea>
@@ -1896,124 +2832,1105 @@ const Explorer = (() => {
   return { openPage, openPath, hiddenOpen: () => HIDDEN_OPEN, refreshTree: renderTree };
 })();
 
-/* ----- Notes: Write | Prior tabs, edit pending notes with upstream-change watcher ----- */
+/* ----- Notepad+++ v2 — the receiving bench -----
+   The app cannot hear. Dictation happens at the iOS keyboard mic or macOS Fn-Fn and
+   the text simply appears in the field; PFC98 never touches audio and never knows.
+   Everything below is downstream of that: §3 is a compatibility contract with the OS
+   (be a textarea it can write into without interference), Tidy is the repair the OS
+   leaves behind, and the outbox is the promise that a capture is never lost.
+   Spec: docs/art/notepad-v2/spec.md.                                            ----- */
 (() => {
-  let editing = null; // {path, sha, front} when editing an existing pending note
+  const LSK = { draft: "pfc_note_draft", outbox: "pfc_outbox",
+                tip: "pfc_note_mictip", sent: "pfc_note_sent" };
+  const isMobile = () => matchMedia("(max-width: 700px)").matches;
   const body = () => document.querySelector("#win-note .window-body");
+  const $ = s => body().querySelector(s);
+  /* the status bar is a sibling of .window-body, not a child */
+  const sbf = s => document.querySelector("#win-note .status-bar " + s);
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                            .replace(/"/g, "&quot;");
+  const pad = n => String(n).padStart(2, "0");
+  const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
-  function splitNote(raw) {
-    const m = raw.match(/^(---\n[\s\S]*?\n---\n?)([\s\S]*)$/);
-    return m ? { front: m[1], text: m[2].trim() } : { front: "", text: raw.trim() };
+  /* ==================================================================== TIDY
+     Pure: one string in, a new string and three counts out. No DOM, no network,
+     no model. Two invariants hold mechanically — passes 2 and 3 change letter
+     case and nothing else, and no pass ever lowercases — which is what bounds
+     the class of edit enough for apply-and-undo to be safe (§2.1).            */
+  /* ---- tidy: pure, testable ---- */
+  /* Spoken-mark table (§2.2). Whole word, case-insensitive, longest phrase first.
+     Attachment: prev = glue to the word before, no leading space; next = to the word
+     after; join = fuse both neighbours into one word; spaced = stand alone with a
+     space either side; break/para = replace the surrounding whitespace. */
+  const MARKS = [
+    ["exclamation point", "!", "prev"],
+    ["exclamation mark", "!", "prev"],
+    ["question mark", "?", "prev"],
+    ["new paragraph", "\n\n", "para"],
+    ["begin quote", "\"", "next"],
+    ["close quote", "\"", "prev"],
+    ["open quote", "\"", "next"],
+    ["end quote", "\"", "prev"],
+    ["full stop", ".", "prev"],
+    ["new line", "\n", "break"],
+    ["em dash", "—", "spaced"],
+    ["semicolon", ";", "prev"],
+    ["apostrophe", "'", "join"],
+    ["newline", "\n", "break"],
+    ["unquote", "\"", "prev"],
+    ["hyphen", "-", "join"],
+    ["period", ".", "prev"],
+    ["comma", ",", "prev"],
+    ["colon", ":", "prev"],
+    ["dash", "—", "spaced"],
+  ];
+  const MARK_MAP = new Map(MARKS.map(r => [r[0], r]));
+  /* Two guards, and the whole answer to "but what about *a period of time*":
+     a determiner in front means the token is a noun, a continuation word behind it
+     means the same. Both lists are measured, not guessed (§2.3). */
+  const DET = new Set(("a an the this that these those one each every some any no another " +
+    "next last same my his her its their our your long short brief grace trial rest dark " +
+    "dry mad to of in").split(" "));
+  const CONT = new Set(("of in on from to when where during between that which for with and " +
+    "or is was were are had has it characterized characterised piece drama costume").split(" "));
+  /* `and`/`or` guard the noun reading — "a comma and a semicolon" — but that reading
+     always carries a determiner, which the first guard already catches. Re-measured
+     over the 12.4 MB corpus per §14.1: "comma and" and "comma or" occur zero times,
+     while "…comma and…" is the commonest dictated comma there is (it is §2.8's own
+     worked example). So `comma` alone is exempt from those two continuations. */
+  const CONT_EXEMPT = { comma: new Set(["and", "or"]) };
+
+  /* Spans Tidy must never enter: wikilinks (slugs are lowercase by contract), code
+     spans, and anything with a scheme. */
+  const PROT = /\[\[[^\]\n]*\]\]|`[^`\n]*`|\S*:\/\/\S*/g;
+  function shield(s) {
+    const r = []; let m; PROT.lastIndex = 0;
+    while ((m = PROT.exec(s))) r.push([m.index, m.index + m[0].length]);
+    return r;
   }
-  function setMode(tab) {
-    body().querySelectorAll("[role=tab]").forEach(li =>
-      li.setAttribute("aria-selected", li.dataset.tab === tab));
-    body().querySelector("#note-write").style.display = tab === "write" ? "flex" : "none";
-    body().querySelector("#note-prior").style.display = tab === "prior" ? "block" : "none";
-    if (tab === "prior") renderPrior();
+  const covered = (r, i, j) => r.some(x => i < x[1] && j > x[0]);
+  /* run fn over everything that is not shielded, and only that */
+  function free(s, fn) {
+    const sh = shield(s);
+    if (!sh.length) return fn(s);
+    let out = "", at = 0;
+    for (const [a, b] of sh) { out += fn(s.slice(at, a)) + s.slice(a, b); at = b; }
+    return out + fn(s.slice(at));
   }
+
+  const core = t => t.replace(/^[^A-Za-z']+|[^A-Za-z']+$/g, "").toLowerCase();
+  /* the gap left behind when a spoken word is removed: collapse a space, never a
+     newline — a line break the writer put there is content, not spacing */
+  function joinSep(before, after) {
+    const n = Math.max((before.match(/\n/g) || []).length, (after.match(/\n/g) || []).length);
+    return n ? "\n".repeat(n) : after;
+  }
+
+  /* pass 1 — spoken punctuation words become punctuation */
+  function passMarks(s) {
+    const sh = shield(s);
+    const ws = []; let lead = "", prevEnd = 0, m;
+    const re = /\S+/g;
+    while ((m = re.exec(s))) {
+      if (!ws.length) lead = s.slice(0, m.index);
+      else ws[ws.length - 1].sep = s.slice(prevEnd, m.index);
+      ws.push({ t: m[0], sep: "", i: m.index, j: m.index + m[0].length });
+      prevEnd = m.index + m[0].length;
+    }
+    if (ws.length) ws[ws.length - 1].sep = s.slice(prevEnd);
+    if (!ws.length) return { s, n: 0 };
+
+    const plain = w => /^[A-Za-z]+$/.test(w.t) && !covered(sh, w.i, w.j);
+    const out = []; let leadOut = lead, n = 0;
+    for (let k = 0; k < ws.length;) {
+      let hit = null, len = 0;
+      for (const L of [2, 1]) {
+        if (k + L > ws.length) continue;
+        const seg = ws.slice(k, k + L);
+        if (!seg.every(plain)) continue;
+        const row = MARK_MAP.get(seg.map(w => w.t.toLowerCase()).join(" "));
+        if (!row) continue;
+        const prev = k > 0 ? core(ws[k - 1].t) : "";
+        const next = k + L < ws.length ? core(ws[k + L].t) : "";
+        const ex = CONT_EXEMPT[row[0]];
+        if (DET.has(prev)) continue;
+        if (CONT.has(next) && !(ex && ex.has(next))) continue;
+        hit = row; len = L; break;
+      }
+      if (!hit) { out.push({ t: ws[k].t, sep: ws[k].sep }); k++; continue; }
+      const ch = hit[1], how = hit[2];
+      const tail = ws[k + len - 1].sep;      // whitespace that followed the spoken word
+      const after = ws[k + len];             // the word after it, if any
+      const prevOut = out[out.length - 1];
+      let eat = len;
+      if (how === "prev") {
+        if (prevOut) { prevOut.t += ch; prevOut.sep = joinSep(prevOut.sep, tail); }
+        else if (after) after.t = ch + after.t;
+      } else if (how === "next") {
+        if (after) { after.t = ch + after.t; if (prevOut) prevOut.sep = joinSep(prevOut.sep, tail); }
+        else if (prevOut) prevOut.t += ch;
+      } else if (how === "join") {
+        if (prevOut && after) {
+          prevOut.t = prevOut.t + ch + after.t;
+          prevOut.sep = after.sep;
+          eat = len + 1;
+        } else if (prevOut) prevOut.t += ch;
+        else if (after) after.t = ch + after.t;
+      } else if (how === "spaced") {
+        if (prevOut) prevOut.sep = joinSep(prevOut.sep, " ");
+        out.push({ t: ch, sep: after ? " " : tail });
+      } else {                                // break | para
+        /* a paragraph break is a sentence boundary, so it closes the sentence it
+           ends — §2.8's worked output carries that full stop */
+        if (how === "para" && prevOut && /[A-Za-z0-9]$/.test(prevOut.t)) prevOut.t += ".";
+        if (prevOut) prevOut.sep = ch; else leadOut = ch;
+      }
+      n++; k += eat;
+    }
+    let str = leadOut + out.map(w => w.t + w.sep).join("");
+    str = str.replace(/\n{3,}/g, "\n\n");
+    return { s: str, n };
+  }
+
+  /* pass 2 — capitals. Sentence starts, the pronoun I, and a closed calendar list. */
+  const CAL_WORDS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+    "mondays", "tuesdays", "wednesdays", "thursdays", "fridays", "saturdays", "sundays",
+    "january", "february", "march", "april", "june", "july", "august", "september",
+    "october", "november", "december"];   // 25 — `may` is excluded on purpose (§2.4)
+  const CAL_RE = new RegExp("\\b(" + CAL_WORDS.join("|") + ")\\b", "g");
+  const I_RE = /\bi(?='(?:m|ve|ll|d)\b)|\bi\b/g;
+
+  function passCaps(s) {
+    const sh = shield(s);
+    const a = s.split("");
+    let n = 0, armed = true, term = false, nl = 0;
+    for (let i = 0; i < a.length; i++) {
+      const c = a[i];
+      if (/[A-Za-z]/.test(c)) {
+        if (armed) {
+          if (c >= "a" && c <= "z" && !covered(sh, i, i + 1)) { a[i] = c.toUpperCase(); n++; }
+          armed = false;
+        }
+        term = false; nl = 0;
+      } else if (/\s/.test(c)) {
+        if (c === "\n" && ++nl >= 2) armed = true;
+        if (term) armed = true;
+      } else {
+        if (c === "." || c === "?" || c === "!") term = true;
+        else if (!/["'\)\]]/.test(c)) term = false;
+        nl = 0;
+      }
+    }
+    let out = a.join("");
+    out = free(out, seg => seg.replace(I_RE, () => { n++; return "I"; }));
+    out = free(out, seg => seg.replace(CAL_RE, w => { n++; return w[0].toUpperCase() + w.slice(1); }));
+    return { s: out, n };
+  }
+
+  /* pass 3 — wiki-aware casing. Tier A: any hyphenated slug is a phrase, ungated,
+     longest first. Tier B: a bare slug only if index.md files it under a section
+     whose names are proper nouns, and it is not a common or kinship noun. */
+  const ADMIT = new Set(["Projects", "People & Family", "Creative Works"]);
+  const STOP = new Set(("dad mom mother father sister brother son daughter wife husband baby " +
+    "home work gear cooking gardening anime cannabis music food health money time thing day " +
+    "night house car job team note page game book").split(" "));
+  const ACRONYMS = new Set("ai llm ogl srd it pfc css crt p2p mdm m4 98".split(" "));
+  const PARTICLES = new Set("and of the a an in on for vs to".split(" "));
+  const titleOf = toks => toks.map((t, i) =>
+    ACRONYMS.has(t) ? t.toUpperCase()
+      : (i > 0 && PARTICLES.has(t)) ? t
+        : t.charAt(0).toUpperCase() + t.slice(1)).join(" ");
+
+  function buildEntities(slugs, section) {
+    const list = [];
+    for (const slug of slugs) {
+      const toks = slug.split("-").filter(Boolean);
+      if (!toks.length) continue;
+      if (toks.length === 1 && !(ADMIT.has(section.get(slug)) && !STOP.has(slug))) continue;
+      list.push({ slug, toks, title: titleOf(toks) });
+    }
+    list.sort((a, b) => b.toks.length - a.toks.length ||
+      b.slug.length - a.slug.length || a.slug.localeCompare(b.slug));
+    const map = new Map(list.map(e => [e.slug, e.title]));
+    const alt = list.map(e => e.toks.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+"));
+    return { map, re: alt.length ? new RegExp("\\b(?:" + alt.join("|") + ")\\b", "gi") : null,
+      count: list.length };
+  }
+  /* rebuild the matched span from the derived title character by character, so a
+     character that is already uppercase is never pulled back down (invariant 2) and
+     the original whitespace survives (invariant 1) */
+  function recase(src, title) {
+    const parts = src.split(/(\s+)/), tw = title.split(" ");
+    let wi = 0, out = "";
+    for (const p of parts) {
+      if (/^\s+$/.test(p)) { out += p; continue; }
+      const t = tw[wi++] || p;
+      let w = "";
+      for (let i = 0; i < p.length; i++)
+        w += (p[i] === p[i].toUpperCase() ? p[i] : (t[i] || p[i]));
+      out += w;
+    }
+    return out;
+  }
+  function passPages(s, ents) {
+    if (!ents || !ents.re) return { s, n: 0 };
+    let n = 0;
+    const out = free(s, seg => seg.replace(ents.re, m => {
+      const title = ents.map.get(m.trim().toLowerCase().split(/\s+/).join("-"));
+      if (!title) return m;
+      const fixed = recase(m, title);
+      if (fixed !== m) n++;
+      return fixed;
+    }));
+    return { s: out, n };
+  }
+
+  /* Pages run before capitals. Both only raise case, so the output string is the
+     same either way, but a word that is a known page title has the stronger claim
+     on the change and takes the attribution — which is what makes §2.8's itemised
+     count read 3 capitals · 3 pages rather than 4 · 2. */
+  function tidy(s, ents) {
+    const p1 = passMarks(s);
+    const p3 = passPages(p1.s, ents);
+    const p2 = passCaps(p3.s);
+    return { out: p2.s, marks: p1.n, capitals: p2.n, pages: p3.n };
+  }
+  /* ---- end tidy ---- */
+
+  /* ==================================================== wiki entities and titles
+     getTree() is already cached, so the slugs are free; index.md costs one request
+     and buys three things — the section gate above, the titles in the [[ list, and
+     a guard that maintains itself as LINT check 3 keeps index.md current. */
+  let PAGES = null, PAGES_LOAD = null, ENTS = { map: new Map(), re: null, count: 0 };
+  async function loadPages(force) {
+    if (PAGES && !force) return PAGES;
+    if (PAGES_LOAD && !force) return PAGES_LOAD;
+    PAGES_LOAD = (async () => {
+      const slugs = new Set(), section = new Map(), title = new Map();
+      try {
+        (await getTree(force)).forEach(e => {
+          const m = /^wiki\/([^/]+)\.md$/.exec(e.path);
+          if (m) slugs.add(m[1]);
+        });
+      } catch (e) { /* no tree, no entities — Tidy simply skips pass 3 */ }
+      try {
+        const idx = await getFile("index.md", force);
+        let head = "";
+        idx.split("\n").forEach(line => {
+          const h = /^##\s+(.+?)\s*$/.exec(line);
+          if (h) { head = h[1]; return; }
+          const l = /^\s*[-*]\s*\[\[([^\]|]+)\]\](?:\s*[—-]\s*(.*))?/.exec(line);
+          if (!l) return;
+          const slug = slugify(l[1]);
+          /* index.md is the maintained list; a page it names counts even if the tree
+             fetch is stale (and in DEMO the tree is a handful of files) */
+          slugs.add(slug);
+          section.set(slug, head);
+        });
+      } catch (e) { /* index.md optional: Tier A still works, Tier B stays shut */ }
+      const list = [...slugs].sort();
+      list.forEach(s => title.set(s, titleOf(s.split("-").filter(Boolean))));
+      PAGES = { list, section, title };
+      ENTS = buildEntities(list, section);
+      return PAGES;
+    })();
+    return PAGES_LOAD;
+  }
+
+  /* ============================================================ the outbox
+     draft ─save→ queued ─network→ pushed ─the beat→ filed. The first two live in
+     localStorage, so a capture survives reload, tab close and being offline. */
+  const readJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
+  const outbox = () => { const q = readJSON(LSK.outbox, []); return Array.isArray(q) ? q : []; };
+  const setOutbox = q => localStorage.setItem(LSK.outbox, JSON.stringify(q));
+  const sentLog = () => readJSON(LSK.sent, {});
+
+  function capturePath(kind, now) {
+    const d = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    return `inbox/${d}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}-${kind}.md`;
+  }
+  /* Same body putCapture writes (line 744) — built here rather than there because the
+     queue has to freeze {path, body} at capture time, so an offline capture is filed
+     under the minute it was made and not the minute the network came back. */
+  function captureBody(text, kind, meta, now) {
+    const extra = Object.entries(meta || {}).filter(([, v]) => v != null && v !== "")
+      /* a bare YAML scalar is only safe for plain prose; anything else gets the
+         double-quoted form, which JSON.stringify happens to emit exactly */
+      .map(([k, v]) => `${k}: ${/^[A-Za-z0-9][^\n:#]*$/.test(String(v))
+        ? v : JSON.stringify(String(v))}\n`).join("");
+    return `---\ncaptured: ${now.toISOString()}\nvia: web\n` +
+      (kind === "oracle" ? "type: question\n" : "") + extra + `---\n${text.trim()}\n`;
+  }
+
+  let flushing = false;
+  async function flush(manual) {
+    const q = outbox();
+    if (!q.length || flushing) { paintOutbox(); return; }
+    if (!navigator.onLine && !manual) { paintOutbox(); return; }
+    flushing = true;
+    let sent = 0, kept = 0;
+    for (const item of q.slice()) {
+      try {
+        await putFileSha(item.path, item.body,
+          `capture: via ${item.kind} (${item.path.slice(6, 16)} ${hhmm(new Date(item.ts))})`, null);
+        const log = sentLog();
+        log[item.path] = { ts: item.ts, queued: item.tries ? item.qs || item.ts : null, pushed: Date.now() };
+        const keys = Object.keys(log);
+        if (keys.length > 60) keys.sort().slice(0, keys.length - 60).forEach(k => delete log[k]);
+        localStorage.setItem(LSK.sent, JSON.stringify(log));
+        setOutbox(outbox().filter(x => x.id !== item.id));
+        sent++;
+      } catch (e) {
+        /* append-only until a 2xx: keep it, count the try, never drop it */
+        const q2 = outbox();
+        const it = q2.find(x => x.id === item.id);
+        if (it) { it.tries = (it.tries || 0) + 1; it.qs = it.qs || Date.now(); it.err = e.message; setOutbox(q2); }
+        kept++;
+        break;                      // one failure means the network is out; stop trying
+      }
+    }
+    flushing = false;
+    paintOutbox();
+    if (sent) { Search.invalidate(); if (mode === "prior") await renderPrior(true); }
+    if (sent && !kept) say(sent === 1 ? "Sent — 1 capture is in the inbox." : `Sent — ${sent} captures are in the inbox.`);
+    else if (kept) say(`Offline — ${outbox().length} capture${outbox().length === 1 ? "" : "s"} held here. Nothing is lost.`);
+    return sent;
+  }
+
+  /* ================================================================ the window */
+  let editing = null;            // {path, sha, front} when re-opening a pending note
+  let kind = "note", dest = "inbox", destPage = null, mode = "write";
+  let undoBefore = null;         // the exact pre-Tidy string, byte for byte
+  let heard = null;              // what was in the box before Tidy touched it (§13)
+  let counts = { marks: 0, capitals: 0, pages: 0 };
+  let composing = false, lastInput = 0, deferred = null;
+  let saveTimer = null, armTimer = null, draftAt = null;
+  let ta = null, saveBtn = null, tidyBtn = null, clearBtn = null;
+
+  /* true while the OS may still be assembling text in the field. composition events
+     are the primary signal; the quiet timer is the fallback for the builds that only
+     fire `input`. Nothing may write to the field while this is true. */
+  const inFlight = () => composing || (Date.now() - lastInput < 600);
+  function defer(fn) { if (!inFlight()) fn(); else deferred = fn; }
+  function runDeferred() { const f = deferred; deferred = null; if (f) f(); }
+
+  const say = t => WM.status("note", t);
+  function paintDraft() {
+    const f = sbf(".draft"); if (!f) return;
+    f.textContent = draftAt ? `Draft saved ${hhmm(new Date(draftAt))}` : "Draft —";
+  }
+  function paintOutbox() {
+    const f = sbf(".ob"); if (!f) return;
+    const n = outbox().length;
+    f.textContent = `Outbox: ${n}`;
+    f.style.fontWeight = n ? "bold" : "normal";
+    const ob = $("#np-p-outbox");
+    if (ob) ob.querySelector(".lb").textContent = `Outbox (${n})`;
+  }
+
+  /* --- the four writers of ta.value. Nothing on a timer is among them (§3.3). --- */
+  function writeField(next) {
+    const prev = ta.value;
+    if (next === prev) return;
+    const st = ta.selectionStart, sc = ta.scrollTop;
+    ta.value = next;
+    if (!composing) {
+      const at = st >= prev.length ? next.length
+        : Math.min(next.length, tidy(prev.slice(0, st), ENTS).out.length);
+      try { ta.setSelectionRange(at, at); } catch (e) { /* detached */ }
+    }
+    ta.scrollTop = sc;
+  }
+
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      /* READER ONLY. This function must never assign to ta.value — not a trim, not a
+         normalise, not ta.value = ta.value. Doing so collapses an in-flight dictation
+         composition and it looks like the OS's fault (§3.3). */
+      const v = ta.value;
+      if (v.trim()) {
+        draftAt = Date.now();
+        localStorage.setItem(LSK.draft, JSON.stringify({
+          text: v, kind, dest, page: destPage, editing, heard, at: draftAt }));
+      } else { draftAt = null; localStorage.removeItem(LSK.draft); }
+      paintDraft();
+    }, 400);
+  }
+
+  /* The count line IS the preview (§2.7): computed on every input, it says the shape
+     of the change before you commit to it, and it costs no pixels because the status
+     bar is already there. */
+  function recount(quiet) {
+    const r = tidy(ta.value, ENTS);
+    counts = { marks: r.marks, capitals: r.capitals, pages: r.pages };
+    paintTidy();
+    if (!quiet && undoBefore === null && total()) say(`${total()} to tidy — ${itemised()}`);
+  }
+  const total = () => counts.marks + counts.capitals + counts.pages;
+
+  function paintTidy() {
+    if (!tidyBtn) return;
+    const lb = tidyBtn.querySelector(".lb");
+    if (undoBefore !== null) {
+      lb.textContent = "Undo tidy";
+      tidyBtn.disabled = false;
+      tidyBtn.title = "Put the text back exactly as it was";
+    } else {
+      const n = total();
+      lb.textContent = n ? `Tidy ${n}` : "Tidy";
+      tidyBtn.disabled = !n || inFlight();
+      tidyBtn.title = n ? `${n} to tidy` : "Nothing to tidy";
+    }
+    if (clearBtn) clearBtn.disabled = !ta.value || inFlight();
+    if (saveBtn) saveBtn.disabled = !ta.value.trim() || saveBtn.dataset.busy === "1";
+  }
+  function arm() {                       // re-check the inFlight-gated controls
+    clearTimeout(armTimer);
+    armTimer = setTimeout(() => { paintTidy(); runDeferred(); }, 620);
+    paintTidy();
+  }
+
+  function itemised() {
+    const bits = [];
+    if (counts.marks) bits.push(`${counts.marks} mark${counts.marks === 1 ? "" : "s"}`);
+    if (counts.capitals) bits.push(`${counts.capitals} capital${counts.capitals === 1 ? "" : "s"}`);
+    if (counts.pages) bits.push(`${counts.pages} page${counts.pages === 1 ? "" : "s"}`);
+    return bits.join(" · ");
+  }
+
+  function doTidy() {
+    if (inFlight()) { defer(doTidy); return; }
+    if (undoBefore !== null) {                       // the way back
+      const back = undoBefore;
+      undoBefore = null; heard = null;
+      writeField(back);
+      recount(true);
+      say(total() ? `Put back — ${total()} to tidy — ${itemised()}` : "Put back.");
+      scheduleSave();
+      return;
+    }
+    const before = ta.value;
+    const r = tidy(before, ENTS);
+    if (r.out === before) { say("Nothing to tidy."); return; }
+    const n = r.marks + r.capitals + r.pages;
+    undoBefore = before;
+    heard = before;                                  // frontmatter keeps the original
+    writeField(r.out);
+    counts = { marks: r.marks, capitals: r.capitals, pages: r.pages };
+    paintTidy();
+    say(`Tidied ${n} — Undo tidy puts it back.`);
+    scheduleSave();
+  }
+
+  /* =============================================== [[ autocomplete (§6) */
+  let ac = null, acRows = [], acSel = 0, acStart = -1, acMode = "link";
+  const AC_MAX = 6;
+  function acClose() { if (ac) { ac.hidden = true; ac.innerHTML = ""; } acStart = -1; acRows = []; acMode = "link"; }
+  /* §6 says the popup is suppressed while inFlight(), but inFlight()'s 600 ms quiet
+     timer is true immediately after the second [ is typed, so a literal reading makes
+     the list unreachable. The part of the signal that means "the OS is assembling
+     text" is `composing`, and the trigger is keydown-gated besides — dictation inserts
+     through input/composition events and never synthesises a bracket keypress — so a
+     popup can still not open mid-dictation. */
+  function acOpen(q, start) {
+    if (!PAGES || composing) return acClose();
+    const t = q.toLowerCase();
+    const pre = [], mid = [];
+    PAGES.list.forEach(slug => {
+      const title = PAGES.title.get(slug) || slug;
+      const hay = slug + " " + title.toLowerCase();
+      if (!t) pre.push(slug);
+      else if (slug.startsWith(t) || title.toLowerCase().startsWith(t)) pre.push(slug);
+      else if (hay.includes(t)) mid.push(slug);
+    });
+    acRows = pre.concat(mid);
+    if (!acRows.length) return acClose();
+    acStart = start; acSel = 0; acMode = "link";
+    paintAc();
+  }
+  function paintAc() {
+    const shown = Math.min(AC_MAX, acRows.length);
+    const dest = acMode === "dest";
+    const foot = isMobile()
+      ? (dest ? "Tap a page to file to it" : "Tap a page to link it · tap the text to dismiss")
+      : `↑↓ choose · Enter ${dest ? "file here" : "link"} · Esc close`;
+    ac.innerHTML =
+      `<div class="hd">${dest ? "File to page" : "Link to page"} — ${shown} of ${PAGES.list.length}</div><ul>` +
+      acRows.map((slug, i) =>
+        `<li role="option" data-slug="${esc(slug)}" aria-selected="${i === acSel}">
+           <span class="tt">${esc(PAGES.title.get(slug) || slug)}</span>
+           <span class="sl">${esc(slug)}</span></li>`).join("") +
+      `</ul><div class="ft">${foot}</div>`;
+    ac.hidden = false;
+    ac.querySelectorAll("li").forEach((li, i) => {
+      li.addEventListener("mousedown", e => { e.preventDefault(); acSel = i; acPick(); });
+    });
+    placeAc();
+    const sel = ac.querySelector("li[aria-selected=true]");
+    if (sel) sel.scrollIntoView({ block: "nearest" });
+    say(dest ? `Choose a page — ${PAGES.list.length} in the wiki.`
+      : `Linking — showing ${shown} of ${PAGES.list.length} pages. Prefix matches first.`);
+  }
+  /* Desktop anchors to the caret with a mirror div; mobile does not, because caret
+     geometry is unreliable once the soft keyboard is up — there the panel is static
+     in the flow, docked above the commit row, and CSS does the work. */
+  function placeAc() {
+    if (isMobile()) { ac.style.left = ac.style.top = ""; return; }
+    if (acMode === "dest") {                      // anchored to the select it came from
+      const row = $(".np-dest"), host = ac.offsetParent || ta.parentNode;
+      ac.style.left = Math.max(5, Math.min(row.offsetLeft + 46,
+        host.clientWidth - ac.offsetWidth - 5)) + "px";
+      ac.style.top = Math.max(ta.offsetTop, row.offsetTop - ac.offsetHeight) + "px";
+      return;
+    }
+    const mir = document.createElement("div");
+    const cs = getComputedStyle(ta);
+    ["fontFamily", "fontSize", "fontWeight", "lineHeight", "letterSpacing", "padding",
+      "borderWidth", "textIndent"].forEach(k => mir.style[k] = cs[k]);
+    mir.style.cssText += ";position:absolute;visibility:hidden;white-space:pre-wrap;" +
+      "word-wrap:break-word;top:0;left:0;box-sizing:border-box;width:" + ta.offsetWidth + "px";
+    mir.textContent = ta.value.slice(0, acStart + 2);
+    const dot = document.createElement("span");
+    dot.textContent = "​";
+    mir.appendChild(dot);
+    ta.parentNode.appendChild(mir);
+    const lh = parseFloat(cs.lineHeight) || 20;
+    let x = ta.offsetLeft + dot.offsetLeft, y = ta.offsetTop + dot.offsetTop + lh - ta.scrollTop;
+    mir.remove();
+    const host = ac.offsetParent || ta.parentNode;
+    const maxX = host.clientWidth - ac.offsetWidth - 5;
+    ac.style.left = Math.max(5, Math.min(x, maxX)) + "px";
+    ac.style.top = Math.max(ta.offsetTop, Math.min(y, ta.offsetTop + ta.offsetHeight - 24)) + "px";
+  }
+  function acPick() {
+    const slug = acRows[acSel];
+    if (slug == null) return acClose();
+    if (acMode === "dest") {
+      destPage = slug; dest = "page";
+      const sel = $("#np-dest-sel");
+      sel.value = "page"; sel.options[1].textContent = `→ ${slug}`;
+      acClose(); paintSave(); scheduleSave(); ta.focus();
+      say(`Filing to ${PAGES.title.get(slug) || slug} — Save appends to that page.`);
+      return;
+    }
+    const v = ta.value, caret = ta.selectionStart;
+    writeField(v.slice(0, acStart) + `[[${slug}]]` + v.slice(caret));
+    const at = acStart + slug.length + 4;
+    try { ta.setSelectionRange(at, at); } catch (e) { }
+    acClose(); recount(); scheduleSave();
+    say(`Linked → ${PAGES.title.get(slug) || slug}`);
+  }
+  function acSync() {
+    if (acStart < 0) return;
+    const v = ta.value, caret = ta.selectionStart;
+    if (caret < acStart + 2 || v.slice(acStart, acStart + 2) !== "[[") return acClose();
+    const q = v.slice(acStart + 2, caret);
+    if (/[\[\]\n]/.test(q)) return acClose();
+    acOpen(q, acStart);
+  }
+
+  /* ================================================================= Prior (§8) */
+  let rows = [], selRow = -1, priorFilter = "all", gists = new Map();
+  const KINDS = { note: "note", oracle: "oracle", flag: "flag", gate: "gate", web: "note" };
+  function stampOf(p) {
+    const m = /(\d{4})-(\d{2})-(\d{2})-(\d{2})(\d{2})(\d{2})?-([a-z0-9]+)\.md$/.exec(p);
+    if (!m) return { when: "", kind: "note", d: null };
+    return { when: `${m[4]}:${m[5]}`, kind: KINDS[m[7]] || m[7],
+      d: new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)) };
+  }
+  const gistOf = t => {
+    const b = t.replace(/^---\n[\s\S]*?\n---\n?/, "").trim().split("\n")
+      .find(l => l.trim()) || "";
+    return b.replace(/[#*`\[\]]/g, "").trim().slice(0, 72);
+  };
+  /* What a capture became, and when — written by the beat when it files the capture.
+     Absent today: inbox/processed/** carries only `captured:` and `via:`, so the
+     fourth cell shows a time of — and the detail says "filed by the beat". The
+     moment INGEST writes these two keys the ledger fills in with no change here. */
+  function filedMeta(text) {
+    const fm = /^---\n([\s\S]*?)\n---/.exec(text);
+    if (!fm) return {};
+    const became = /^became:\s*(.+)$/m.exec(fm[1]);
+    const when = /^filed:\s*(.+)$/m.exec(fm[1]);
+    const d = when && new Date(when[1].trim());
+    return {
+      became: became ? (became[1].match(/\[\[([^\]|]+)\]\]/g) || became[1].split(/[,\s]+/))
+        .map(x => slugify(x.replace(/[\[\]]/g, ""))).filter(Boolean) : [],
+      filed: d && !isNaN(d) ? hhmm(d) : "",
+    };
+  }
+
+  async function renderPrior(force) {
+    const list = $("#np-plist");
+    if (!list) return;
+    const q = outbox().map(it => ({
+      id: it.id, kind: it.kind, path: it.path, stage: "queued",
+      name: gistOf(it.body) || "(no text)", ts: it.ts, when: hhmm(new Date(it.ts)), item: it }));
+    let tree = [];
+    if (!list.dataset.loaded || force) list.innerHTML =
+      `<div class="np-empty">Reading the ledger…</div>`;
+    try { tree = await getTree(force); } catch (e) {
+      if (!q.length) { list.innerHTML = `<div class="np-empty">Could not reach the ledger — ${esc(e.message)}</div>`; }
+    }
+    const log = sentLog();
+    const mk = (p, stage) => {
+      const s = stampOf(p);
+      return { id: p, kind: s.kind, path: p, stage, ts: s.d ? s.d.getTime() : 0,
+        when: s.when, name: gists.get(p) || "", queued: log[p] && log[p].queued || null };
+    };
+    const pushed = tree.filter(e => /^inbox\/[^/]+\.md$/.test(e.path) && !e.path.endsWith("README.md"))
+      .map(e => mk(e.path, "pushed"));
+    const filed = tree.filter(e => /^inbox\/processed\/.+\.md$/.test(e.path))
+      .map(e => mk(e.path, "filed"));
+    rows = q.concat(pushed, filed).sort((a, b) => b.ts - a.ts);
+    if (filed.length > 30) rows = rows.filter(r => r.stage !== "filed").concat(
+      filed.sort((a, b) => b.ts - a.ts).slice(0, 30)).sort((a, b) => b.ts - a.ts);
+    list.dataset.loaded = "1";
+    paintRows();
+    if (selRow < 0 && rows.length) select(0);
+    fetchGists();
+  }
+  function visible() {
+    return rows.filter(r => priorFilter === "all" ? true
+      : priorFilter === "outbox" ? r.stage === "queued" : r.stage === "filed");
+  }
+  const CELLS = { queued: ["on", "on", "", ""], pushed: ["on", "skip", "on", ""],
+    filed: ["on", "skip", "on", "on"] };
+  function paintRows() {
+    const list = $("#np-plist"); if (!list) return;
+    const vis = visible();
+    if (!vis.length) {
+      list.innerHTML = `<div class="np-empty">${priorFilter === "outbox"
+        ? "Outbox empty — everything you wrote is at the origin."
+        : "Nothing here yet."}</div>`;
+      return;
+    }
+    list.innerHTML = vis.map(r => {
+      const c = (r.queued ? ["on", "on", "on", r.stage === "filed" ? "on" : ""] : CELLS[r.stage]);
+      return `<div class="np-row" data-id="${esc(r.id)}" aria-selected="${r.id === (rows[selRow] || {}).id}">
+        <span class="g">${c.map(x => `<i class="${x}"></i>`).join("")}</span>
+        <span class="n">${esc(r.kind)} — ${esc(r.name || "…")}</span>
+        <span class="st">${r.stage}</span><span class="wh">${esc(r.when)}</span></div>`;
+    }).join("");
+    list.querySelectorAll(".np-row").forEach(el => el.addEventListener("click", () =>
+      select(rows.findIndex(r => r.id === el.dataset.id))));
+    say(`${rows.length ? (vis.findIndex(r => r.id === (rows[selRow] || {}).id) + 1) : 0} of ${vis.length}` +
+      ` · ${rows.filter(r => r.stage === "queued").length} in the outbox`);
+  }
+  async function fetchGists() {
+    const want = visible().filter(r => r.stage !== "queued" && !gists.has(r.path)).slice(0, 18);
+    for (let i = 0; i < want.length; i += 4) {
+      await Promise.all(want.slice(i, i + 4).map(async r => {
+        try {
+          const t = await getFile(r.path);
+          gists.set(r.path, gistOf(t));
+          const meta = r.stage === "filed" ? filedMeta(t) : {};
+          const row = rows.find(x => x.id === r.id);
+          if (row) { row.name = gists.get(r.path); Object.assign(row, meta); }
+        } catch (e) { gists.set(r.path, r.path.split("/").pop().replace(/\.md$/, "")); }
+      }));
+      if (mode === "prior") { paintRows(); paintDetail(); }
+    }
+  }
+  function select(i) {
+    if (i < 0 || i >= rows.length) return;
+    selRow = i; paintRows(); paintDetail();
+  }
+  function jt(cells) {
+    return `<div class="np-jt">${cells.map(c => `<span class="${c[0]}"></span>`).join("")}</div>
+      <div class="np-jlab">${["Written", "Queued", "Pushed", "Filed"].map((l, i) =>
+      `<div class="${cells[i][0] ? "on" : ""}">${l}<b>${cells[i][1] || "—"}</b></div>`).join("")}</div>`;
+  }
+  async function paintDetail() {
+    const d = $("#np-pdetail"); if (!d) return;
+    const r = rows[selRow];
+    if (!r) { d.innerHTML = ""; return; }
+    const c = (r.queued ? ["on", "on", "on", r.stage === "filed" ? "on" : ""] : CELLS[r.stage]);
+    const t = r.when;
+    const times = [t, r.stage === "queued" || r.queued ? t : "",
+      r.stage !== "queued" ? t : "", r.filed || ""];
+    const stem = r.path.split("/").pop().replace(/\.md$/, "");
+    let prose, acts;
+    if (r.stage === "queued") {
+      prose = "Waiting for a connection. Held in this browser — nothing is lost.";
+      acts = `<button data-a="send">Send now</button><button data-a="edit">Edit</button>
+              <button data-a="discard">Discard</button>`;
+    } else if (r.stage === "pushed") {
+      prose = "In <code>inbox/</code>. The next beat reads it.";
+      acts = `<button data-a="open">Open</button><button data-a="edit">Edit</button>`;
+    } else {
+      const became = r.became || [];
+      prose = became.length
+        ? `Became ${became.map(s => `<a class="wikilink" data-page="${esc(s)}">${esc(PAGES && PAGES.title.get(s) || s)}</a>`).join(" · ")} — filed by the beat.`
+        : "Filed by the beat — it is part of the wiki now.";
+      acts = `<button data-a="open">View capture</button>`;
+    }
+    d.innerHTML = `<div class="hd">${esc(stem)} — ${esc(r.name || "…")}</div>
+      ${jt(c.map((x, i) => [x, times[i]]))}
+      <p class="np-became">${prose}</p><div class="np-acts">${acts}</div>`;
+    d.querySelectorAll("a.wikilink").forEach(a => a.addEventListener("click", () => {
+      WM.show("explorer"); Explorer.openPage(a.dataset.page);
+    }));
+    d.querySelectorAll("[data-a]").forEach(b => b.addEventListener("click", () => act(b.dataset.a, r)));
+  }
+  async function act(a, r) {
+    if (a === "send") { say("Sending…"); await flush(true); renderPrior(); return; }
+    if (a === "discard") {
+      setOutbox(outbox().filter(x => x.id !== r.id));
+      paintOutbox(); selRow = -1; renderPrior(); say("Discarded."); return;
+    }
+    if (a === "open") { WM.show("explorer"); Explorer.openPath(r.path); return; }
+    if (a === "edit") {
+      if (r.stage === "queued") {
+        const b = r.item.body.replace(/^---\n[\s\S]*?\n---\n?/, "");
+        setOutbox(outbox().filter(x => x.id !== r.id));
+        paintOutbox();
+        setKind(r.kind);
+        writeField(b.trim());
+        setMode("write"); recount(); scheduleSave();
+        say("Pulled back out of the outbox — Save puts it back in.");
+        return;
+      }
+      say("Opening…");
+      try {
+        const { text, sha } = await getFileFull(r.path);
+        const m = text.match(/^(---\n[\s\S]*?\n---\n?)([\s\S]*)$/);
+        writeField((m ? m[2] : text).trim());
+        setEditing({ path: r.path, sha, front: m ? m[1] : "" });
+        setMode("write");
+        recount(); scheduleSave();
+      } catch (e) { say("Could not open — " + e.message); }
+    }
+  }
+
+  /* ================================================================ chrome */
   function setEditing(e) {
     editing = e;
-    const ta = body().querySelector("#note-text");
-    body().querySelector("#note-save").textContent = e ? "Save changes" : "Save to inbox";
-    body().querySelector("#note-new").style.display = e ? "" : "none";
-    WM.status("note", e ? `Editing ${e.path}` : "New note");
-    ta.focus();
+    paintSave();
+    say(e ? `Editing ${e.path}` : "New note");
   }
-  async function renderPrior() {
-    const list = body().querySelector("#note-prior");
-    list.innerHTML = "<div class='md'><p>Loading…</p></div>";
-    const tree = await getTree(true);
-    const pending = tree.filter(e => /^inbox\/[^/]+\.md$/.test(e.path)
-      && !e.path.endsWith("README.md") && !/-oracle\.md$/.test(e.path)).map(e => e.path).sort().reverse();
-    const filed = tree.filter(e => /^inbox\/processed\/.+\.md$/.test(e.path)
-      && !/-oracle\.md$/.test(e.path)).map(e => e.path).sort().reverse().slice(0, 30);
-    const row = (p, state) => {
-      const name = p.split("/").pop().replace(/\.md$/, "");
-      return `<div class="result" data-note="${p}" data-state="${state}">
-        <div class="t">${state === "pending" ? "\u270E" : "\u2713"} ${name}</div>
-        <div class="s">${state === "pending" ? "pending — click to edit" : "filed by the brain — click to view"}</div></div>`;
-    };
-    list.innerHTML = (pending.map(p => row(p, "pending")).join("") +
-                      filed.map(p => row(p, "filed")).join("")) ||
-      "<div class='md'><p>No notes yet.</p></div>";
-    list.querySelectorAll("[data-note]").forEach(el => el.addEventListener("click", async () => {
-      const p = el.dataset.note;
-      if (el.dataset.state === "filed") { WM.show("explorer"); Explorer.openPath(p); return; }
-      WM.status("note", "Opening…");
-      try {
-        const { text, sha } = await getFileFull(p);
-        const parts = splitNote(text);
-        body().querySelector("#note-text").value = parts.text;
-        setEditing({ path: p, sha, front: parts.front });
-        setMode("write");
-      } catch (e) { WM.status("note", "Could not open — " + e.message); }
-    }));
-    WM.status("note", `${pending.length} pending · ${filed.length} filed (recent)`);
+  function paintSave() {
+    if (!saveBtn) return;
+    saveBtn.textContent = editing ? "Save changes"
+      : dest === "page" && destPage
+        ? `Append to ${(PAGES && PAGES.title.get(destPage)) || destPage}`
+        : "Save to inbox";
   }
-  APPS.note.onOpen = () => {
-    const b = body();
-    if (!b.dataset.ready) {
-      b.dataset.ready = 1;
-      b.classList.remove("white");
-      b.innerHTML = `
-        <div style="padding:8px 8px 0 8px;">
-          <menu role="tablist" style="margin:0;">
-            <li role="tab" data-tab="write" aria-selected="true"><a href="#w">Write</a></li>
-            <li role="tab" data-tab="prior" aria-selected="false"><a href="#p">Prior</a></li>
-          </menu>
-        </div>
-        <div id="note-write" style="padding:8px; display:flex; flex-direction:column; gap:6px; height:calc(100% - 56px);">
-          <textarea id="note-text" style="flex:1; resize:none;" rows="8"
-            placeholder="A thought, link, product, place… the next beat files it."></textarea>
-          <section class="field-row" style="justify-content:flex-end; gap:6px;">
-            <button id="note-new" style="display:none">New</button>
-            <button id="note-clear">Clear</button>
-            <button id="note-save" class="default">Save to inbox</button>
-          </section>
-        </div>
-        <div id="note-prior" class="sunken-panel" style="display:none; overflow:auto; background:#fff;
-             margin:0 8px 8px; height:calc(100% - 56px);"></div>`;
-      b.querySelectorAll("[role=tab]").forEach(li =>
-        li.addEventListener("click", e => { e.preventDefault(); setMode(li.dataset.tab); }));
-      const ta = b.querySelector("#note-text");
-      b.querySelector("#note-clear").onclick = () => { ta.value = ""; ta.focus(); };
-      b.querySelector("#note-new").onclick = () => { ta.value = ""; setEditing(null); };
-      const saveBtn = b.querySelector("#note-save");
-      saveBtn.onclick = async () => {
-        const text = ta.value.trim();
-        if (!text) { WM.status("note", "Nothing to save."); return; }
-        saveBtn.disabled = true;
-        WM.status("note", "Saving…");
-        try {
-          if (editing) { // sha-guarded update: the watcher
-            await putFileSha(editing.path, editing.front + text + "\n",
-              `capture: edited ${editing.path.split("/").pop()}`, editing.sha);
-            const { sha } = await getFileFull(editing.path);
-            editing.sha = sha;
-            WM.status("note", `Changes saved \u2192 ${editing.path}`);
-          } else {
-            const path = await putCapture(text);
-            ta.value = "";
-            Search.invalidate();
-            WM.status("note", `Saved \u2192 ${path}`);
-          }
-        } catch (e) {
-          if (editing && /409|422|GitHub 4/.test(e.message)) {
-            WM.status("note", "Changed upstream — the brain likely filed it. Check Prior for its new home.");
-            setEditing(null);
-          } else {
-            WM.status("note",
-              e.message === "auth" ? "Token was refused (401)." :
-              e.message === "rate" ? "GitHub rate limit — wait a minute; your text is still here." :
-              "Save failed — " + e.message);
-          }
-        } finally { saveBtn.disabled = false; }
-      };
+  function setKind(k) {
+    kind = k;
+    body().querySelectorAll("[data-kind]").forEach(b =>
+      b.setAttribute("aria-pressed", b.dataset.kind === k));
+  }
+  function setMode(tab) {
+    mode = tab;
+    body().querySelectorAll("[role=tab]").forEach(li =>
+      li.setAttribute("aria-selected", li.dataset.tab === tab));
+    $("#np-write").style.display = tab === "write" ? "flex" : "none";
+    $("#np-prior").style.display = tab === "prior" ? "flex" : "none";
+    if (tab === "prior") { renderPrior(); const l = $("#np-plist"); if (l) l.focus(); }
+    else { ta.focus(); paintTidy(); }
+  }
+
+  async function doSave() {
+    const text = ta.value.trim();
+    if (!text) { say("Nothing to save."); return; }
+    saveBtn.dataset.busy = "1"; saveBtn.disabled = true;
+    try {
+      if (editing) {
+        await putFileSha(editing.path, editing.front + text + "\n",
+          `capture: edited ${editing.path.split("/").pop()}`, editing.sha);
+        const { sha } = await getFileFull(editing.path);
+        editing.sha = sha;
+        say(`Changes saved → ${editing.path}`);
+        Search.invalidate();
+      } else if (dest === "page" && destPage) {
+        const path = `wiki/${destPage}.md`;
+        const { text: cur, sha } = await getFileFull(path);
+        await putFileSha(path, cur.replace(/\s*$/, "") + "\n\n" + text + "\n",
+          `capture: appended to ${destPage}`, sha);
+        clearField();
+        Search.invalidate();
+        say(`Appended → ${path}`);
+      } else {
+        /* the capture is durable the moment it is in the outbox — the field can be
+           cleared before the network has said anything */
+        const now = new Date();
+        const meta = { input: "typed" };
+        if (heard != null && heard !== text) meta.heard = heard;
+        const item = { id: `${now.getTime()}-${Math.random().toString(36).slice(2, 7)}`,
+          path: capturePath(kind, now), kind, ts: now.getTime(), tries: 0,
+          body: captureBody(text, kind, meta, now) };
+        setOutbox(outbox().concat([item]));
+        clearField();
+        paintOutbox();
+        say("Saved here — sending…");
+        const sent = await flush(true);
+        if (sent) say(`Saved → ${item.path}`);
+      }
+    } catch (e) {
+      if (editing && /409|422|GitHub 4/.test(e.message)) {
+        say("Changed upstream — the brain likely filed it. Check Prior for its new home.");
+        setEditing(null);
+      } else say(
+        e.message === "auth" ? "Token was refused (401)." :
+          e.message === "rate" ? "GitHub rate limit — wait a minute; your text is still here." :
+            "Save failed — " + e.message);
+    } finally {
+      saveBtn.dataset.busy = "0";
+      paintTidy(); paintSave();
     }
+  }
+  function clearField() {
+    writeField("");
+    undoBefore = null; heard = null; editing = null;
+    localStorage.removeItem(LSK.draft); draftAt = null;
+    acClose(); recount(); paintDraft(); paintSave();
+  }
+
+  /* Tidy's glyph: baked at integer art-pixel scale like every other icon here, so it
+     re-bakes with the rest on a zoom change. Seeded as "no PNG" so refreshIcons does
+     not go looking for assets/icons/tidy.png. */
+  function ensureGlyph() {
+    if (ART.tidy) return;
+    PNG_ICONS.set("tidy", false);
+    ART.tidy = [
+      "................",
+      "................",
+      "....kkkkk.......",
+      "...kkkkkkk......",
+      "...kk...kkk.....",
+      "........kkk.....",
+      ".......kkk......",
+      "......kkk.......",
+      "......kk........",
+      "......kk........",
+      "................",
+      "......kk........",
+      "......kk..kk....",
+      "..........kk....",
+      ".........kk.....",
+      "................",
+    ];
+  }
+
+  const KINDBAR = [["note", "Note", "note"], ["oracle", "Ask", "oracle"],
+    ["flag", "Flag", "flag"], ["gate", "Gate", "inquest"]];
+
+  function build() {
+    const b = body();
+    if (b.dataset.ready) return;
+    b.dataset.ready = 1;
+    b.classList.remove("white");
+    ensureGlyph();
+    b.innerHTML = `
+      <div class="np-tabs">
+        <menu role="tablist">
+          <li role="tab" data-tab="write" aria-selected="true"><a href="#w">Write</a></li>
+          <li role="tab" data-tab="prior" aria-selected="false"><a href="#p">Prior</a></li>
+        </menu>
+      </div>
+      <div id="np-write">
+        <div class="np-bar">
+          ${KINDBAR.map(([k, label, icon]) => `<button class="np-tb" data-kind="${k}"
+             aria-pressed="${k === "note"}" title="${label}">
+             <img data-icon="${icon}" data-sz="16" alt=""><span class="lb">${label}</span></button>`).join("")}
+          <span class="sp"></span><span class="np-sep"></span>
+          <button class="np-tb" id="np-tidy" disabled title="Nothing to tidy">
+            <img data-icon="tidy" data-sz="16" alt=""><span class="lb">Tidy</span></button>
+        </div>
+        <textarea id="np-text" rows="8" lang="en" spellcheck="true"
+          autocapitalize="sentences" autocorrect="on" autocomplete="off"
+          inputmode="text" enterkeyhint="enter"
+          placeholder="A thought, a link, a place…"></textarea>
+        <div class="np-ac" id="np-ac" hidden></div>
+        <div class="np-dest">
+          <label for="np-dest-sel">File to:</label>
+          <select id="np-dest-sel">
+            <option value="inbox">Inbox — the brain files it</option>
+            <option value="page">Append to a page…</option>
+          </select>
+          <button id="np-clear" disabled>Clear</button>
+        </div>
+        <div class="np-commit">
+          <button class="np-save default" id="np-save" disabled>Save to inbox</button>
+        </div>
+      </div>
+      <div id="np-prior" style="display:none">
+        <div class="np-ptools">
+          <button class="np-tb" data-pf="all" aria-pressed="true"><span class="lb">All</span></button>
+          <button class="np-tb" id="np-p-outbox" data-pf="outbox" aria-pressed="false"><span class="lb">Outbox (0)</span></button>
+          <button class="np-tb" data-pf="filed" aria-pressed="false"><span class="lb">Filed</span></button>
+          <span class="sp"></span>
+          <button class="np-tb" id="np-refresh"><span class="lb">Refresh</span></button>
+        </div>
+        <div class="np-list" id="np-plist" tabindex="0"></div>
+        <div class="np-detail" id="np-pdetail"></div>
+      </div>`;
+    const sb = document.querySelector("#win-note .status-bar");
+    sb.innerHTML =
+      `<p class="status-bar-field">${DEMO ? "Demo — nothing is saved" : "Ready"}</p>
+       <p class="status-bar-field draft" style="flex-grow:0;min-width:104px">Draft —</p>
+       <p class="status-bar-field ob" style="flex-grow:0;min-width:78px">Outbox: 0</p>`;
+
+    ta = b.querySelector("#np-text");
+    saveBtn = b.querySelector("#np-save");
+    tidyBtn = b.querySelector("#np-tidy");
+    clearBtn = b.querySelector("#np-clear");
+    ac = b.querySelector("#np-ac");
+    refreshIcons();
+
+    /* the kind band is the one row that can run out of width — five targets on a
+       390 px phone at Z=1.75 is 223 layout px of room. Measure it rather than guess:
+       a media query cannot see the shell's zoom. */
+    if (window.ResizeObserver) new ResizeObserver(() => {
+      const bar = b.querySelector(".np-bar");
+      if (bar) bar.classList.toggle("tight", bar.clientWidth < 260 && isMobile());
+    }).observe(b.querySelector(".np-bar"));
+
+    b.querySelectorAll("[role=tab]").forEach(li => li.addEventListener("click", e => {
+      e.preventDefault(); setMode(li.dataset.tab);
+    }));
+    b.querySelectorAll("[data-kind]").forEach(btn => btn.addEventListener("click", () => {
+      setKind(btn.dataset.kind); ta.focus(); scheduleSave();
+    }));
+    b.querySelectorAll("[data-pf]").forEach(btn => btn.addEventListener("click", () => {
+      priorFilter = btn.dataset.pf;
+      b.querySelectorAll("[data-pf]").forEach(x =>
+        x.setAttribute("aria-pressed", x.dataset.pf === priorFilter));
+      paintRows(); paintDetail();
+    }));
+    b.querySelector("#np-refresh").addEventListener("click", () => renderPrior(true));
+    tidyBtn.addEventListener("click", doTidy);
+    clearBtn.addEventListener("click", () => {
+      if (inFlight()) { defer(() => clearBtn.click()); return; }
+      clearField(); ta.focus(); say("Cleared.");
+    });
+    saveBtn.addEventListener("click", doSave);
+
+    const sel = b.querySelector("#np-dest-sel");
+    sel.addEventListener("change", () => {
+      if (sel.value === "page") { dest = "page"; ta.focus(); pickPage(); }
+      else { dest = "inbox"; destPage = null; paintSave(); scheduleSave(); }
+    });
+
+    /* --- the OS contract (§3.3): read, never write --- */
+    ta.addEventListener("compositionstart", () => { composing = true; paintTidy(); });
+    ta.addEventListener("compositionupdate", () => { lastInput = Date.now(); });
+    ta.addEventListener("compositionend", () => {
+      composing = false; lastInput = Date.now();
+      scheduleSave(); recount(); arm(); runDeferred();
+    });
+    ta.addEventListener("input", () => {
+      lastInput = Date.now();
+      if (undoBefore !== null) { undoBefore = null; heard = null; }
+      scheduleSave(); recount(); arm(); acSync();
+    });
+    ta.addEventListener("keydown", onKey);
+    ta.addEventListener("click", acClose);
+    ta.addEventListener("blur", () => setTimeout(acClose, 120));
+
+    b.addEventListener("keydown", e => {
+      if (e.altKey && !e.ctrlKey && !e.metaKey && /^[1-4]$/.test(e.key)) {
+        e.preventDefault(); setKind(KINDBAR[+e.key - 1][0]); ta.focus();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault(); if (!saveBtn.disabled) doSave();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "t") {
+        e.preventDefault(); if (!tidyBtn.disabled) doTidy();
+      } else if (e.ctrlKey && e.key === "Tab") {
+        e.preventDefault(); setMode(mode === "write" ? "prior" : "write");
+      } else if (mode === "prior" && /^Arrow(Up|Down)$/.test(e.key)) {
+        const vis = visible(); if (!vis.length) return;
+        e.preventDefault();
+        const at = vis.findIndex(r => r.id === (rows[selRow] || {}).id);
+        const nxt = vis[Math.max(0, Math.min(vis.length - 1, at + (e.key === "ArrowDown" ? 1 : -1)))];
+        select(rows.findIndex(r => r.id === nxt.id));
+      } else if (mode === "prior" && e.key === "Enter") {
+        const r = rows[selRow];
+        if (r) { e.preventDefault(); act(r.stage === "queued" ? "edit" : "open", r); }
+      }
+    });
+
+    addEventListener("online", () => flush());
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && document.getElementById("win-note").classList.contains("open")) flush();
+    });
+    /* the commit row must never sit under the soft keyboard: the textarea is the only
+       flex:1 band, so binding the body to the visual viewport makes it absorb the
+       whole shrink and every other band holds position (§11) */
+    const vv = window.visualViewport;
+    if (vv) vv.addEventListener("resize", () => {
+      const win = document.getElementById("win-note");
+      const wb = win && win.querySelector(".window-body");
+      if (!wb) return;
+      wb.style.height = wb.style.flex = "";        // measure the natural layout first
+      if (!isMobile()) return;
+      /* measured, not assumed: shrink by exactly how far the window now hangs below
+         the visible area. iOS does not shrink the layout viewport for the keyboard,
+         so nothing else notices. A no-op when nothing is covered, so the window is
+         never made shorter than it needs to be. */
+      const over = win.getBoundingClientRect().bottom - (vv.offsetTop + vv.height);
+      if (over > 1) {
+        const h = wb.getBoundingClientRect().height;   // measure before flex:none changes it
+        wb.style.flex = "0 0 auto";                    // .window.app .window-body is flex:1
+        wb.style.height = Math.max(120, (h - over) / Z) + "px";
+      }
+    });
+  }
+
+  function onKey(e) {
+    if (!ac.hidden && acRows.length) {
+      if (e.key === "ArrowDown") { e.preventDefault(); acSel = (acSel + 1) % acRows.length; paintAc(); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); acSel = (acSel - 1 + acRows.length) % acRows.length; paintAc(); return; }
+      if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); acPick(); return; }
+      if (e.key === "Escape") { e.preventDefault(); acClose(); say("Link cancelled."); return; }
+    }
+    if (e.key === "[" && !composing) {
+      /* fires on the second [, and never inside a link already */
+      const v = ta.value, c = ta.selectionStart;
+      if (c > 0 && v[c - 1] === "[" && v.slice(0, c - 1).lastIndexOf("[[") <= v.lastIndexOf("]]"))
+        setTimeout(() => { if (PAGES) acOpen("", ta.selectionStart - 2); else loadPages().then(() => acOpen("", ta.selectionStart - 2)); }, 0);
+    }
+  }
+
+  /* the destination picker is the same list as [[ — one control, two doors */
+  function pickPage() {
+    if (!PAGES) { loadPages().then(pickPage); return; }
+    acRows = PAGES.list.slice(); acSel = 0; acStart = -1; acMode = "dest";
+    paintAc();
+  }
+
+  function restoreDraft() {
+    const d = readJSON(LSK.draft, null);
+    if (!d || !d.text) return null;
+    kind = d.kind || "note"; setKind(kind);
+    dest = d.dest || "inbox"; destPage = d.page || null;
+    editing = d.editing || null; heard = d.heard || null; draftAt = d.at || null;
+    ta.value = d.text;                                   // a load — one of the four writers
+    try { ta.setSelectionRange(d.text.length, d.text.length); } catch (e) { }
+    if (dest === "page" && destPage) {
+      const sel = $("#np-dest-sel");
+      sel.value = "page"; sel.options[1].textContent = `→ ${destPage}`;
+    }
+    return d;
+  }
+
+  APPS.note.onOpen = () => {
+    build();
+    const d = restoreDraft();
+    ta.focus();                       // synchronous, inside the gesture — iOS will not
+    paintDraft(); paintOutbox();      // raise the keyboard for a focus after an await
+    paintSave(); paintTidy(); recount(true);
+    if (!localStorage.getItem(LSK.tip)) {
+      localStorage.setItem(LSK.tip, "1");
+      say("Tip: your keyboard's mic types straight into this box.");
+    } else if (d) {
+      say(`Draft restored — last saved ${d.at ? hhmm(new Date(d.at)) : "earlier"}.`);
+    }
+    loadPages().then(() => recount(true)).catch(() => { });
+    flush();
   };
 })();
-
 /* ----- Recent Changes (98.css tabs = filter) ----- */
 (() => {
   let ops = [], cur = "all";
@@ -2264,9 +4181,9 @@ const Search = (() => {
               { type: "ruling", gate: g.id, ruling: btn.dataset.r });
             el.classList.add("ruled");
             el.querySelector(".acts").innerHTML =
-              `<span style="color:#000080"><b>✓ ruled ${btn.dataset.r}</b> — the next beat applies it</span>`;
+              `<span style="color:#000080"><b>✓ ruled ${btn.dataset.r}</b> — the next pulse applies it, within the hour</span>`;
             el.querySelector("textarea").remove();
-            WM.status("inquest", `${g.id} ruled ${btn.dataset.r} · applied on the next beat`);
+            WM.status("inquest", `${g.id} ruled ${btn.dataset.r} · the pulse applies it within the hour`);
           } catch (e) {
             el.querySelectorAll("button").forEach(b => b.disabled = false);
             WM.status("inquest", e.message === "rate" ? "GitHub rate limit — try again in a minute." : "Could not file — " + e.message);
@@ -2283,7 +4200,7 @@ const Search = (() => {
       if (!paths.length) {
         list.innerHTML = `<div id="inq-empty">${tab === "flags"
           ? "No flags pending. Flag a wrong page from the Explorer — the ⚑ button by its title."
-          : "No rulings pending. Rulings you file appear here until the next beat applies them."}</div>`;
+          : "No rulings pending. Rulings you file appear here until the pulse applies them — within the hour."}</div>`;
         WM.status("inquest", "none pending"); return;
       }
       list.innerHTML = "";
@@ -2296,7 +4213,7 @@ const Search = (() => {
           const head = meta.page ? `FLAG · ${meta.page}` : `RULING · ${meta.gate || ""} · ${meta.ruling || ""}`;
           el.innerHTML = `<div class="gid"><b>${head}</b> · ${(meta.captured || "").slice(0, 16).replace("T", " ")}</div>
                           <div style="margin-top:6px">${linkify(txt.trim() || "(no note)")}</div>
-                          <div class="ev">pending — the next beat applies it</div>`;
+                          <div class="ev">pending — the pulse applies it within the hour</div>`;
         } catch (e) { el.textContent = path; }
         list.appendChild(el);
       }
@@ -2770,10 +4687,17 @@ setInterval(tickClock, 5000); tickClock();
 
 /* Windows (created once) */
 function buildWindows() {
-  const W = Math.round(innerWidth / Z), cascade = (i) => 90 + i * 26;
-  WM.make("surface", "Surface.exe", Math.min(560, W - 40), 520, cascade(0) + 90, 40);
+  const W = Math.round(innerWidth / Z), H = Math.round(innerHeight / Z),
+        cascade = (i) => 90 + i * 26;
+  const sw = Math.min(600, W - 40), sh = Math.min(640, H - 138);
+  WM.make("surface", "Surface.exe", sw, sh,
+          Math.min(cascade(0) + 90, Math.max(10, W - sw - 20)),
+          Math.max(10, Math.min(40, H - sh - 78)));
   WM.make("explorer", "Wiki Explorer", Math.min(720, W - 40), 500, cascade(1) + 60, 70);
-  WM.make("note", "Notepad+++", 380, 300, cascade(2) + 240, 110);
+  const nw = Math.min(500, W - 40), nh = Math.min(430, H - 138);
+  WM.make("note", "Notepad+++", nw, nh,
+          Math.min(cascade(2) + 200, Math.max(10, W - nw - 20)),
+          Math.max(10, Math.min(60, H - nh - 78)));
   WM.make("changes", "Recent Changes", 560, 380, cascade(3) + 140, 130);
   WM.make("search", "Search", 480, 420, cascade(4) + 200, 90);
   WM.make("oracle", "Oracle.exe", Math.min(540, W - 40), 480, cascade(5) + 260, 60);
@@ -2847,7 +4771,93 @@ const DEMO_FILES = {
 **Raised:** 2026-08-03 by granularity pass
 `,
 "README.md": `# PFC — Postfrontal Cortex\n\nAndrew De Young's second brain and personal OS. A private, plain-markdown wiki maintained by Claude Cowork sessions, with a Windows-98-styled web front end. The system distills scattered inputs — conversations, captures, screenshots, sibling projects — into a compounding wiki, and re-surfaces connections as they emerge.\n\n**If you are a Claude session: read \`protocol/BRAIN.md\` before doing anything.**\n\n## Architecture in one breath\n\n**Spine** — a private repo, the single source of truth. **Brain** — Cowork sessions: a daily cloud heartbeat and interactive deep sessions. **Face** — this shell: zero cognition, all content client-side.\n\n*(Demo excerpt — the live About reads the repo's actual README.)*`,
-"index.md": `# PFC Wiki Index\n\n## Meta / Projects\n- [[postfrontal-cortex]] — this system: spine (repo) + brain (Cowork) + face (98.css).\n- [[facebot]] — constitution-governed sibling protocol.\n\n## Concepts\n- [[karpathy-llm-wiki]] — the memory pattern this wiki implements.\n- [[98-css]] — Windows-98 CSS library; front-end north star.\n- [[cowork-platform-findings]] — measured platform behaviors.\n\n## Sources\n- [[claude-chat-corpus]] — 577 conversations, 2023-11 → 2026-08.\n`,
+"index.md": `# PFC Wiki Index
+
+Every page, one line each. Sessions: keep this current (LINT check 3).
+
+## Meta
+- [[postfrontal-cortex]] — this system: spine (repo) + brain (Cowork) + face (98.css); v2 founded 2026-08-02.
+- [[karpathy-llm-wiki]] — the memory pattern this wiki implements; PoC vs RAG.
+- [[98-css]] — Windows-98 CSS library; front-end north star; M2 build notes.
+- [[cowork-platform-findings]] — measured platform behaviors the architecture obeys.
+
+## Projects
+- [[tome-of-endless-ink]] — flagship: the "hey, let's play book" AI RPG; v9 after seven dead versions; dedicated to Dorothy.
+- [[tome-dev-guide]] — the campaign-neutral ur-spec (2025-06-08), versioned 1.0 → 1.2 in 48 hours; every piece in it has a descendant.
+- [[tome-soundtrack]] — Dowland's lute translated into 8-bit; the brief ends "It doesn't end. It stops speaking."
+- [[tome-commercialization]] — the business layer: LLC math, Vertex credits, four entity names run through clearance and all four hostile. Nothing filed.
+- [[ogl-srd-licensing]] — OGL 1.0a and the 3.5 SRD; the 2025-07 diligence that made the game commercially thinkable, and the reason the edition is 3.5e.
+- [[wizard-hats]] — markdown persona system; ancestor of subagent stacks and PFC's protocol docs.
+- [[kaltheal]] — the wizard trapped in the Tome; its secret meta-narrative.
+- [[facebot]] — constitution-governed Marketplace-selling protocol; sibling and lesson-source.
+- [[spex]] — coordination substrate for parallel coding agents ("bandleader console"); Haruspex dashboard; read from source.
+- [[pfc-v1]] — the July 2026 predecessor; post-mortem only, not a design source (Andrew's instruction).
+- [[supersleuth-network]] — Claude-driven network-diagnostics persona for IT engagements.
+- [[certus-id]] — ID-verification app for third-party help desks, specced in one 2025-07 session against an invented adversary; dormant but shovel-ready.
+- [[central-dogma]] — biological RTS concept (immune vs cancer vs pathogens), dormant.
+- [[claudette]] — Anthropic-collab makeup-line pitch at his cosmetics employer (2026-03).
+- [[peach-successor]] — P2P owned-archive blog+chat for Celeste's circle (idea, 2026-03).
+
+## Work & Craft
+- [[it-career]] — MDM specialist arc: MSP years → 2025 layoff → e.l.f. Oakland contract; reusable fixes.
+- [[agentic-career-pivot]] — the July 31 pitch to lead agentic-AI at work; **hottest open thread**.
+- [[agentic-craft]] — the discipline: TaskMaster doctrine, hooks, MCP, OpenClaw, harnesses, review gates.
+- [[period-web-emulation]] — how to make a coding agent build the 2003 web on purpose: negative constraints, MUST GATEs, \`spacer.gif\` as margin (2026-03).
+- [[llm-internals]] — metaphor-first transformer education; the translator stance.
+- [[context-mechanics-inquiry]] — one 2026-02-06 session that reached PFC's architecture five months early: don't ask the model to remember, write state to disk.
+- [[invention-sketches]] — the pitch-to-be-torn-down habit: RainMaker, social earbuds, balloon drones, money printers.
+
+## Mind
+- [[writer-musician-identity]] — the root: English major whose gift compiles; ship like a musician.
+- [[keeping-claude-honest]] — anti-sycophancy practice: directive → structure → X-Review; AI-psychosis stakes.
+- [[open-inquiry]] — Socratic deep-dives; steelmanning charged topics, evidence-first.
+- [[ai-infrastructure-footprint]] — what inference actually costs in watts and water; his own "toast per second" unit and the Manchester short-dirty-phase thesis (2026-07).
+- [[simulism]] — 2024 original framework: simulation metaphysics, consciousness backups.
+- [[agnostic-potentialism]] — 2025 framework: death as foggy portal; agnostic fundamentalism.
+- [[consciousness-mortality-meaning]] — tape-head aesthetics, AI mortality, memory-ledger self, the self-inquiry ritual.
+- [[software-ethos]] — incentive-aligned software; refuse the inference game.
+- [[oracles-motif]] — divination as naming vocabulary: Spex, Sibyl, scrying.
+
+## People & Family
+- [[celeste]] — wife; vegan; Baby #2's mother. (Two backfill errors corrected here — see page.)
+- [[celeste-music]] — **contested, human gate**: a 2025-09 session where he calls the Japanese lyrics his wife's originals, crosswise to his own 2026-08 correction.
+- [[dorothy]] — daughter, b. Jan 2025; the Tome's dedication.
+- [[baby-2]] — second daughter **due mid-October 2026**; name unresolved (Daphne/Sibyl vs Beatrice/Francis/Matilda).
+- [[dad]] — first Tome believer; patent-help offer; childcare candidate.
+- [[family-currents]] — two unresolved extended-family situations, held quietly.
+- [[rand]] — the security director at the cosmetics client; two bypassed-process incidents and the deliberately non-escalatory plan he settled on (2026-06). Sensitive.
+
+## Life & Health
+- [[type-1-diabetes]] — 20-year T1D, Dexcom G7; 2026 uninsured strain; his own glucose-tool idea.
+- [[back-and-spine]] — herniated L5-S1 since at least 2024; the 2026-02 return-to-gym plan built around it (McGill Big 3, no crash days).
+- [[de-quervains]] — thumb-side wrist pain from lifting the toddler; four sessions in 2026, all about NSAIDs, the splint and injection still untouched.
+- [[financial-precarity]] — layoff aftermath, insurance maze, the stakes under everything.
+- [[antioch-household]] — home base: zone 9b-10a, cat + small dog, a Ford, frugal-DIY reflex.
+
+## Interests
+- [[japanese-music]] — iLiFE! fandom, lyric translation, music-history digs.
+- [[analog-media]] — CRT-only household, PS3/N64/VHS den, Instax, ownership as value.
+- [[crt-480i-rig]] — getting modern streaming onto the Trinitron at 480i; windowboxing diagnosed himself, landed on an SFF PC + CRT Emudriver (2026-02).
+- [[anime]] — One Piece long-haul (mirror theory), Eva, VHS-era mecha.
+- [[music-production]] — sample-flip hip hop, 808 craft, IDM (Wisp), groove theory.
+- [[cooking]] — recipe-averaging method; 8 vegan years → dropped 2026 (contradiction flagged → resolved by Andrew).
+- [[oakland-lunch-beat]] — the walkable-cheap-good map around the 12th St office: Burger Trail, quesabirria by BART stop, $2 Sapporo at Aburaya.
+- [[east-asian-snacks]] — a commissioned deep-research report on Turtle Chips, Milkita and Hi-Chew, domestic vs export formulations, plus the East Bay store map (2026-05).
+- [[gardening]] — alpine strawberries and rare edibles for zone 9b-10a; dormant since 2025.
+- [[cannabis]] — grower-chemistry (2024) → craft live-resin carts (2026).
+- [[pipe-smoking]] — 2025 hobby; the Tabasco-pipe fabrication catch.
+- [[hearthstone]] — 2026 comeback: DINO 2.0 Wild Warlock, ex-Legend, rebuilt from memory.
+- [[overwatch]] — ex-competitive Torbjörn; a 2026-06 check-in found the 2018 rework had deleted the hero he mastered.
+- [[gear]] — hardware evaluations: XR display glasses (Viture vs Xreal), mechanical keyboards.
+
+## Creative Works
+- [[sundered-chains]] — the Grimhaven campaign (Feto & the Concerned Citizens); the Tome's birthplace, chronicled in full.
+
+## Sources
+- [[claude-chat-corpus]] — 577 convs / 4,199 msgs, 2023-11 → 2026-08; **backfill 28/28**; blind spots noted.
+- [[gemini-corpus]] — 1,391 Gemini records, 2024-03 → 2026-08; **processed**; the art department, the campaign, the daily driver.
+- [[m4-experiment]] — the PoC tested: wiki 32/32 vs RAG 19/32; the gap widens with synthesis. Memory stays a wiki.
+`,
 "log.md": `# PFC Operations Log\n\n## [2026-08-02] admin | repo founded: protocol/, wiki skeleton, site placeholder\n## [2026-08-02] ingest | facebot docs distilled → wiki/facebot.md, wiki/cowork-platform-findings.md\n## [2026-08-02] ingest | chat export analyzed (577 convs) → wiki/claude-chat-corpus.md\n## [2026-08-02] surface | inaugural: 1 connection, 0 proposals\n## [2026-08-02] heartbeat | quiet — no inbox, no new raw\n`,
 "raw/chat-exports/PROCESSED.md": `# Backfill manifest\n\n28 months total.\n2026-04 | 54 convs | done 2026-08-09 | pages touched: 12\n2025-07 | 53 convs | done 2026-08-11 | pages touched: 9\n2025-08 | 47 convs | done 2026-08-12 | pages touched: 7\n`,
 "surface/2026-08-02.md": `---\ndate: 2026-08-02\nbeat: deep\n---\n\n## Connections\n- **[[facebot]] ↔ [[postfrontal-cortex]]** — Your July experiment in selling furniture accidentally ran the infrastructure research for your second brain: Facebot's measured findings are now PFC's load-bearing constraints. The system's first recorded synchronicity is about itself.\n`,
@@ -2862,6 +4872,30 @@ const DEMO_FILES = {
 "inbox/processed/2026-08/2026-08-01-2210-web.md": `---\ncaptured: 2026-08-01T22:10:00Z\nvia: web\n---\nCeramic studio in Oakland does intro nights \u2014 check Thursday.\n`,
 "inbox/2026-08-02-2140-oracle.md": `---\ncaptured: 2026-08-02T21:40:00Z\nvia: oracle\ntype: question\n---\nWhat was the name of the wizard trapped in the Tome?\n`,
 "protocol/BRAIN.md": `# BRAIN.md — the PFC genome (demo excerpt)\n\nEvery session loads this file first. The repo is the brain's only memory.\n\n## Invariants (excerpt)\n1. raw/ is immutable.\n2. Log everything, append-only.\n3. Silence over noise.\n4. Human gate on merges and deletions.\n5. Supersede, don't decay.\n`,
+
+/* --- Surface.exe v2 demo data: On this day needs a dated session with a real
+   opener; the archive needs filenames spread across years. Content is only ever
+   fetched for the two 08-03 cards — the rest exist so the grid has a shape. --- */
+"sessions/claude/2025-08-03-hawking-radiation-quantum-mechanics.md": `---\ntitle: Hawking Radiation Quantum Mechanics\ndate: 2025-08-03\nsource: claude\n---\n\n**H:** Why don’t particles radiated from black holes (hawking radiation) not get immediately sucked back in due to the gravity? How are they energetic enough to “break away?”\n\n**A:** The key insight is that Hawking radiation doesn’t originate from inside the black hole — it is created right at the event horizon, where the gravitational field separates virtual particle pairs before they can annihilate.\n`,
+"sessions/claude/2025-08-03-online-political-subcultures-explained.md": `---\ntitle: Online Political Subcultures Explained\ndate: 2025-08-03\nsource: claude\n---\n\n**H:** What is a groiper and what is breadtube?\n\n**A:** Both are informal labels for online political subcultures that grew up around YouTube and streaming in the late 2010s.\n`,
+"sessions/claude/2023-11-28-brown-v-board-study-guide.md": `**H:** Summarize Brown v. Board.\n`,
+"sessions/claude/2024-06-04-jamf-command-to-update-inventory.md": `**H:** What is the jamf binary command to update inventory?\n`,
+"sessions/claude/2024-11-02-mac-hostname-vs-username.md": `**H:** Hostname vs username on a Mac?\n`,
+"sessions/claude/2024-11-19-scim-provisioning-in-simplemdm.md": `**H:** Does SimpleMDM support SCIM?\n`,
+"sessions/gemini/2025-02-08-used-hybrid-search.md": `**H:** Best used hybrid under 15k?\n`,
+"sessions/claude/2025-02-14-vegan-batch-cooking.md": `**H:** Batch cooking ideas for the week?\n`,
+"sessions/claude/2025-02-26-kiln-temperatures-for-stoneware.md": `**H:** What cone do I fire stoneware to?\n`,
+"sessions/claude/2025-07-04-tome-of-endless-ink-v7-postmortem.md": `**H:** Why did v7 die?\n`,
+"sessions/claude/2025-07-18-langgraph-state-propagation.md": `**H:** How does LangGraph propagate state?\n`,
+"sessions/gemini/2025-07-22-campfire-confession-scene.md": `**H:** Write Feto’s confession.\n`,
+"sessions/claude/2025-07-30-building-out-of-order.md": `**H:** Why do my projects stall at 80 percent?\n`,
+"sessions/claude/2025-12-11-california-take-home-pay.md": `**H:** What is my take-home at 42 an hour?\n`,
+"sessions/claude/2026-01-17-ford-repair-shops-near-antioch.md": `**H:** Any good Ford shops near Antioch?\n`,
+"sessions/claude/2026-01-29-kivy-map-tab-blocked.md": `**H:** The Map tab will not render.\n`,
+"sessions/claude/2026-05-31-baby-names-shortlist.md": `**H:** Daphne or Sibyl?\n`,
+"sessions/claude/2026-08-02-cowork-heartbeat-constraints.md": `**H:** Can a cloud session reach my laptop?\n`,
+"log.md": `# PFC Operations Log\n\n## [2026-08-01] admin | repo founded: protocol/, wiki skeleton, site placeholder\n## [2026-08-01] ingest | facebot docs distilled → wiki/facebot.md\n## [2026-08-01] heartbeat | quiet — no inbox, no new raw\n## [2026-08-02] ingest | chat export analyzed (577 convs) → wiki/claude-chat-corpus.md\n## [2026-08-02] ingest | gemini corpus distilled → 8 pages touched\n## [2026-08-02] correct | celeste: not a Japanese music producer (Andrew, direct)\n## [2026-08-02] surface | inaugural: 1 connection\n## [2026-08-02] query | two-hop walk from cowork-platform-findings\n## [2026-08-02] build | Oracle.exe shipped: Face asks → inbox → heartbeat answers\n## [2026-08-02] build | Inquest.exe + the flag control\n## [2026-08-02] admin | protocol/GATE.md written\n## [2026-08-02] heartbeat | 6 gates raised by the granularity pass\n## [2026-08-03] heartbeat | inbox 1, gemini corpus ingested, 1 connection surfaced\n## [2026-08-03] build | Surface.exe v2: beat band, on this day, the archive\n## [2026-08-03] build | Notepad+++ v2 capture path\n## [2026-08-03] lint | 12 orphan wikilinks resolved\n## [2026-08-03] oracle | answered: what connects Facebot to PFC\n## [2026-08-03] surface | 1 connection, 0 proposals\n`,
+"surface/2026-08-02.md": `---\ndate: 2026-08-02\nbeat: deep\n---\n\n## Connections\n- **[[facebot]] \u2194 [[postfrontal-cortex]]** \u2014 Your July experiment in selling\n  furniture accidentally ran the infrastructure research for your second brain:\n  Facebot\u2019s measured findings are now PFC\u2019s load-bearing constraints, and its\n  constitution is the ancestor of BRAIN.md\u2019s invariants. The system\u2019s first\n  recorded synchronicity is about itself. (evidence: ~/facebot/docs/heartbeat.md,\n  2026-07-25\u219208-01; protocol/BRAIN.md, today)\n- **[[simulism]] \u2194 [[consciousness-mortality-meaning]]** \u2014 \u201cDoes the needle of a record\n  player too fancy itself a great musician?\u201d (Aug 2024) became \u201cif my consciousness is the\n  ephemeral music produced by the tape head\u2026 it doesn\u2019t detract from the beauty of the\n  music\u201d (May 2026). Same image, two years apart, sharpened from question into answer.\n- **[[cooking]] contradiction, flagged not resolved** \u2014 \u201cI am a vegan\u201d (2025-02) vs\n  flank-steak grilling (2026-06). The diet evolved; when and why is a real open question.\n- **[[claude-chat-corpus]] blind spot confirmed** \u2014 Facebot and PFC\u2019s own build are entirely\n  absent from the export: claude.ai chats only, no Cowork sessions.\n\n## Pulse\n8 pages \u00b7 3 ingested today \u00b7 inbox 2\n`,
 };
 
 setTicker("Postfrontal Cortex 98 \u2014 it remembers for you, and brings the right thing back");
