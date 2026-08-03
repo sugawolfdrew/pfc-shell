@@ -652,7 +652,7 @@ function setZoom(v) {
   localStorage.setItem("pfc_zoom", Z);
   document.documentElement.style.zoom = Z;
   refreshIcons();
-  if (window.WALL) WALL.resize();
+  if (typeof WALL !== "undefined") WALL.resize(); // WALL is a top-level const, never a window property
 }
 const DEMO = location.search.includes("demo") || location.hash === "#demo";
 const LS_KEY = "pfc_token";
@@ -958,19 +958,33 @@ const cache = { tree: null, files: new Map(), hidden: null };
    other page. Manifest at hidden.md; the Explorer's ⊘ button toggles membership. */
 async function getHidden(force) {
   if (cache.hidden && !force) return cache.hidden;
-  let list = [];
-  try {
-    const txt = await getFile("hidden.md", force);
-    list = [...txt.matchAll(/^\s*[-*]\s+([a-z0-9-]+)\s*$/gm)].map(m => m[1]);
-  } catch (e) { /* no manifest yet: nothing hidden */ }
-  cache.hidden = new Set(list);
-  return cache.hidden;
+  if (DEMO) { cache.hidden = new Set((DEMO_FILES["hidden.md"] || "")
+      .split("\n").map(l => (l.match(/^\s*-\s*([a-z0-9-]+)\s*$/) || [])[1]).filter(Boolean));
+    cache.hidden.unread = false; return cache.hidden; }
+  const r = await readOr("hidden.md", "", force);
+  const set = new Set(r.v.split("\n")
+    .map(l => (l.match(/^\s*-\s*([a-z0-9-]+)\s*$/) || [])[1]).filter(Boolean));
+  /* Fails CLOSED. This feature exists for the moment the Face is on a screen in front
+     of other people, so an unreadable manifest must not quietly un-hide everything —
+     it keeps the last known set and marks itself unread so callers can refuse to write. */
+  if (!r.ok) {
+    if (cache.hidden) { cache.hidden.unread = true; return cache.hidden; }
+    set.unread = true;
+  } else set.unread = false;
+  cache.hidden = set;
+  return set;
 }
+
 async function setHidden(slug, on) {
   const { text, sha } = await getFileFull("hidden.md").catch(() => ({ text: "", sha: null }));
   const head = text.trim() ? text.split(/\n(?=- )/)[0].split("\n").filter(l => !/^\s*[-*]\s/.test(l)).join("\n")
     : `# Hidden pages\n\nKept out of the Explorer's main index and collapsed by default — for when the\nFace is on screen in front of others. Not secrecy: this repo is private and these\npages load exactly like any other. Toggle with the \u2298 button in the Explorer.\nLaw: protocol/BRAIN.md.\n`;
-  const cur = new Set([...(await getHidden(true))]);
+  const known = await getHidden(true);
+  /* Refuse to write from a set we could not actually read. getHidden now falls back to
+     the last known set and flags itself unread; rewriting the manifest from that would
+     silently DELETE every slug this session never saw — and report success doing it. */
+  if (known.unread) throw new Error("hidden.md is unreadable right now — not rewriting it");
+  const cur = new Set([...known]);
   on ? cur.add(slug) : cur.delete(slug);
   const body = head.replace(/\n+$/, "") + "\n\n" + [...cur].sort().map(x => `- ${x}`).join("\n") + "\n";
   if (DEMO) { cache.hidden = cur; return; }
@@ -997,7 +1011,16 @@ async function gh(path, opts = {}) {
       throw new Error("rate");
     throw new Error("forbidden");
   }
-  if (!r.ok) { throw new Error(`GitHub ${r.status} on ${path}`); }
+  if (!r.ok) {
+    /* Absent is not the same as unreadable, and the whole app was conflating them:
+       every rejection collapsed to the same value an empty-but-healthy read produces,
+       so "we could not look" rendered as "there is nothing there". That is how Inquest
+       reported a clear docket while six matters sat open. 404 means genuinely not there
+       yet; anything else means unknown, and callers must say so. */
+    const e = new Error(`GitHub ${r.status} on ${path}`);
+    if (r.status === 404) e.absent = true;
+    throw e;
+  }
   return r.json();
 }
 
@@ -1026,13 +1049,24 @@ async function getFile(path, force) {
   let text;
   if (DEMO) {
     text = DEMO_FILES[path];
-    if (text === undefined) throw new Error(`demo has no ${path}`);
+    if (text === undefined) { const e = new Error(`demo has no ${path}`); e.absent = true; throw e; }
   } else {
     const d = await gh(`/repos/${CFG.owner}/${CFG.repo}/contents/${encodeURIComponent(path).replace(/%2F/g, "/")}?ref=${CFG.branch}`);
     text = b64decode(d.content);
   }
   cache.files.set(path, text);
   return text;
+}
+
+/* Read a file, and report WHY it is empty. `.ok` false means we never heard from the
+   file — the caller must render "unread", never "empty". `.absent` true means a real
+   404: the empty default is the honest answer. */
+async function readOr(path, fallback, force) {
+  try { return { v: await getFile(path, force), ok: true, absent: false }; }
+  catch (e) {
+    if (e && e.absent) return { v: fallback, ok: true, absent: true };
+    return { v: fallback, ok: false, absent: false, err: e };
+  }
 }
 
 async function getFileFull(path) { // fresh, uncached, with sha (for editing)
@@ -1990,7 +2024,8 @@ const Surface = (() => {
     const f = statusFields(); if (!f) return;
     f[0].textContent = `${plural(stat.pages, "wiki page")} \u00b7 ${plural(stat.sessions, "session")}`;
     f[1].textContent = `inbox ${stat.inbox}`;
-    f[2].textContent = stat.gates ? `${plural(stat.gates, "gate")} open` : "docket clear";
+    f[2].textContent = D.gatesUnread ? "docket unread"
+                     : stat.gates ? `${plural(stat.gates, "gate")} open` : "docket clear";
   }
   /* Transient messages take field 1 (WM.status's field) and hand it back. */
   function say(msg, restore) {
@@ -2003,7 +2038,7 @@ const Surface = (() => {
   /* ================= §4 the beat band — honest freshness ================= */
   /* h is derived as v1 derived lastBeat, but the whole line is kept so a future
      "## [date HH:MM] heartbeat" tightens the resolution with no rewrite. */
-  function readBeat(log) {
+  function readBeat(log, unread) {
     const rx = /^## \[(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}(?::\d{2})?))?\]\s*heartbeat\b[^\n]*/gm;
     let best = null;
     for (const m of String(log || "").matchAll(rx)) {
@@ -2011,7 +2046,8 @@ const Surface = (() => {
       if (!best || when > best) best = when;
     }
     if (!best || isNaN(best)) return { state: "COLD", key: "cold", frac: 0, h: null,
-                                       said: "no full beat on record" };
+                                       said: unread ? "log unread \u2014 beat state unknown"
+                                                    : "no full beat on record" };
     const h = Math.max(0, Math.floor((Date.now() - best) / 36e5));
     const amount = h >= 48 ? `${Math.floor(h / 24)}d` : `${h}h`;
     const key   = h < 12 ? "ok" : h <= 24 ? "due" : "late";
@@ -2411,7 +2447,11 @@ const Surface = (() => {
         ? { head: "", body: f.list[0], evidence: "" } : null);
       if (!conn) {
         const n = (f.pulse.match(/(\d+)\s+pages/) || [])[1];
-        inner = `<div class="well sf-conn"><p class="quiet">Nothing ${age <= 0 ? "today" : "that day"}. ` +
+        inner = D.briefUnread
+          ? `<div class="well sf-conn"><p class="quiet"><b>Could not read that entry.</b>
+             The file is in the tree but would not load \u2014 this is a read failure, not an
+             empty day. Press Refresh.</p></div>`
+          : `<div class="well sf-conn"><p class="quiet">Nothing ${age <= 0 ? "today" : "that day"}. ` +
                 (n ? `${plural(+n, "page")} were read and none of them met anything`
                    : `Nothing that was read met anything else`) +
                 ` \u2014 the wiki keeps them either way.</p></div>`;
@@ -2456,7 +2496,11 @@ const Surface = (() => {
     const props = g.filter(x => x.kind === "proposal").length;
     host.innerHTML = `<legend>Waiting on you</legend>
       ${g.length ? `<div class="well">${rows}</div>`
-                 : `<div class="well"><div class="sf-empty">Nothing is waiting. The docket is clear.</div></div>`}
+                 : D.gatesUnread
+                   ? `<div class="well"><div class="sf-empty"><b>Docket unread.</b> gates/open.md could not be
+                      reached, so this panel does not know what is waiting \u2014 this is a read failure,
+                      <b>not</b> a clear docket. Press Refresh.</div></div>`
+                   : `<div class="well"><div class="sf-empty">Nothing is waiting. The docket is clear.</div></div>`}
       <div class="sf-foot">
         <span><b>${g.length}</b> gate${g.length === 1 ? "" : "s"} \u00b7 <b>${D.flags}</b> flag${D.flags === 1 ? "" : "s"} \u00b7 <b>${props}</b> proposal${props === 1 ? "" : "s"}</span>
         <span class="sp"></span><button id="sf-inq">Open Inquest</button>
@@ -2582,14 +2626,19 @@ const Surface = (() => {
     stat.sessions = tree.filter(e => /^sessions\/(claude|gemini)\/.+\.md$/.test(e.path)).length;
     D.flags       = tree.filter(e => /^inbox\/[^/]*-flag\.md$/.test(e.path)).length;
 
-    let log = "";
-    try { log = await getFile("log.md"); } catch (e) { /* the log may not exist yet */ }
-    D.beat    = readBeat(log);
-    D.tending = tendingData(log);
+    /* Every one of these used to collapse a failed read into the same value an empty
+       file produces, so "we could not look" rendered as a confident "there is nothing
+       there". readOr keeps the two apart: `.ok` false means unread, and every panel
+       below must say so rather than assert a clean slate. */
+    const logR = await readOr("log.md", "");
+    D.logUnread = !logR.ok;
+    D.beat    = readBeat(logR.v, !logR.ok);
+    D.tending = tendingData(logR.v);
     D.archive = archiveGrid(tree);
 
-    try { D.gates = parseGates(await getFile("gates/open.md")); }
-    catch (e) { D.gates = []; }
+    const gatesR = await readOr("gates/open.md", "");
+    D.gatesUnread = !gatesR.ok;
+    D.gates = parseGates(gatesR.v);
     stat.gates = D.gates.length;
 
     try { D.hidden = await getHidden(); } catch (e) { D.hidden = new Set(); }
@@ -2599,8 +2648,11 @@ const Surface = (() => {
     briefs = tree.filter(e => /^surface\/\d{4}-\d{2}-\d{2}\.md$/.test(e.path))
                  .map(e => e.path).sort().reverse();
     if (idx >= briefs.length) idx = 0;
-    D.brief = "";
-    if (briefs.length) { try { D.brief = await getFile(briefs[idx]); } catch (e) {} }
+    D.brief = ""; D.briefUnread = false;
+    if (briefs.length) {
+      const bR = await readOr(briefs[idx], "");
+      D.brief = bR.v; D.briefUnread = !bR.ok;
+    }
     /* Quiet legacy entry: reach one file back for the last real connection. */
     D.lastConn = null;
     if (briefs.length && !findings(D.brief).list.length) {
@@ -2681,6 +2733,7 @@ const Surface = (() => {
 /* ----- Wiki Explorer ----- */
 const Explorer = (() => {
   let current = null;
+  let pending = null;   // a path openPath was asked for but has not finished loading
   const body = () => document.querySelector("#win-explorer .window-body");
 
   async function ensureLayout() {
@@ -2760,6 +2813,7 @@ const Explorer = (() => {
   }
 
   async function openPath(path) {
+    pending = path;
     await ensureLayout();
     WM.status("explorer", "Loading " + path);
     document.querySelectorAll("#tree-root li").forEach(li =>
@@ -2830,6 +2884,7 @@ const Explorer = (() => {
           a.addEventListener("click", () => openPage(a.dataset.page)));
       });
     }
+    if (pending === path) pending = null;
     WM.status("explorer", path);
   }
 
@@ -2878,7 +2933,11 @@ const Explorer = (() => {
   APPS.explorer.onOpen = async () => {
     await ensureLayout();
     renderTree().catch(err);
-    if (!current) openPath("wiki/postfrontal-cortex.md").catch(() => {});
+    /* Only land on the default page if nothing else has ASKED for one. Every navigation
+       into this window is `WM.show("explorer"); Explorer.openPath(target)` — nobody
+       awaits onOpen, so the default used to be issued after the target and, resolving
+       last, overwrote it. The first Explorer open of every session showed the wrong page. */
+    if (!current && !pending) openPath("wiki/postfrontal-cortex.md").catch(err);
   };
   return { openPage, openPath, hiddenOpen: () => HIDDEN_OPEN, refreshTree: renderTree };
 })();
@@ -3506,8 +3565,15 @@ const Explorer = (() => {
     const when = /^filed:\s*(.+)$/m.exec(fm[1]);
     const d = when && new Date(when[1].trim());
     return {
+      /* `became:` holds repo paths (`wiki/gardening.md`, `index.md`), not wikilinks.
+         Every other resolver in the app branches on a "/" before slugifying; this one
+         did not, so `wiki/gardening.md` rendered as "wiki-gardening-md" and linked to
+         a page that cannot exist. Paths pass through; bare names still slugify. */
       became: became ? (became[1].match(/\[\[([^\]|]+)\]\]/g) || became[1].split(/[,\s]+/))
-        .map(x => slugify(x.replace(/[\[\]]/g, ""))).filter(Boolean) : [],
+        .map(x => x.replace(/[\[\]]/g, "").trim())
+        .filter(Boolean)
+        .map(x => x.includes("/") || x.endsWith(".md") ? x : slugify(x))
+        .filter(Boolean) : [],
       filed: d && !isNaN(d) ? hhmm(d) : "",
     };
   }
@@ -4103,7 +4169,7 @@ const Search = (() => {
     const tree = await getTree();
     const answers = tree.filter(e => /^oracle\/\d{4}-.*\.md$/.test(e.path))
       .map(e => e.path).sort().reverse().slice(0, 10);
-    const pending = tree.filter(e => /^inbox\/.*-oracle\.md$/.test(e.path)).map(e => e.path);
+    const pending = tree.filter(e => /^inbox\/[^/]*-oracle\.md$/.test(e.path)).map(e => e.path);
     let html = "";
     for (const p of pending) {
       let q = "";
@@ -4203,8 +4269,18 @@ const Search = (() => {
       li.setAttribute("aria-selected", li.dataset.tab === tab ? "true" : "false"));
     list.innerHTML = `<div id="inq-empty">Reading the docket…</div>`;
     if (tab === "open") {
-      let md = "";
-      try { md = await getFile("gates/open.md", true); } catch (e) {
+      /* "No docket yet" asserts a reason. It is only true for a genuine 404 — for any
+         other failure the honest answer is that we did not hear from the file, which is
+         a different thing and must not read as good news. */
+      const r = await readOr("gates/open.md", "", true);
+      if (!r.ok) {
+        list.innerHTML = `<div id="inq-empty"><b>Could not read the docket</b> \u2014
+          ${escHtml(r.err && r.err.message || "unknown error")}.<br>This is a read failure,
+          <b>not</b> an empty docket. Press a tab to retry.</div>`;
+        WM.status("inquest", "docket unread"); return;
+      }
+      const md = r.v;
+      if (r.absent) {
         list.innerHTML = `<div id="inq-empty">No docket yet — <code>gates/open.md</code> appears when the brain raises its first matter.</div>`;
         WM.status("inquest", "docket empty"); return;
       }
@@ -4258,7 +4334,7 @@ const Search = (() => {
       WM.status("inquest", `${gates.length} awaiting your ruling`);
     } else {
       const tree = await getTree(true);
-      const want = tab === "flags" ? /-flag\.md$/ : /-gate\.md$/;
+      const want = tab === "flags" ? /^inbox\/[^/]*-flag\.md$/ : /^inbox\/[^/]*-gate\.md$/;
       const paths = tree.filter(e => want.test(e.path) &&
                     /^inbox\//.test(e.path)).map(e => e.path).sort().reverse().slice(0, 25);
       if (!paths.length) {
