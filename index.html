@@ -1473,24 +1473,8 @@ const WALL = (() => {
           else blade(bx, by, 1 + ((rnd() * len) | 0), d);
         }
       }
-      // flowers: a few tight clusters on the near bank only, and only when there is sun
-      if (!P.fl1 || L.grass < 3) continue;
-      const f1 = hex(P.fl1), f2 = P.fl2 ? hex(P.fl2) : null;
-      // touching pixels, so a spray reads as blossom rather than as dust
-      const SPRAY = [[[0, 0], [1, 0], [0, -1], [2, -1], [3, 0], [1, 1]],
-                     [[0, 0], [1, -1], [2, 0], [2, 1], [4, 0], [0, 2]],
-                     [[0, 0], [0, -1], [2, 1], [3, 1], [1, 2], [4, -1]]];
-      for (let i = 0, nF = (W / 40) | 0; i < nF; i++) {
-        const cx = (rnd() * W) | 0, yr = L.top[cx], vis = H - yr;
-        if (vis < 6) continue;
-        const cy = yr + 2 + ((rnd() * (vis - 4)) | 0), n = 3 + ((rnd() * 4) | 0);
-        const sp = SPRAY[(rnd() * 3) | 0], mir = rnd() < 0.5 ? 1 : -1;
-        for (let j = 0; j < n; j++) {
-          const bx = cx + sp[j][0] * mir, by = cy + sp[j][1];
-          if (bx < 0 || bx >= W || by < 0 || by >= H || lay[by * W + bx] !== li + 1) continue;
-          put(bx, by, rnd() < 0.7 || !f2 ? f1 : f2);
-        }
-      }
+      /* Flowers removed 2026-08-03 at Andrew's request (capture 13:10) — the near
+         bank reads cleaner as unbroken grass. P.fl1/P.fl2 stay in the palettes. */
     }
     q.putImageData(img, 0, 0);
     return c;
