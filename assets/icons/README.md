@@ -17,7 +17,7 @@ Sizes stay integer-scaled at every zoom level, so both paths render pixel-crisp.
 | `search.png`   | Search         | `magnifying_glass`           | the Find lens |
 | `oracle.png`   | Oracle.exe     | `help_book_big`              | purple tome, gold question mark — and it matches the wallpaper palette |
 | `inquest.png`  | Inquest.exe    | `certificate_seal`           | a sealed ruling |
-| `why.png`      | why.exe        | `kodak_imaging`              | a framed picture — the app *is* a picture frame |
+| `why.png`      | why.exe        | `address_book_home`          | a house with the car in the drive — Andrew's pick, 2026-08-03. The app is the DO IT FOR HER wall; the reason is home |
 | `settings.png` | Settings       | `display_properties-2`       | the monitor; Settings is a Display Properties pastiche |
 | `keys.png`     | logon dialog   | `key_win`                    | keys for the token prompt |
 
