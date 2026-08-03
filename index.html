@@ -776,19 +776,24 @@ const WALL = (() => {
     "·": [".....", ".....", ".....", ".XX..", ".XX..", ".....", "....."],
   };
   function drawText(q, s, x, y, sc, fill, shadow) {
-    let cx = x;
+    let cx = x, gi = 0;
     for (const ch of s) {
       const gl = GLYPH[ch];
       if (gl) gl.forEach((row, gy) => { for (let gx = 0; gx < row.length; gx++) {
         if (row[gx] === "X") {
-          if (shadow) { q.fillStyle = shadow; q.fillRect(cx + gx * sc + sc, y + gy * sc + sc, sc, sc); }
-          q.fillStyle = fill; q.fillRect(cx + gx * sc, y + gy * sc, sc, sc);
+          const px = cx + gx * sc, py = y + gy * sc;
+          if (shadow) { q.fillStyle = shadow; q.fillRect(px + sc, py + sc, sc, sc); }
+          q.fillStyle = typeof fill === "function" ? fill(gi, px, py) : fill;
+          q.fillRect(px, py, sc, sc);
         }
       } });
-      cx += 6 * sc;
+      cx += 6 * sc; gi++;
     }
     return cx - x;
   }
+  const MATTER = new Image(); // Andrew's grey-matter art (2026-08-03); walkers stay as fallback
+  MATTER.onload = () => { skyKey = ""; frame(); };
+  MATTER.src = "assets/pfc-matter.png";
   function line(x0, y0, x1, y1) { // integer plot: strokes antialias, rects don't
     x0 |= 0; y0 |= 0; x1 |= 0; y1 |= 0;
     const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
@@ -919,60 +924,71 @@ const WALL = (() => {
     g.drawImage(hillsC, 0, 0);
   }
   let synSites = [];
-  function bakeMatter(light) { // the sky IS grey matter: walked sulci, ridge sheen,
-    const hor = (H * 0.62) | 0; // and a dark ombre pooling in the upper right
-    const T = light
-      ? { base: [160, 154, 160], ridge: [188, 180, 186], sulci: [106, 98, 108], mottle: [174, 167, 173], omb: [10, 10, 18] }
-      : { base: [86, 80, 88], ridge: [110, 102, 110], sulci: [56, 50, 60], mottle: [96, 89, 96], omb: [5, 5, 9] };
-    const map = new Uint8Array(W * hor); // 0 base, 1 sulcus, 2 ridge, 3 mottle
-    seed = 31337;
-    const cell = 13; // jittered-grid spawns pack the folds evenly, edge to edge
-    for (let gy = 0; gy < hor; gy += cell) {
-      for (let gx = 0; gx < W; gx += cell) {
-        let x = gx + rnd() * cell, y = gy + rnd() * cell, a = rnd() * 6.28;
-        let last = -1, last2 = -1;
-        const len = 90 + rnd() * 170;
-        for (let i = 0; i < len; i++) {
-          a += (rnd() - 0.5) * 0.85;
-          x += Math.cos(a); y += Math.sin(a) * 0.85;
-          if (x < 0) x += W; if (x >= W) x -= W;
-          if (y < 0 || y >= hor) { a = -a; y = Math.max(0, Math.min(hor - 1, y)); }
-          const xi = x | 0, yi = y | 0, p = yi * W + xi;
-          if (map[p] === 1 && p !== last && p !== last2) { // another fold: veer, don't cross
-            if (i > 8 && rnd() < 0.35) break;
-            a += Math.PI * (0.4 + rnd() * 0.35);
-            x += Math.cos(a) * 1.6; y += Math.sin(a) * 1.3;
-            continue;
-          }
-          map[p] = 1; last2 = last; last = p;
-          if (rnd() < 0.35 && xi + 1 < W && map[p + 1] !== 1) map[p + 1] = 1;
-          if (yi > 0 && rnd() < 0.55 && map[(yi - 1) * W + xi] === 0) map[(yi - 1) * W + xi] = 2;
-        }
-      }
-    }
-    for (let i = 0; i < W * hor * 0.05; i++) { // faint tissue mottling
-      const p = (rnd() * W * hor) | 0;
-      if (map[p] === 0) map[p] = 3;
-    }
+  function bakeMatter(light) { // the sky IS grey matter — Andrew's art, cover-cropped;
+    const hor = (H * 0.62) | 0; // seeded walkers stand in until/unless it loads
     const c = document.createElement("canvas"); c.width = W; c.height = hor;
     const q = c.getContext("2d");
-    const img = q.createImageData(W, hor);
+    if (MATTER.complete && MATTER.naturalWidth > 0) {
+      const ar = W / hor, sar = MATTER.naturalWidth / MATTER.naturalHeight;
+      let sw, sh;
+      if (sar > ar) { sh = MATTER.naturalHeight; sw = sh * ar; }
+      else { sw = MATTER.naturalWidth; sh = sw / ar; }
+      q.drawImage(MATTER, (MATTER.naturalWidth - sw) / 2, (MATTER.naturalHeight - sh) / 2,
+                  sw, sh, 0, 0, W, hor);
+    } else {
+      const T = { base: [160, 154, 160], ridge: [188, 180, 186], sulci: [106, 98, 108], mottle: [174, 167, 173] };
+      const map = new Uint8Array(W * hor);
+      seed = 31337;
+      const cell = 13;
+      for (let gy = 0; gy < hor; gy += cell) {
+        for (let gx = 0; gx < W; gx += cell) {
+          let x = gx + rnd() * cell, y = gy + rnd() * cell, a = rnd() * 6.28;
+          let last = -1, last2 = -1;
+          const len = 90 + rnd() * 170;
+          for (let i = 0; i < len; i++) {
+            a += (rnd() - 0.5) * 0.85;
+            x += Math.cos(a); y += Math.sin(a) * 0.85;
+            if (x < 0) x += W; if (x >= W) x -= W;
+            if (y < 0 || y >= hor) { a = -a; y = Math.max(0, Math.min(hor - 1, y)); }
+            const xi = x | 0, yi = y | 0, p = yi * W + xi;
+            if (map[p] === 1 && p !== last && p !== last2) {
+              if (i > 8 && rnd() < 0.35) break;
+              a += Math.PI * (0.4 + rnd() * 0.35);
+              x += Math.cos(a) * 1.6; y += Math.sin(a) * 1.3;
+              continue;
+            }
+            map[p] = 1; last2 = last; last = p;
+            if (rnd() < 0.35 && xi + 1 < W && map[p + 1] !== 1) map[p + 1] = 1;
+            if (yi > 0 && rnd() < 0.55 && map[(yi - 1) * W + xi] === 0) map[(yi - 1) * W + xi] = 2;
+          }
+        }
+      }
+      const raw = q.createImageData(W, hor);
+      for (let i = 0; i < W * hor; i++) {
+        const tone = [T.base, T.sulci, T.ridge, T.mottle][map[i]];
+        raw.data[i * 4] = tone[0]; raw.data[i * 4 + 1] = tone[1]; raw.data[i * 4 + 2] = tone[2];
+        raw.data[i * 4 + 3] = 255;
+      }
+      q.putImageData(raw, 0, 0);
+    }
+    // shared pass: phase tint, the (larger) top-right ombre, synapse sites
+    const img = q.getImageData(0, 0, W, hor);
     synSites = [];
-    const ox = W - 1, oy = 0, R = Math.max(W * 0.85, hor * 1.6);
+    const K = light ? [1, 1, 1] : [0.45, 0.42, 0.58];
+    const lumT = light ? 260 : 130;
+    const ox = W - 1, oy = 0, R = W * 1.3;
     for (let y = 0; y < hor; y++) {
       for (let x = 0; x < W; x++) {
-        const i = y * W + x;
-        const tone = [T.base, T.sulci, T.ridge, T.mottle][map[i]];
-        // ombre: dark pools at the top-right corner, dither-fades into the matter
+        const o = (y * W + x) * 4;
+        let r = img.data[o] * K[0], gg = img.data[o + 1] * K[1], b = img.data[o + 2] * K[2];
         const d = Math.hypot(x - ox, y - oy);
-        let f = Math.max(0, 1 - d / R); f = f * f * 1.9;
-        f = Math.max(0, Math.min(1, f + ((B4[y & 3][x & 3] / 16) - 0.5) * 0.32));
-        const o = i * 4;
-        img.data[o]     = tone[0] + (T.omb[0] - tone[0]) * f;
-        img.data[o + 1] = tone[1] + (T.omb[1] - tone[1]) * f;
-        img.data[o + 2] = tone[2] + (T.omb[2] - tone[2]) * f;
+        let f = Math.max(0, 1 - d / R);
+        f = Math.min(1, Math.max(0, Math.pow(f, 1.5) * 2.4 + ((B4[y & 3][x & 3] / 16) - 0.5) * 0.3));
+        if ((r + gg + b) < lumT && f < 0.5 && ((x * 7 + y * 13) % 53) === 0) synSites.push([x, y]);
+        img.data[o]     = r + (6 - r) * f;
+        img.data[o + 1] = gg + (4 - gg) * f;
+        img.data[o + 2] = b + (14 - b) * f;
         img.data[o + 3] = 255;
-        if (map[i] === 1 && ((x * 7 + y * 13) % 41) === 0) synSites.push([x, y]);
       }
     }
     q.putImageData(img, 0, 0);
@@ -1008,10 +1024,16 @@ const WALL = (() => {
       g.fillRect(0, y, W, 1);
     }
     g.fillStyle = "#00e8d8"; g.fillRect(0, hor, W, 1); // horizon glow
-    // logotype, top right, on the deep end of the ombre
+    // logotype, top right, on the deep end of the ombre — node colors, chrome sweep
+    const NODE = ["#ff4848", "#ffe040", "#48e858", "#c070ff", "#40d8f8"];
     const lsc = Math.max(1, Math.min(3, Math.floor((W * 0.7) / 36)));
     const tw = 5 * 6 * lsc - lsc;
-    drawText(g, "PFC98", W - tw - 4 - lsc, 4 + lsc, lsc, "#ece8ee", "#000006");
+    const lx = W - tw - 4 - lsc, ly = 4 + lsc;
+    const sweep = ((t % 110) / 110) * (tw + 26 * lsc) - 13 * lsc;
+    drawText(g, "PFC98", lx, ly, lsc, (gi, px, py) => {
+      const rel = (px - lx - sweep) + (py - ly) * 0.6;
+      return Math.abs(rel) < 1.7 * lsc ? "#ffffff" : NODE[gi];
+    }, "#000006");
   }
 
   /* ---- plumbing ---- */
