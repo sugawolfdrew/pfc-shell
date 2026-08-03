@@ -1094,6 +1094,39 @@ function miniMd(md) {
     .replace(/\n\n/g, "<p></p>");
 }
 
+/* Untrusted content is data, not markup (Invariant 11). Wiki pages, sessions and
+   captures are markdown, but the corpus already contains raw HTML that arrived
+   inside ingested transcripts — live <iframe> embeds among it. marked does not
+   sanitize (the option was removed in v5) and this page holds a GitHub token, so
+   everything rendered goes through here first. A <template> is inert: assigning to
+   its innerHTML neither executes script nor fetches resources, so the scrub happens
+   before anything can fire. */
+const VOID_TAGS = new Set(["SCRIPT","IFRAME","OBJECT","EMBED","FORM","LINK","META",
+                           "STYLE","BASE","APPLET","FRAME","FRAMESET"]);
+/* Shared escaper. Several modules declare a local `esc` that shadows this; the ones
+   that don't (Inquest, Recent Changes) call it directly — which is why this lives at
+   top level and not inside renderMd, where it was only defined once markdown had
+   been rendered at least once. Inquest opened before that threw and swallowed it. */
+const escHtml = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                               .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+function scrubHtml(dirty) {
+  const tpl = document.createElement("template");
+  tpl.innerHTML = dirty;
+  for (const el of [...tpl.content.querySelectorAll("*")]) {
+    if (VOID_TAGS.has(el.tagName)) { el.remove(); continue; }
+    for (const a of [...el.attributes]) {
+      const n = a.name.toLowerCase(), v = (a.value || "").trim();
+      // every on* handler, and any url scheme that can execute
+      if (n.startsWith("on") || n === "srcdoc" ||
+          ((n === "href" || n === "src" || n === "xlink:href" || n === "action") &&
+           /^\s*(javascript|vbscript)\s*:/i.test(v)) ||
+          (n === "src" && /^\s*data\s*:/i.test(v) && !/^\s*data:image\//i.test(v)))
+        el.removeAttribute(a.name);
+    }
+  }
+  return tpl.innerHTML;
+}
+
 function renderMd(md, el) {
   const { meta, body } = splitFrontmatter(md);
   let html = (typeof marked !== "undefined")
@@ -1111,36 +1144,6 @@ function renderMd(md, el) {
       const exists = cache.tree && cache.tree.some(e => e.path === `wiki/${slug}.md`);
       return `<a class="wikilink${exists ? "" : " missing"}" data-page="${slug}">${name}</a>`;
     })).join("");
-  /* Untrusted content is data, not markup (Invariant 11). Wiki pages, sessions and
-     captures are markdown, but the corpus already contains raw HTML that arrived
-     inside ingested transcripts — live <iframe> embeds among it. marked does not
-     sanitize (the option was removed in v5) and this page holds a GitHub token, so
-     everything rendered goes through here first. A <template> is inert: assigning to
-     its innerHTML neither executes script nor fetches resources, so the scrub happens
-     before anything can fire. */
-  const VOID_TAGS = new Set(["SCRIPT","IFRAME","OBJECT","EMBED","FORM","LINK","META",
-                             "STYLE","BASE","APPLET","FRAME","FRAMESET"]);
-  /* shared escaper — several modules define a local `esc` that shadows this; the ones
-     that don't (Inquest, Recent Changes) use it directly. */
-  window.escHtml = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
-                                 .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  function scrubHtml(dirty) {
-    const tpl = document.createElement("template");
-    tpl.innerHTML = dirty;
-    for (const el of [...tpl.content.querySelectorAll("*")]) {
-      if (VOID_TAGS.has(el.tagName)) { el.remove(); continue; }
-      for (const a of [...el.attributes]) {
-        const n = a.name.toLowerCase(), v = (a.value || "").trim();
-        // every on* handler, and any url scheme that can execute
-        if (n.startsWith("on") || n === "srcdoc" ||
-            ((n === "href" || n === "src" || n === "xlink:href" || n === "action") &&
-             /^\s*(javascript|vbscript)\s*:/i.test(v)) ||
-            (n === "src" && /^\s*data\s*:/i.test(v) && !/^\s*data:image\//i.test(v)))
-          el.removeAttribute(a.name);
-      }
-    }
-    return tpl.innerHTML;
-  }
   let chips = "";
   ["type", "created", "updated", "tags"].forEach(k => {
     if (meta[k]) chips += `<span class="frontmatter-chip">${k}: ${meta[k].replace(/[\[\]]/g, "")}</span>`;
@@ -4180,6 +4183,19 @@ const Search = (() => {
   }).replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
 
+  /* Never fail quietly here. An empty docket list reads as "you are all caught up",
+     which is precisely the wrong thing to tell someone when the render broke — and it
+     is what happened on 2026-08-03, when a hoisting bug made Inquest throw before it
+     drew a single card while Surface went on correctly reporting six gates open. */
+  function inqFail(e) {
+    const list = document.querySelector("#win-inquest #inq-list");
+    if (list) list.innerHTML =
+      `<div id="inq-empty">Could not read the docket \u2014 ${escHtml(e && e.message || String(e))}.` +
+      `<br>This is a display failure, <b>not</b> an empty docket. Press a tab to retry.</div>`;
+    WM.status("inquest", "docket unread \u2014 " + (e && e.message || "error"));
+    err(e);
+  }
+
   async function render(tab) {
     const body = document.querySelector("#win-inquest .window-body");
     const list = body.querySelector("#inq-list");
@@ -4288,9 +4304,9 @@ const Search = (() => {
           <div id="inq-list" style="overflow:auto; flex:1; background:#c0c0c0; padding:8px;"></div>
         </div>`;
       body.querySelectorAll("menu[role=tablist] li").forEach(li =>
-        li.addEventListener("click", e => { e.preventDefault(); render(li.dataset.tab).catch(err); }));
+        li.addEventListener("click", e => { e.preventDefault(); render(li.dataset.tab).catch(inqFail); }));
     }
-    render("open").catch(err);
+    render("open").catch(inqFail);
   };
 })();
 
