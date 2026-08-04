@@ -4955,19 +4955,35 @@ const Search = (() => {
     photoCache.set(p, url);
     return url;
   }
-  function assign() { // light photos preferred (contrast), aspect-matched (kind crops), fresh each open
-    const byLight = [...pool].sort((a, b) => b.L - a.L);
-    let eligible = byLight.filter(p => p.L >= 55);
-    const want = Math.min(SLOTS.length * 2, byLight.length); // 2x slots keeps variety across opens
-    if (eligible.length < want) eligible = byLight.slice(0, want);
-    const slots = [...SLOTS.keys()].sort(() => Math.random() - 0.5);
-    const cand = [...eligible].sort(() => Math.random() - 0.5);
+  /* Slots 4 and 5 are the two tiny ones in the letterform — 45 and 82 square units
+     against 136 for the next smallest. At that size a photo reads as a block of colour
+     rather than a picture, so those two prefer light frames and the letter stays legible.
+     NOTHING ELSE IS WEIGHTED (Andrew, 2026-08-04). The old code applied the light filter
+     to every slot, which on this corpus meant the 92 of 135 photos below L55 could never
+     appear in the collage at all — not rarely, never. Aspect matching stays everywhere:
+     that is about how kindly a photo crops, not about which photos are allowed in. */
+  Object.assign(PFCT, { whyAssign: assign, whySlots: () => SLOTS,
+                        whySetPool: p => { pool = p; },
+                        whyAssigned: () => assigned, whyLightSlots: () => LIGHT_SLOTS });
+  const LIGHT_SLOTS = new Set([4, 5]);
+  const LIGHT_MIN = 55;
+  function assign() {
+    const shuffle = a => a.sort(() => Math.random() - 0.5);   // random tie-breaks below
+    const bright = pool.filter(p => p.L >= LIGHT_MIN);
+    /* If the corpus is mostly dark, fall back to the brightest few rather than leaving
+       the small slots empty — but only ever for those two slots. */
+    const lightPool = bright.length >= LIGHT_SLOTS.size * 2 ? bright
+      : [...pool].sort((a, b) => b.L - a.L).slice(0, Math.min(LIGHT_SLOTS.size * 3, pool.length));
+    const taken = new Set();
     assigned = [];
-    for (const si of slots) {
-      if (!cand.length) break;
+    for (const si of shuffle([...SLOTS.keys()])) {
+      const src = shuffle((LIGHT_SLOTS.has(si) ? lightPool : pool)
+        .filter(p => !taken.has(p.path)));
+      if (!src.length) continue;
       const target = slotAspect(SLOTS[si]);
-      cand.sort((a, b) => Math.abs(Math.log((a.A / 100) / target)) - Math.abs(Math.log((b.A / 100) / target)));
-      const p = cand.splice(Math.floor(Math.random() * Math.min(3, cand.length)), 1)[0];
+      src.sort((a, b) => Math.abs(Math.log((a.A / 100) / target)) - Math.abs(Math.log((b.A / 100) / target)));
+      const p = src[Math.floor(Math.random() * Math.min(3, src.length))];
+      taken.add(p.path);
       assigned.push({ si, p });
     }
   }
