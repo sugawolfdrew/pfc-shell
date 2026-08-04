@@ -277,7 +277,7 @@
      depth as the old ones. Spec: docs/art/notepad-v2/spec.md. */
   #win-note .window-body { display:flex; flex-direction:column; padding:0; margin:3px;
       overflow:hidden; background:#c0c0c0; }
-  #np-write, #np-prior { flex:1; min-height:0; display:flex; flex-direction:column; }
+  #np-write, #np-book { flex:1; min-height:0; display:flex; flex-direction:column; }
   #np-write { position:relative; }        /* the [[ popup anchors inside this box */
   .np-tabs { padding:3px 4px 0; flex:none; }
   .np-tabs menu[role=tablist] { margin:0 0 -2px; }
@@ -343,12 +343,14 @@
   .np-ac li[aria-selected=true] .sl { color:#c8d0f0; }
   .np-ac .ft { font-size:11px; color:#444; padding:2px 4px 1px; }
 
-  /* -- Prior: the outbox ledger. Forty rows in register, each carrying its marks at
+  /* -- Notebook: the capture ledger. Forty rows in register, each carrying its marks at
         the same four x-positions, is the argument that nothing here gets lost. -- */
   .np-ptools { flex:none; display:flex; align-items:center; gap:4px; padding:4px 5px;
       box-shadow: inset 0 -1px 0 #808080, inset 0 -2px 0 #fff; font-size:12px; }
   .np-ptools .sp { flex:1; }
-  .np-list { flex:1 1 58%; min-height:0; overflow:auto; background:#fff; margin:5px 5px 0;
+  /* The detail pane grew a body, so the list can no longer claim a fixed share — it
+     yields, and the detail scrolls rather than being clipped off the bottom. */
+  .np-list { flex:1 1 auto; min-height:76px; overflow:auto; background:#fff; margin:5px 5px 0;
       box-shadow: inset -1px -1px #fff, inset 1px 1px #808080,
                   inset -2px -2px #dfdfdf, inset 2px 2px #0a0a0a; }
   .np-empty { font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#606060;
@@ -376,7 +378,7 @@
       font-family:"Courier New", monospace; }
   .np-row[aria-selected=true] { background:#000080; color:#fff; }
   .np-row[aria-selected=true] .st, .np-row[aria-selected=true] .wh { color:#fff; }
-  .np-detail { flex:0 0 auto; padding:6px 7px 7px; margin:5px 5px 0;
+  .np-detail { flex:0 1 auto; max-height:62%; overflow:auto; padding:6px 7px 7px; margin:5px 5px 0;
       background:#c0c0c0; box-shadow: inset 0 1px 0 #808080, inset 0 2px 0 #fff; }
   .np-detail .hd { font-family:Arial, Helvetica, sans-serif; font-size:13px;
       font-weight:bold; margin:2px 0 6px; white-space:nowrap; overflow:hidden;
@@ -400,6 +402,35 @@
   .np-became a { color:#000080; font-weight:bold; text-decoration:none; cursor:pointer;
       border-bottom:1px dashed #000080; }
   .np-acts { display:flex; gap:4px; margin-top:7px; }
+  /* the addendum strip: you are writing INTO a thread, and the pane should say so */
+  /* `display:flex` beats the UA stylesheet's [hidden] rule, so the hidden state has to
+     be declared explicitly — otherwise an "empty" strip shows as a yellow band. */
+  .np-append[hidden] { display:none; }
+  .np-append { flex:none; display:flex; align-items:center; gap:6px; margin:0 0 5px;
+      padding:4px 6px; background:#ffffe1; border:1px solid #b8b060;
+      font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#3a3a3a; }
+  .np-append .lb { flex:none; font-weight:bold; color:#000; }
+  .np-append .sp { flex:1; }
+  .np-append a { color:#000080; cursor:pointer; overflow:hidden; white-space:nowrap;
+      text-overflow:ellipsis; border-bottom:1px dashed #000080; }
+  /* -- the notebook: reading your own text, and threads -- */
+  .np-ptools select { font-size:12px; max-width:150px; }
+  .np-body { max-height:132px; overflow:auto; margin:0 0 7px; padding:6px 7px;
+      background:#fff; white-space:pre-wrap; overflow-wrap:break-word;
+      font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:1.45;
+      box-shadow: inset -1px -1px #fff, inset 1px 1px #808080,
+                  inset -2px -2px #dfdfdf, inset 2px 2px #0a0a0a; }
+  .np-dim { color:#606060; }
+  .np-parent { font-family:Arial, Helvetica, sans-serif; font-size:11px; color:#444;
+      margin:0 0 5px; }
+  .np-parent a { color:#000080; text-decoration:none; cursor:pointer;
+      border-bottom:1px dashed #000080; }
+  /* an addendum is indented under the note it extends, with a + in the gutter — the
+     thread reads as one thing without pretending to BE one file */
+  .np-row.np-sub .n { padding-left:12px; }
+  .np-row .np-plus { font-style:normal; font-weight:bold; color:#000080;
+      margin-right:5px; font-family:"Courier New", monospace; }
+  .np-row[aria-selected=true] .np-plus { color:#fff; }
 
   /* -- mobile deltas -- */
   @media (max-width: 700px) {
@@ -1171,6 +1202,36 @@ function isInbox(path, stage = "any", kind = null) {
   return !!it && (stage === "any" || it.stage === stage) && (!kind || it.kind === kind);
 }
 const inboxOf = (tree, stage, kind) => tree.filter(e => isInbox(e.path, stage, kind));
+
+/* A capture's STEM is its identity. `capturePath` writes `inbox/<stem>.md` and the beat
+   files it to `inbox/processed/YYYY-MM/<stem>.md` keeping the basename, so the stem
+   survives the move and the path does not. Anything that has to refer to a capture
+   across its own filing — `addendum-to:` above all — must use this. */
+const stemOf = path => String(path).split("/").pop().replace(/\.md$/, "");
+
+/* What the beat wrote onto a capture when it filed it, plus what the capture points at.
+   One definition: Search asks it whether a capture inherits a hidden page's hiddenness,
+   and the notebook asks it what a note became and which thread it belongs to. */
+function captureMeta(text) {
+  const fm = /^---\n([\s\S]*?)\n---/.exec(String(text || ""));
+  if (!fm) return { became: [], filed: "", addendumTo: "" };
+  const grab = k => (new RegExp("^" + k + ":\\s*(.+)$", "m").exec(fm[1]) || [, ""])[1].trim();
+  const became = grab("became");
+  return {
+    /* `became:` holds repo paths (`wiki/gardening.md`, `index.md`), not wikilinks —
+       resolveLink's path branch is what keeps `wiki/gardening.md` from slugifying into
+       `wiki-gardening-md` and linking to a page that cannot exist. */
+    became: became
+      ? (became.match(/\[\[([^\]|]+)\]\]/g) || became.split(/[,\s]+/))
+          .map(x => x.replace(/[\[\]]/g, "").trim()).filter(Boolean)
+          .map(x => (x.includes("/") || x.endsWith(".md")) ? x : slugify(x)).filter(Boolean)
+      : [],
+    filed: grab("filed"),
+    addendumTo: stemOf(grab("addendum-to")),   // tolerate a path if one ever appears
+  };
+}
+/* The repo path a `became:` entry names, so hiddenness can be asked about it. */
+const becamePath = b => b.includes("/") ? b : `wiki/${b}.md`;
 
 /* --- wikilink target. Five copies of this existed; four branched on "/" and the
    fifth slugified the whole path, so `[[wiki/gardening.md]]` rendered as
@@ -3020,6 +3081,12 @@ const Explorer = (() => {
       "Surface": tree.filter(e => /^surface\/.+\.md$/.test(e.path)).slice(-14).reverse(),
       "Sessions · claude": sess("claude").filter(e => !isHid(e)),
       "Sessions · gemini": sess("gemini").filter(e => !isHid(e)),
+      /* Captures had no home in the tree at all, so Notepad's "View capture" opened a
+         file you could never have browsed to. Newest first, pending above filed. Row
+         labels are stems (`2026-08-03-131001-note`) and carry no content, so a hidden
+         topic cannot leak through the index — hiddenness is inherited from `became:`,
+         which needs the file body, and the tree does not read bodies. */
+      "Captures": [...inboxOf(tree, "pending"), ...inboxOf(tree, "processed")],
       "Root": tree.filter(e => /^(index|log)\.md$/.test(e.path)),
       "Hidden": [...wiki, ...sess("claude"), ...sess("gemini")].filter(isHid),
     };
@@ -3032,17 +3099,19 @@ const Explorer = (() => {
       if (g === "Hidden") det.addEventListener("toggle", () => { HIDDEN_OPEN = det.open; });
       det.innerHTML = `<summary>${g} (${items.length})</summary>`;
       const ul = document.createElement("ul");
-      if (g !== "Surface") items.sort((a, b) => a.path.localeCompare(b.path)); // Surface stays newest-first
+      if (g !== "Surface" && g !== "Captures") items.sort((a, b) => a.path.localeCompare(b.path));
       if (g.startsWith("Sessions")) items.reverse(); // episodic tier: newest first
+      if (g === "Captures") items.sort((a, b) => stemOf(b.path).localeCompare(stemOf(a.path)));
       const build = () => items.forEach(e => {
         const item = document.createElement("li");
-        const label = e.path.replace(/^(wiki|protocol|surface|sessions\/\w+)\//, "").replace(/\.md$/, "");
+        const label = isInbox(e.path) ? stemOf(e.path)
+          : e.path.replace(/^(wiki|protocol|surface|sessions\/\w+)\//, "").replace(/\.md$/, "");
         item.innerHTML = `<span>${label}</span>`;
         item.dataset.path = e.path;
         item.addEventListener("click", ev => { ev.stopPropagation(); openPath(e.path); });
         ul.appendChild(item);
       });
-      if (g.startsWith("Sessions")) { // lazy: 600+ episodic files build on first expand
+      if (g.startsWith("Sessions") || g === "Captures") { // lazy: build on first expand
         det.addEventListener("toggle", () => {
           if (det.open && !ul.childElementCount) { build(); markSelected(); } }, { once: false });
       } else build();
@@ -3576,7 +3645,7 @@ const Explorer = (() => {
     }
     flushing = false;
     paintOutbox();
-    if (sent) { Search.invalidate(); if (mode === "prior") await renderPrior(true); }
+    if (sent) { Search.invalidate(); if (mode === "notebook") await renderBook(true); }
     if (sent && !kept) say(sent === 1 ? "Sent — 1 capture is in the inbox." : `Sent — ${sent} captures are in the inbox.`);
     else if (kept) say(`Offline — ${outbox().length} capture${outbox().length === 1 ? "" : "s"} held here. Nothing is lost.`);
     return sent;
@@ -3609,7 +3678,7 @@ const Explorer = (() => {
     const n = outbox().length;
     f.textContent = `Outbox: ${n}`;
     f.style.fontWeight = n ? "bold" : "normal";
-    const ob = $("#np-p-outbox");
+    const ob = $("#np-b-outbox");
     if (ob) ob.querySelector(".lb").textContent = `Outbox (${n})`;
   }
 
@@ -3725,7 +3794,12 @@ const Explorer = (() => {
     : acAlone() || !PAGES.hidden ? PAGES.list.length
     : PAGES.list.filter(x => !PAGES.hidden.has(x)).length;
   Object.assign(PFCT, { noteLoadPages: loadPages, noteAcPool: () => acPool(),
-                     noteEntHas: slug => !!(ENTS.map && ENTS.map.has(slug)) });
+                     noteEntHas: slug => !!(ENTS.map && ENTS.map.has(slug)),
+                     bookRender: renderBook, bookRows: () => rows, bookVisible: visible,
+                     bookThread: thread, bookAct: act, bookMonths: () => months,
+                     bookAppendTo: () => appendTo,
+                     bookScope: m => { scopeMonth = m; scopeTouched = true;
+                                       paintRows(); paintDetail(); } });
   function acOpen(q, start) {
     if (!PAGES || composing) return acClose();
     const t = q.toLowerCase();
@@ -3825,13 +3899,14 @@ const Explorer = (() => {
     acOpen(q, acStart);
   }
 
-  /* ================================================================= Prior (§8) */
-  let rows = [], selRow = -1, priorFilter = "all", gists = new Map();
+  /* ============================================================== Notebook (§8) */
+  let rows = [], selRow = -1, bookFilter = "all", gists = new Map(), bodies = new Map();
+  let scopeMonth = null, scopeTouched = false, months = [];   // "YYYY-MM", or null for all
   const KINDS = { note: "note", oracle: "oracle", flag: "flag", gate: "gate", web: "note" };
   function stampOf(p) {
     const m = /(\d{4})-(\d{2})-(\d{2})-(\d{2})(\d{2})(\d{2})?-([a-z0-9]+)\.md$/.exec(p);
-    if (!m) return { when: "", kind: "note", d: null };
-    return { when: `${m[4]}:${m[5]}`, kind: KINDS[m[7]] || m[7],
+    if (!m) return { when: "", kind: "note", d: null, month: "" };
+    return { when: `${m[4]}:${m[5]}`, kind: KINDS[m[7]] || m[7], month: `${m[1]}-${m[2]}`,
       d: new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)) };
   }
   const gistOf = t => {
@@ -3839,36 +3914,21 @@ const Explorer = (() => {
       .find(l => l.trim()) || "";
     return b.replace(/[#*`\[\]]/g, "").trim().slice(0, 72);
   };
-  /* What a capture became, and when — written by the beat when it files the capture.
-     Absent today: inbox/processed/** carries only `captured:` and `via:`, so the
-     fourth cell shows a time of — and the detail says "filed by the beat". The
-     moment INGEST writes these two keys the ledger fills in with no change here. */
-  function filedMeta(text) {
-    const fm = /^---\n([\s\S]*?)\n---/.exec(text);
-    if (!fm) return {};
-    const became = /^became:\s*(.+)$/m.exec(fm[1]);
-    const when = /^filed:\s*(.+)$/m.exec(fm[1]);
-    const d = when && new Date(when[1].trim());
-    return {
-      /* `became:` holds repo paths (`wiki/gardening.md`, `index.md`), not wikilinks.
-         Every other resolver in the app branches on a "/" before slugifying; this one
-         did not, so `wiki/gardening.md` rendered as "wiki-gardening-md" and linked to
-         a page that cannot exist. Paths pass through; bare names still slugify. */
-      became: became ? (became[1].match(/\[\[([^\]|]+)\]\]/g) || became[1].split(/[,\s]+/))
-        .map(x => x.replace(/[\[\]]/g, "").trim())
-        .filter(Boolean)
-        .map(x => x.includes("/") || x.endsWith(".md") ? x : slugify(x))
-        .filter(Boolean) : [],
-      filed: d && !isNaN(d) ? hhmm(d) : "",
-    };
-  }
+  const bodyOf = t => String(t || "").replace(/^---\n[\s\S]*?\n---\n?/, "").trim();
+  const MON_LONG = ["January", "February", "March", "April", "May", "June", "July",
+    "August", "September", "October", "November", "December"];
+  const monthLabel = m => m ? `${MON_LONG[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}` : "Everything";
 
-  async function renderPrior(force) {
-    const list = $("#np-plist");
+  /* What a capture became, when, and which thread it belongs to — `captureMeta` at the
+     top of the script is the one definition; this window just asks it. */
+
+  async function renderBook(force) {
+    const list = $("#np-blist");
     if (!list) return;
     const q = outbox().map(it => ({
-      id: it.id, kind: it.kind, path: it.path, stage: "queued",
-      name: gistOf(it.body) || "(no text)", ts: it.ts, when: hhmm(new Date(it.ts)), item: it }));
+      id: it.id, kind: it.kind, path: it.path, stage: "queued", stem: stemOf(it.path),
+      name: gistOf(it.body) || "(no text)", ts: it.ts, when: hhmm(new Date(it.ts)),
+      month: stampOf(it.path).month, item: it }));
     let tree = [];
     if (!list.dataset.loaded || force) list.innerHTML =
       `<div class="np-empty">Reading the ledger…</div>`;
@@ -3877,62 +3937,130 @@ const Explorer = (() => {
     }
     const log = sentLog();
     const mk = (p, stage) => {
-      const s = stampOf(p);
-      return { id: p, kind: s.kind, path: p, stage, ts: s.d ? s.d.getTime() : 0,
-        when: s.when, name: gists.get(p) || "", queued: log[p] && log[p].queued || null };
+      const st = stampOf(p);
+      const known = bodies.has(p) ? captureMeta(bodies.get(p)) : null;
+      return { id: p, kind: st.kind, path: p, stage, ts: st.d ? st.d.getTime() : 0,
+        stem: stemOf(p), month: st.month, when: st.when, name: gists.get(p) || "",
+        queued: log[p] && log[p].queued || null,
+        became: known ? known.became : undefined,
+        filed: known && known.filed ? hhmm(new Date(known.filed)) : "",
+        addendumTo: known ? known.addendumTo : "" };
     };
-    const pushed = inboxOf(tree, "pending")
-      .map(e => mk(e.path, "pushed"));
-    const filed = inboxOf(tree, "processed")
-      .map(e => mk(e.path, "filed"));
+    const pushed = inboxOf(tree, "pending").map(e => mk(e.path, "pushed"));
+    const filed  = inboxOf(tree, "processed").map(e => mk(e.path, "filed"));
+
+    /* The months rail is free: `inbox/processed/YYYY-MM/` IS the filing structure, so
+       the scope list comes straight off the tree with no extra reads. This is what
+       replaced the old `slice(0, 30)` — that cap was the wrong fix for a real fetch
+       cost, and it made every note older than the last thirty unreachable in the app. */
+      months = [...new Set([...pushed, ...filed, ...q].map(r => r.month).filter(Boolean))]
+      .sort().reverse();
+    if (scopeMonth && !months.includes(scopeMonth)) scopeMonth = null;
+    if (scopeMonth === null && !scopeTouched) scopeMonth = months[0] || null;
+
     rows = q.concat(pushed, filed).sort((a, b) => b.ts - a.ts);
-    if (filed.length > 30) rows = rows.filter(r => r.stage !== "filed").concat(
-      filed.sort((a, b) => b.ts - a.ts).slice(0, 30)).sort((a, b) => b.ts - a.ts);
     list.dataset.loaded = "1";
+    paintScope();
     paintRows();
-    if (selRow < 0 && rows.length) select(0);
-    fetchGists();
+    if (selRow < 0 && visible().length) select(rows.indexOf(visible()[0]));
+    fetchBodies();
   }
+
+  /* Anything unfiled is always in view whatever the month — a pending note is live
+     work, not archive, and hiding August's outbox because you are reading June would
+     be the notebook lying about what is waiting. */
+  const inScope = r => r.stage !== "filed" || !scopeMonth || r.month === scopeMonth;
   function visible() {
-    return rows.filter(r => priorFilter === "all" ? true
-      : priorFilter === "outbox" ? r.stage === "queued" : r.stage === "filed");
+    const base = rows.filter(r => bookFilter === "all" ? inScope(r)
+      : bookFilter === "outbox" ? r.stage === "queued"
+      : r.stage === "filed" && inScope(r));
+    return thread(base);
   }
+  /* Addenda sit under the note they extend, oldest first, so a thread reads in the
+     order it was thought. An addendum whose root is out of scope stands on its own
+     rather than vanishing — see the limit noted in docs/notebook.md. */
+  function thread(list) {
+    const byStem = new Map(list.map(r => [r.stem, r]));
+    const kids = new Map();
+    for (const r of list) {
+      if (r.addendumTo && byStem.has(r.addendumTo)) {
+        if (!kids.has(r.addendumTo)) kids.set(r.addendumTo, []);
+        kids.get(r.addendumTo).push(r);
+      }
+    }
+    const out = [];
+    for (const r of list) {
+      if (r.addendumTo && byStem.has(r.addendumTo)) continue;   // emitted under its root
+      out.push(r);
+      for (const k of (kids.get(r.stem) || []).sort((a, b) => a.ts - b.ts))
+        out.push(Object.assign(k, { nested: true }));
+    }
+    return out;
+  }
+
   const CELLS = { queued: ["on", "on", "", ""], pushed: ["on", "skip", "on", ""],
     filed: ["on", "skip", "on", "on"] };
+  function paintScope() {
+    const sel = $("#np-month");
+    if (!sel) return;
+    sel.innerHTML = `<option value="">Everything</option>` +
+      months.map(m => `<option value="${esc(m)}"${m === scopeMonth ? " selected" : ""}>` +
+        `${esc(monthLabel(m))}</option>`).join("");
+    sel.value = scopeMonth || "";
+  }
   function paintRows() {
-    const list = $("#np-plist"); if (!list) return;
+    const list = $("#np-blist"); if (!list) return;
     const vis = visible();
     if (!vis.length) {
-      list.innerHTML = `<div class="np-empty">${priorFilter === "outbox"
+      list.innerHTML = `<div class="np-empty">${bookFilter === "outbox"
         ? "Outbox empty — everything you wrote is at the origin."
+        : scopeMonth ? `Nothing kept in ${esc(monthLabel(scopeMonth))}.`
         : "Nothing here yet."}</div>`;
+      say(scoped(0));
       return;
     }
     list.innerHTML = vis.map(r => {
       const c = (r.queued ? ["on", "on", "on", r.stage === "filed" ? "on" : ""] : CELLS[r.stage]);
-      return `<div class="np-row" data-id="${esc(r.id)}" aria-selected="${r.id === (rows[selRow] || {}).id}">
+      return `<div class="np-row${r.nested ? " np-sub" : ""}" data-id="${esc(r.id)}"
+        aria-selected="${r.id === (rows[selRow] || {}).id}">
         <span class="g">${c.map(x => `<i class="${x}"></i>`).join("")}</span>
-        <span class="n">${esc(r.kind)} — ${esc(r.name || "…")}</span>
+        <span class="n">${r.nested ? `<i class="np-plus">+</i>` : ""}${esc(r.kind)} — ${esc(r.name || "…")}</span>
         <span class="st">${r.stage}</span><span class="wh">${esc(r.when)}</span></div>`;
     }).join("");
     list.querySelectorAll(".np-row").forEach(el => el.addEventListener("click", () =>
       select(rows.findIndex(r => r.id === el.dataset.id))));
-    say(`${rows.length ? (vis.findIndex(r => r.id === (rows[selRow] || {}).id) + 1) : 0} of ${vis.length}` +
-      ` · ${rows.filter(r => r.stage === "queued").length} in the outbox`);
+    say(scoped(vis.length));
   }
-  async function fetchGists() {
-    const want = visible().filter(r => r.stage !== "queued" && !gists.has(r.path)).slice(0, 18);
+  /* The status line names the scope it is counting, so a number can never imply the
+     whole notebook when it is describing one month. */
+  function scoped(n) {
+    const pend = rows.filter(r => r.stage !== "filed").length;
+    const where = bookFilter === "outbox" ? "Outbox"
+      : scopeMonth ? monthLabel(scopeMonth) : "Everything";
+    return `${where} · ${plural(n, "note")}` + (pend ? ` · ${pend} pending` : "");
+  }
+  /* Bodies, not gists. The old fetch downloaded the whole file to make a 72-character
+     summary and threw the rest away, which is why you had to leave Notepad+++ to read
+     something you wrote in it. */
+  async function fetchBodies() {
+    const want = visible().filter(r => r.stage !== "queued" && !bodies.has(r.path)).slice(0, 24);
     for (let i = 0; i < want.length; i += 4) {
       await Promise.all(want.slice(i, i + 4).map(async r => {
         try {
           const t = await getFile(r.path);
+          bodies.set(r.path, t);
           gists.set(r.path, gistOf(t));
-          const meta = r.stage === "filed" ? filedMeta(t) : {};
+          const m = captureMeta(t);
           const row = rows.find(x => x.id === r.id);
-          if (row) { row.name = gists.get(r.path); Object.assign(row, meta); }
-        } catch (e) { gists.set(r.path, r.path.split("/").pop().replace(/\.md$/, "")); }
+          if (row) Object.assign(row, { name: gists.get(r.path), became: m.became,
+            addendumTo: m.addendumTo,
+            filed: m.filed ? hhmm(new Date(m.filed)) : "" });
+        } catch (e) {
+          gists.set(r.path, stemOf(r.path));
+          bodies.set(r.path, "");           // read once, fail once; the row says so
+        }
       }));
-      if (mode === "prior") { paintRows(); paintDetail(); }
+      if (mode === "notebook") { paintRows(); paintDetail(); }
     }
   }
   function select(i) {
@@ -3945,14 +4073,13 @@ const Explorer = (() => {
       `<div class="${cells[i][0] ? "on" : ""}">${l}<b>${cells[i][1] || "—"}</b></div>`).join("")}</div>`;
   }
   async function paintDetail() {
-    const d = $("#np-pdetail"); if (!d) return;
+    const d = $("#np-bdetail"); if (!d) return;
     const r = rows[selRow];
     if (!r) { d.innerHTML = ""; return; }
     const c = (r.queued ? ["on", "on", "on", r.stage === "filed" ? "on" : ""] : CELLS[r.stage]);
     const t = r.when;
     const times = [t, r.stage === "queued" || r.queued ? t : "",
       r.stage !== "queued" ? t : "", r.filed || ""];
-    const stem = r.path.split("/").pop().replace(/\.md$/, "");
     let prose, acts;
     if (r.stage === "queued") {
       prose = "Waiting for a connection. Held in this browser — nothing is lost.";
@@ -3960,29 +4087,54 @@ const Explorer = (() => {
               <button data-a="discard">Discard</button>`;
     } else if (r.stage === "pushed") {
       prose = "In <code>inbox/</code>. The next beat reads it.";
+      /* Editable precisely while nobody has read it. Append is for after that. */
       acts = `<button data-a="open">Open</button><button data-a="edit">Edit</button>`;
     } else {
       const became = r.became || [];
       prose = became.length
         ? `Became ${became.map(s => `<a class="wikilink" data-page="${esc(s)}">${esc(PAGES && PAGES.title.get(s) || s)}</a>`).join(" · ")} — filed by the beat.`
+        : r.became === undefined ? "Filed by the beat — reading what it became…"
         : "Filed by the beat — it is part of the wiki now.";
-      acts = `<button data-a="open">View capture</button>`;
+      acts = `<button data-a="append" class="default">Add to this</button>
+              <button data-a="open">View capture</button>`;
     }
-    d.innerHTML = `<div class="hd">${esc(stem)} — ${esc(r.name || "…")}</div>
+    /* The text, in the window you wrote it in. */
+    const raw = r.stage === "queued" ? bodyOf(r.item.body)
+      : bodies.has(r.path) ? bodyOf(bodies.get(r.path)) : null;
+    const text = raw === null ? `<i class="np-dim">Reading…</i>`
+      : raw ? esc(raw) : `<i class="np-dim">Could not read this capture.</i>`;
+    const parent = r.addendumTo
+      ? `<div class="np-parent">Addendum to <a data-jump="${esc(r.addendumTo)}">${esc(r.addendumTo)}</a></div>`
+      : "";
+    d.innerHTML = `<div class="hd">${esc(r.stem)}</div>
+      ${parent}<div class="np-body">${text}</div>
       ${jt(c.map((x, i) => [x, times[i]]))}
       <p class="np-became">${prose}</p><div class="np-acts">${acts}</div>`;
     d.querySelectorAll("a.wikilink").forEach(a => a.addEventListener("click", () => {
       WM.show("explorer"); Explorer.openPage(a.dataset.page);
     }));
+    d.querySelectorAll("[data-jump]").forEach(a => a.addEventListener("click", () => {
+      const i = rows.findIndex(x => x.stem === a.dataset.jump);
+      if (i >= 0) select(i); else say("That note is outside the current scope.");
+    }));
     d.querySelectorAll("[data-a]").forEach(b => b.addEventListener("click", () => act(b.dataset.a, r)));
   }
   async function act(a, r) {
-    if (a === "send") { say("Sending…"); await flush(true); renderPrior(); return; }
+    if (a === "send") { say("Sending…"); await flush(true); renderBook(); return; }
     if (a === "discard") {
       setOutbox(outbox().filter(x => x.id !== r.id));
-      paintOutbox(); selRow = -1; renderPrior(); say("Discarded."); return;
+      paintOutbox(); selRow = -1; renderBook(); say("Discarded."); return;
     }
     if (a === "open") { WM.show("explorer"); Explorer.openPath(r.path); return; }
+    if (a === "append") {
+      /* Flat, never chained: appending to an addendum points at the ROOT note. Chains
+         would make thread reconstruction recursive and give one thought two shapes. */
+      const root = r.addendumTo || r.stem;
+      setAppendTo({ stem: root, gist: (rows.find(x => x.stem === root) || r).name || root });
+      setMode("write"); ta.focus(); recount(); scheduleSave();
+      say(`Adding to ${root} — the beat files this as an addendum.`);
+      return;
+    }
     if (a === "edit") {
       if (r.stage === "queued") {
         const b = r.item.body.replace(/^---\n[\s\S]*?\n---\n?/, "");
@@ -4017,7 +4169,30 @@ const Explorer = (() => {
     saveBtn.textContent = editing ? "Save changes"
       : dest === "page" && destPage
         ? `Append to ${(PAGES && PAGES.title.get(destPage)) || destPage}`
+        : appendTo ? "Add to note"
         : "Save to inbox";
+  }
+  /* The note being extended, or null. Held as a STEM, never a path: the beat moves a
+     capture from inbox/<stem>.md to inbox/processed/YYYY-MM/<stem>.md, so a path here
+     would go stale the moment the parent was filed — silently, and only for notes
+     appended to before their first beat. */
+  let appendTo = null;
+  function setAppendTo(a) {
+    appendTo = a;
+    const bar = $("#np-append");
+    if (!bar) return;
+    bar.hidden = !a;
+    if (a) bar.innerHTML = `<span class="lb">Adding to</span> ` +
+      `<a data-jump="1">${esc(a.gist || a.stem)}</a>` +
+      `<span class="sp"></span><button id="np-append-x" title="Write a new note instead">Cancel</button>`;
+    const x = bar.querySelector("#np-append-x");
+    if (x) x.onclick = () => { setAppendTo(null); say("New note."); };
+    const j = bar.querySelector("[data-jump]");
+    if (j) j.onclick = () => {
+      const i = rows.findIndex(x => x.stem === a.stem);
+      setMode("notebook"); if (i >= 0) select(i);
+    };
+    paintSave();
   }
   function setKind(k) {
     kind = k;
@@ -4029,8 +4204,8 @@ const Explorer = (() => {
     body().querySelectorAll("[role=tab]").forEach(li =>
       li.setAttribute("aria-selected", li.dataset.tab === tab));
     $("#np-write").style.display = tab === "write" ? "flex" : "none";
-    $("#np-prior").style.display = tab === "prior" ? "flex" : "none";
-    if (tab === "prior") { renderPrior(); const l = $("#np-plist"); if (l) l.focus(); }
+    $("#np-book").style.display = tab === "notebook" ? "flex" : "none";
+    if (tab === "notebook") { renderBook(); const l = $("#np-blist"); if (l) l.focus(); }
     else { ta.focus(); paintTidy(); }
   }
 
@@ -4060,6 +4235,7 @@ const Explorer = (() => {
         const now = new Date();
         const meta = { input: "typed" };
         if (heard != null && heard !== text) meta.heard = heard;
+        if (appendTo) meta["addendum-to"] = appendTo.stem;   // stem, not path (see setAppendTo)
         const item = { id: `${now.getTime()}-${Math.random().toString(36).slice(2, 7)}`,
           path: capturePath(kind, now), kind, ts: now.getTime(), tries: 0,
           body: captureBody(text, kind, meta, now) };
@@ -4072,7 +4248,7 @@ const Explorer = (() => {
       }
     } catch (e) {
       if (editing && /409|422|GitHub 4/.test(e.message)) {
-        say("Changed upstream — the brain likely filed it. Check Prior for its new home.");
+        say("Changed upstream — the brain likely filed it. Check the Notebook for its new home.");
         setEditing(null);
       } else say(
         e.message === "auth" ? "Token was refused (401)." :
@@ -4086,6 +4262,9 @@ const Explorer = (() => {
   function clearField() {
     writeField("");
     undoBefore = null; heard = null; editing = null;
+    /* Clearing ends the thread too. Leaving appendTo set would silently attach the
+       NEXT unrelated thought to someone else's note. */
+    if (appendTo) setAppendTo(null);
     localStorage.removeItem(LSK.draft); draftAt = null;
     acClose(); recount(); paintDraft(); paintSave();
   }
@@ -4129,7 +4308,7 @@ const Explorer = (() => {
       <div class="np-tabs">
         <menu role="tablist">
           <li role="tab" data-tab="write" aria-selected="true"><a href="#w">Write</a></li>
-          <li role="tab" data-tab="prior" aria-selected="false"><a href="#p">Prior</a></li>
+          <li role="tab" data-tab="notebook" aria-selected="false"><a href="#p">Notebook</a></li>
         </menu>
       </div>
       <div id="np-write">
@@ -4141,6 +4320,7 @@ const Explorer = (() => {
           <button class="np-tb" id="np-tidy" disabled title="Nothing to tidy">
             <img data-icon="tidy" data-sz="16" alt=""><span class="lb">Tidy</span></button>
         </div>
+        <div class="np-append" id="np-append" hidden></div>
         <textarea id="np-text" rows="8" lang="en" spellcheck="true"
           autocapitalize="sentences" autocorrect="on" autocomplete="off"
           inputmode="text" enterkeyhint="enter"
@@ -4158,16 +4338,17 @@ const Explorer = (() => {
           <button class="np-save default" id="np-save" disabled>Save to inbox</button>
         </div>
       </div>
-      <div id="np-prior" style="display:none">
+      <div id="np-book" style="display:none">
         <div class="np-ptools">
           <button class="np-tb" data-pf="all" aria-pressed="true"><span class="lb">All</span></button>
-          <button class="np-tb" id="np-p-outbox" data-pf="outbox" aria-pressed="false"><span class="lb">Outbox (0)</span></button>
+          <button class="np-tb" id="np-b-outbox" data-pf="outbox" aria-pressed="false"><span class="lb">Outbox (0)</span></button>
           <button class="np-tb" data-pf="filed" aria-pressed="false"><span class="lb">Filed</span></button>
+          <select id="np-month" title="Which month of the notebook to show"></select>
           <span class="sp"></span>
           <button class="np-tb" id="np-refresh"><span class="lb">Refresh</span></button>
         </div>
-        <div class="np-list" id="np-plist" tabindex="0"></div>
-        <div class="np-detail" id="np-pdetail"></div>
+        <div class="np-list" id="np-blist" tabindex="0"></div>
+        <div class="np-detail" id="np-bdetail"></div>
       </div>`;
     const sb = document.querySelector("#win-note .status-bar");
     sb.innerHTML =
@@ -4196,13 +4377,18 @@ const Explorer = (() => {
     b.querySelectorAll("[data-kind]").forEach(btn => btn.addEventListener("click", () => {
       setKind(btn.dataset.kind); ta.focus(); scheduleSave();
     }));
+    b.querySelector("#np-month").addEventListener("change", e => {
+      scopeMonth = e.target.value || null;
+      scopeTouched = true;              // an explicit "Everything" must survive a re-render
+      selRow = -1; paintRows(); paintDetail(); fetchBodies();
+    });
     b.querySelectorAll("[data-pf]").forEach(btn => btn.addEventListener("click", () => {
-      priorFilter = btn.dataset.pf;
+      bookFilter = btn.dataset.pf;
       b.querySelectorAll("[data-pf]").forEach(x =>
-        x.setAttribute("aria-pressed", x.dataset.pf === priorFilter));
+        x.setAttribute("aria-pressed", x.dataset.pf === bookFilter));
       paintRows(); paintDetail();
     }));
-    b.querySelector("#np-refresh").addEventListener("click", () => renderPrior(true));
+    b.querySelector("#np-refresh").addEventListener("click", () => renderBook(true));
     tidyBtn.addEventListener("click", doTidy);
     clearBtn.addEventListener("click", () => {
       if (inFlight()) { defer(() => clearBtn.click()); return; }
@@ -4240,14 +4426,14 @@ const Explorer = (() => {
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "t") {
         e.preventDefault(); if (!tidyBtn.disabled) doTidy();
       } else if (e.ctrlKey && e.key === "Tab") {
-        e.preventDefault(); setMode(mode === "write" ? "prior" : "write");
-      } else if (mode === "prior" && /^Arrow(Up|Down)$/.test(e.key)) {
+        e.preventDefault(); setMode(mode === "write" ? "notebook" : "write");
+      } else if (mode === "notebook" && /^Arrow(Up|Down)$/.test(e.key)) {
         const vis = visible(); if (!vis.length) return;
         e.preventDefault();
         const at = vis.findIndex(r => r.id === (rows[selRow] || {}).id);
         const nxt = vis[Math.max(0, Math.min(vis.length - 1, at + (e.key === "ArrowDown" ? 1 : -1)))];
         select(rows.findIndex(r => r.id === nxt.id));
-      } else if (mode === "prior" && e.key === "Enter") {
+      } else if (mode === "notebook" && e.key === "Enter") {
         const r = rows[selRow];
         if (r) { e.preventDefault(); act(r.stage === "queued" ? "edit" : "open", r); }
       }
@@ -4399,8 +4585,12 @@ const Search = (() => {
     if (indexPromise) return indexPromise; // in-flight or done: reuse the same promise
     indexPromise = (async () => {
       const tree = await getTree();
+      /* Captures are indexed too, as of 2026-08-04. Every other tier was searchable and
+         `inbox/` was not — so the one thing Andrew actually types was the one thing he
+         could not find again. */
       const paths = tree.filter(e => /\.md$/.test(e.path) &&
-        (/^(wiki|protocol|surface)\//.test(e.path) || /^(index|log)\.md$/.test(e.path)))
+        (/^(wiki|protocol|surface)\//.test(e.path) || /^(index|log)\.md$/.test(e.path)
+         || isInbox(e.path)))
         .map(e => e.path);
       const { docs, missed, fatal } = await readMany(paths);
       /* Never memoise a partial index. This is the whole bug: one blip during the
@@ -4416,7 +4606,17 @@ const Search = (() => {
   async function visible(docs) { // hidden pages rejoin Search only while the Hidden group is expanded
     if (typeof Explorer !== "undefined" && Explorer.hiddenOpen && Explorer.hiddenOpen()) return docs;
     const hid = await getHidden();
-    return docs.filter(d => !isHiddenPath(d.path, hid));
+    if (!hid.size) return docs;
+    return docs.filter(d => {
+      if (isHiddenPath(d.path, hid)) return false;
+      /* A capture has no slug of its own, so it inherits the hiddenness of what it
+         BECAME — the capture's filing is its topic, which is the same reasoning that
+         extends hiding to the sessions a slug names. A pending capture has no `became:`
+         yet, is unfiled and unread by anyone, and stays indexed. */
+      if (isInbox(d.path))
+        return !captureMeta(d.text).became.some(b => isHiddenPath(becamePath(b), hid));
+      return true;
+    });
   }
   APPS.search.onOpen = () => {
     const body = document.querySelector("#win-search .window-body");
