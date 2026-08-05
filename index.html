@@ -661,8 +661,11 @@
       </div>
       <div class="field-row">
         <label for="token-input">Token</label>
+        <!-- min-width:0 — a flex item's automatic minimum is its intrinsic width,
+             and an input's is ~20 characters, so it refuses to shrink and pushes
+             itself out through the dialog's right bevel on a narrow phone. -->
         <input id="token-input" type="password" placeholder="github_pat_…"
-               autocomplete="off" style="flex:1">
+               autocomplete="off" style="flex:1; min-width:0">
       </div>
       <p id="logon-err" style="color:#800000; font-size:11px;"></p>
       <section class="field-row" style="justify-content: flex-end; gap: 6px;">
