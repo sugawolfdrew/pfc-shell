@@ -30,13 +30,31 @@
   html.sim { --safe: 70px; }
   /* The dead zone under the Start bar: an Active-Desktop-style ticker.
      Non-interactive on purpose — it lives in the home-gesture area. */
-  #ticker { position: absolute; left: 4px; right: 4px; bottom: 3px;
-            height: calc(var(--safe) - 7px); overflow: hidden; background: #000;
-            box-shadow: inset -1px -1px #fff, inset 1px 1px #808080;
+  /* Full-bleed, and no bevel. The 98 sunken border (inset #fff / #808080) framed this
+     as a *control* — a sunken well set into the chrome. It is not one: it is
+     non-interactive, and the frame was the only thing keeping it from reading as what
+     it actually is, a lit strip of screen. Edge to edge, so the black runs into the
+     device bezel with nothing between. left/right/bottom 0 against #taskbar, which is
+     itself fixed to the viewport edges, and the height is now the whole dead zone
+     rather than 7px shy of it. */
+  #ticker { position: absolute; left: 0; right: 0; bottom: 0;
+            height: var(--safe); overflow: hidden; background: #000;
+            /* Phosphor: the haze a CRT throws onto its own glass around lit pixels.
+               Inset so the bloom stays inside the bar and never bleeds onto the
+               taskbar's grey — a green halo on #c0c0c0 would read as a rendering
+               fault rather than as light. */
+            box-shadow: inset 0 0 26px rgba(0, 255, 0, 0.13),
+                        inset 0 0 60px rgba(0, 255, 0, 0.06);
             pointer-events: none; }
   #ticker .tape { position: absolute; white-space: nowrap; color: #00ff00;
                   font-family: "Courier New", monospace; font-size: 14px; font-weight: bold;
-                  line-height: calc(var(--safe) - 7px);
+                  line-height: var(--safe);
+                  /* Two radii, not one: a tight core that keeps the glyphs legible and
+                     a wide diffuse bloom. A single large shadow just makes the text
+                     look out of focus. */
+                  text-shadow: 0 0 4px rgba(0, 255, 0, 0.95),
+                               0 0 11px rgba(0, 255, 0, 0.55),
+                               0 0 22px rgba(0, 255, 0, 0.28);
                   animation: tick 40s linear infinite; }
   @keyframes tick { from { transform: translateX(0); } to { transform: translateX(-50%); } }
   html, body { height: 100%; margin: 0; overflow: hidden; }
