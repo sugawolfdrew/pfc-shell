@@ -1469,7 +1469,14 @@ function renderMd(md, el) {
   ).join("");
   let chips = "";
   ["type", "created", "updated", "tags"].forEach(k => {
-    if (meta[k]) chips += `<span class="frontmatter-chip">${k}: ${meta[k].replace(/[\[\]]/g, "")}</span>`;
+    /* escHtml, not just bracket-stripping. The body below goes through
+       scrubHtml and the frontmatter did not, so a `title:` or `tags:` value was
+       the one path into this innerHTML that nothing sanitised -- and frontmatter
+       is written by beats distilling untrusted third-party text out of the
+       session corpora, which is exactly where a crafted value would come from.
+       The bracket strip stays: it is cosmetic, so `tags: [a, b]` reads as
+       `tags: a, b`. Strip first, then escape. */
+    if (meta[k]) chips += `<span class="frontmatter-chip">${k}: ${escHtml(String(meta[k]).replace(/[\[\]]/g, ""))}</span>`;
   });
   el.innerHTML = (chips ? `<div style="padding:8px 14px 0">${chips}</div>` : "") +
                  `<div class="md">${scrubHtml(html)}</div>`;
@@ -2316,7 +2323,21 @@ const Surface = (() => {
     let best = null;
     for (const o of logOps(log)) {                     // one parser; see LOG_RX
       if (o.verb !== "heartbeat") continue;
-      const when = new Date(`${o.day}T${o.time || "00:00"}${o.time.length === 5 ? ":00" : ""}`);
+      /* Z, not local. log.md times are written by beats running on UTC clocks
+         (verified: `## [2026-08-05 13:20] heartbeat` against its own commit at
+         13:19 UTC). Parsed without the Z the browser reads them as Pacific and
+         the beat comes out SEVEN HOURS YOUNGER than it is -- an error that only
+         ever points one way, toward "fresher than reality". On 2026-08-05, with
+         the brain 16h32m dark, this line rendered a green KEPT badge. The one
+         instrument that exists to say the brain is dead was the last thing
+         still claiming it was alive.
+         `t` is bound first because o.time is "" when the entry carries no time
+         (logOps: `m[2] || ""`), and `"".length === 5` is false while
+         `"00:00".length === 5` is true -- testing the raw value would append
+         ":00" to nothing and build the string ":00". */
+      const t   = o.time || "00:00";
+      const hms = t.length === 5 ? `${t}:00` : t;
+      const when = new Date(`${o.day}T${hms}Z`);
       if (!best || when > best) best = when;
     }
     if (!best || isNaN(best)) return { state: "COLD", key: "cold", frac: 0, h: null,
@@ -4743,7 +4764,15 @@ const Search = (() => {
     for (const p of pending) {
       let q = "";
       try { q = splitFrontmatter(await getFile(p)).body.trim().split("\n")[0]; } catch (e) {}
-      html += `<div class="oracle-item pending"><b>\u231B ${q || p}</b><div class="fine">the entrails are laid \u2014 the next pulse reads them</div></div>`;
+      /* escHtml: `q` is the first line of a capture body, i.e. raw text that
+         arrived from the Face's textarea or any future inlet, rendered straight
+         into innerHTML. Oracle.exe is a surface Andrew actually pulls on --
+         apps-v2 calls its first answer the best artifact the system has made --
+         so an unescaped sink here is the one most likely to be looked at. The
+         token this page holds reaches both the private brain and the public
+         pfc-shell mirror, so the blast radius of running script here is
+         publication, not just mischief. */
+      html += `<div class="oracle-item pending"><b>\u231B ${escHtml(q || p)}</b><div class="fine">the entrails are laid \u2014 the next pulse reads them</div></div>`;
     }
     for (const p of answers) {
       html += `<div class="oracle-item" data-md-path="${p}"></div>`;
