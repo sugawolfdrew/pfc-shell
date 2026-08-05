@@ -487,6 +487,11 @@
   a.wikilink { color: #000080; font-weight: bold; text-decoration: none;
                border-bottom: 1px dashed #000080; cursor: pointer; }
   a.wikilink.missing { color: #800000; border-bottom-color: #800000; }
+  /* Retired: the page is gone but the link still goes somewhere. Grey and struck
+     through, so a dated record reads as history rather than as breakage. */
+  a.wikilink.retired { color: #505050; font-weight: normal;
+                       border-bottom-color: #808080; }
+  a.wikilink.retired s { text-decoration: line-through; }
   .frontmatter-chip { display: inline-block; font-size: 12px; padding: 1px 6px;
       margin: 0 4px 4px 0; background: #dfdfdf;
       box-shadow: inset -1px -1px #808080, inset 1px 1px #fff; }
@@ -585,7 +590,11 @@
   /* Logon + dialogs */
   #logon { position: fixed; inset: 0; background: #008080; z-index: 9999;
            display: flex; align-items: center; justify-content: center; }
-  #logon .window { width: min(400px, 92vw); }
+  /* 92% not 92vw: `vw` resolves against the real viewport and ignores the root
+     `zoom`, so above 100% the dialog computed wider than the screen it sits on —
+     flush at the 1.25 default, 4.5px clipped each side at 1.5, 38px at 1.75.
+     A percentage resolves against #logon, which IS inside the zoom. */
+  #logon .window { width: min(400px, 92%); }
   #logon .intro { display: flex; gap: 12px; align-items: flex-start; margin: 4px 0 10px; }
   #logon .intro img { width: 52px; height: 52px; image-rendering: pixelated; }
   #logon .fine { font-size: 12px; color: #444; margin-top: 4px; }
@@ -995,7 +1004,7 @@ const ART = {
 };
 
 /* ---------------- GitHub data layer ---------------- */
-const cache = { tree: null, files: new Map(), hidden: null };
+const cache = { tree: null, files: new Map(), hidden: null, retired: null };
 /* Pages kept out of the Explorer's main index — for when the Face is on screen in
    front of colleagues. Not secrecy: the repo is private and these load like any
    other page. Manifest at hidden.md; the Explorer's ⊘ button toggles membership. */
@@ -1034,6 +1043,37 @@ async function setHidden(slug, on) {
   await putFileSha("hidden.md", body, `hidden: ${on ? "add" : "remove"} ${slug}`, sha);
   cache.hidden = cur; cache.files.delete("hidden.md");
 }
+
+/* --- retired slugs (gate G-2026-08-04-02, ruled a). A merged-away page leaves its
+   name behind in `surface/`, `gates/resolved/` and `log.md` — records that are
+   append-only or already shipped, so the links cannot be edited and rendered red as
+   "missing", which reads as breakage rather than history. retired.md maps dead slug ->
+   successor; the resolution happens at render time and the records keep their exact
+   words. Parser is a pure function so it can be tested without a manifest. */
+function parseRetired(text) {
+  const m = new Map();
+  for (const line of String(text || "").split("\n")) {
+    /* `- dead-slug → successor · date · why` — the arrow may be -> or →, and the
+       trailing metadata is optional. Anything else on the line is prose. */
+    const hit = /^\s*-\s*([a-z0-9][a-z0-9-]*)\s*(?:→|->)\s*([a-z0-9][a-z0-9-]*)\s*(?:·(.*))?$/.exec(line);
+    if (!hit) continue;
+    const rest = (hit[3] || "").split("·").map(s => s.trim()).filter(Boolean);
+    m.set(hit[1], { to: hit[2], date: rest[0] || "", why: rest.slice(1).join(" · ") });
+  }
+  return m;
+}
+async function getRetired(force) {
+  if (cache.retired && !force) return cache.retired;
+  if (DEMO) return (cache.retired = parseRetired(DEMO_FILES["retired.md"] || ""));
+  const r = await readOr("retired.md", "", force);
+  /* Fails OPEN, unlike hidden.md: an unreadable manifest costs a struck-through link,
+     not a disclosure, so the last known map is kept and an empty one is harmless. */
+  if (!r.ok && cache.retired) return cache.retired;
+  return (cache.retired = parseRetired(r.v));
+}
+/* Synchronous lookup for the two linkify passes — empty until getRetired() has run,
+   in which case a dead link renders exactly as it did before. */
+const retiredTo = slug => (cache.retired && cache.retired.get(slug)) || null;
 
 function token() { return localStorage.getItem(LS_KEY) || ""; }
 
@@ -1380,6 +1420,23 @@ const VOID_TAGS = new Set(["SCRIPT","IFRAME","OBJECT","EMBED","FORM","LINK","MET
    been rendered at least once. Inquest opened before that threw and swallowed it. */
 const escHtml = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
                                .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+/* One anchor builder for both linkify passes (renderMd and Surface's §6). They had
+   drifted apart once already; a retired slug has to strike through in both or a
+   tombstone in a findings file still reads as breakage. */
+function wikiAnchor(name, e) {
+  const t = resolveLink(name);
+  if (t.tier) return `<a class="wikilink" data-path="${e(t.path)}">${e(t.label)}</a>`;
+  if (linkExists(t.path))
+    return `<a class="wikilink" data-page="${e(t.slug)}">${e(t.label)}</a>`;
+  const r = retiredTo(t.slug);
+  if (r) {
+    const why = `${t.slug} was retired${r.date ? " " + r.date : ""} — opens ${r.to}` +
+                (r.why ? `. ${r.why}` : "");
+    return `<a class="wikilink retired" data-page="${e(r.to)}" title="${e(why)}">` +
+           `<s>${e(t.label)}</s></a>`;
+  }
+  return `<a class="wikilink missing" data-page="${e(t.slug)}">${e(t.label)}</a>`;
+}
 function scrubHtml(dirty) {
   const tpl = document.createElement("template");
   tpl.innerHTML = dirty;
@@ -1405,12 +1462,8 @@ function renderMd(md, el) {
     : miniMd(body);
   // Linkify [[wikilinks]] — but never inside code/pre, where they are literal syntax
   html = html.split(/(<pre[\s\S]*?<\/pre>|<code[\s\S]*?<\/code>)/g).map((seg, i) =>
-    i % 2 === 1 ? seg : seg.replace(/\[\[([^\]|]+)\]\]/g, (_, name) => {
-      const t = resolveLink(name);
-      if (t.tier) return `<a class="wikilink" data-path="${escHtml(t.path)}">${escHtml(t.label)}</a>`;
-      return `<a class="wikilink${linkExists(t.path) ? "" : " missing"}" ` +
-             `data-page="${escHtml(t.slug)}">${escHtml(t.label)}</a>`;
-    })).join("");
+    i % 2 === 1 ? seg : seg.replace(/\[\[([^\]|]+)\]\]/g, (_, name) => wikiAnchor(name, escHtml))
+  ).join("");
   let chips = "";
   ["type", "created", "updated", "tags"].forEach(k => {
     if (meta[k]) chips += `<span class="frontmatter-chip">${k}: ${meta[k].replace(/[\[\]]/g, "")}</span>`;
@@ -2372,15 +2425,12 @@ const Surface = (() => {
   }
 
   /* ================= §6 What connected ================= */
-  /* Same wikilink pass renderMd() uses, inline: tier links open by path, wiki
-     slugs get .missing when the tree has no page for them. */
+  /* Same wikilink pass renderMd() uses — literally the same builder now (wikiAnchor):
+     tier links open by path, wiki slugs get .missing when the tree has no page for
+     them, and a slug in retired.md strikes through and opens its successor. */
   function linkify(s) {
-    return esc(s).replace(/\[\[([^\]|]+)\]\]/g, (_, name) => {
-      const t = resolveLink(name);
-      if (t.tier) return `<a class="wikilink" data-path="${esc(t.path)}">${esc(t.label)}</a>`;
-      return `<a class="wikilink${linkExists(t.path) ? "" : " missing"}" ` +
-             `data-page="${esc(t.slug)}">${esc(t.label)}</a>`;
-    }).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>");
+    return esc(s).replace(/\[\[([^\]|]+)\]\]/g, (_, name) => wikiAnchor(name, esc))
+      .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>");
   }
   /* Every bullet in the file, heading or no heading. SURFACE.md dropped fixed
      sections on 2026-08-03 ("a heading is a container that wants filling"), so a
@@ -2979,7 +3029,9 @@ const Surface = (() => {
       finally { btn.disabled = false; }
     };
     body.querySelector("#sf-refresh").onclick = async () => {
-      cache.tree = null; cache.files.clear(); cache.hidden = null; Search.invalidate(); render().catch(err);
+      cache.tree = null; cache.files.clear(); cache.hidden = null; cache.retired = null;
+      await getRetired().catch(() => {});
+      Search.invalidate(); render().catch(err);
     };
     paintStatus();
 
@@ -5419,6 +5471,10 @@ async function boot() {
     logon.classList.add("hidden");
     try {
       await getTree();
+      /* Primed before the first render: the linkify passes read the retired map
+         synchronously, so an unprimed map would render this session's tombstones as
+         broken links and only fix itself on the next repaint. Never fatal. */
+      await getRetired().catch(() => {});
       WM.show("surface");
     } catch (e) {
       if (e.message === "auth") { localStorage.removeItem(LS_KEY); showLogon("That token was refused (401). Try again."); }
