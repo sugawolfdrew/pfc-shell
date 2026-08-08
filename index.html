@@ -2341,21 +2341,29 @@ const Surface = (() => {
     let best = null;
     for (const o of logOps(log)) {                     // one parser; see LOG_RX
       if (o.verb !== "heartbeat") continue;
-      /* Z, not local. log.md times are written by beats running on UTC clocks
-         (verified: `## [2026-08-05 13:20] heartbeat` against its own commit at
-         13:19 UTC). Parsed without the Z the browser reads them as Pacific and
-         the beat comes out SEVEN HOURS YOUNGER than it is -- an error that only
-         ever points one way, toward "fresher than reality". On 2026-08-05, with
-         the brain 16h32m dark, this line rendered a green KEPT badge. The one
-         instrument that exists to say the brain is dead was the last thing
-         still claiming it was alive.
+      /* The seam. log.md has carried TWO clocks: beats stamped UTC until
+         BRAIN.md:127 fixed the clock to Andrew's local time at 2026-08-05
+         20:45, and local ever after. Parsed all-local, UTC stamps read seven
+         hours YOUNGER than reality -- on 2026-08-05, with the brain 16h32m
+         dark, that rendered a green KEPT badge in production. Parsed all-Z
+         (the fix for that), local stamps would read seven hours OLDER -- a
+         standing daily false DUE/LATE, caught in review on 2026-08-08 before
+         any post-seam heartbeat entry existed to render it. So: stamps at or
+         after the adoption moment are local, earlier ones are Z -- each rule
+         verified against its own side's commit times for the entries this
+         line reads. (The four 2026-08-06 03:20 entries are UTC-written strays
+         from before the extractor learned the rule; they stand as written per
+         Invariant 3, misread here as local, and carry no heartbeat verb, so
+         this line never sees them.) String compare is safe -- day is ISO and
+         t is fixed-width HH:MM.
          `t` is bound first because o.time is "" when the entry carries no time
          (logOps: `m[2] || ""`), and `"".length === 5` is false while
          `"00:00".length === 5` is true -- testing the raw value would append
          ":00" to nothing and build the string ":00". */
       const t   = o.time || "00:00";
       const hms = t.length === 5 ? `${t}:00` : t;
-      const when = new Date(`${o.day}T${hms}Z`);
+      const local = o.day > "2026-08-05" || (o.day === "2026-08-05" && t >= "20:45");
+      const when = local ? new Date(`${o.day}T${hms}`) : new Date(`${o.day}T${hms}Z`);
       if (!best || when > best) best = when;
     }
     if (!best || isNaN(best)) return { state: "COLD", key: "cold", frac: 0, h: null,
@@ -3111,7 +3119,8 @@ const Surface = (() => {
   });
   APPS.surface.onOpen = () => render().catch(err);
   Object.assign(PFCT, { sfD: () => D, sfMonthPool: monthPool, sfParseGates: parseGates,
-                     sfPaintGates: paintGates, sfPaintInstruments: paintInstruments });
+                     sfPaintGates: paintGates, sfPaintInstruments: paintInstruments,
+                     sfReadBeat: readBeat });
   return { render };
 })();
 /* ----- Wiki Explorer ----- */
@@ -4786,10 +4795,8 @@ const Search = (() => {
          arrived from the Face's textarea or any future inlet, rendered straight
          into innerHTML. Oracle.exe is a surface Andrew actually pulls on --
          apps-v2 calls its first answer the best artifact the system has made --
-         so an unescaped sink here is the one most likely to be looked at. The
-         token this page holds reaches both the private brain and the public
-         pfc-shell mirror, so the blast radius of running script here is
-         publication, not just mischief. */
+         so an unescaped sink here is the one most likely to be looked at, which
+         is why it gets the same escaping every other sink in this file does. */
       html += `<div class="oracle-item pending"><b>\u231B ${escHtml(q || p)}</b><div class="fine">the entrails are laid \u2014 the next pulse reads them</div></div>`;
     }
     for (const p of answers) {
