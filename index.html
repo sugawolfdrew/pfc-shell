@@ -2489,6 +2489,26 @@ const Surface = (() => {
      which made every file written under the new protocol render as "Nothing today".
      Legacy files (bullets under "## Connections", a "## Pulse" line) still parse.
      Wrapped lines are rejoined; the files hard-wrap at ~90 columns. */
+  /* The findings seam (2026-08-08): SURFACE.md's second revision — Surface.exe IS
+     the brief. A beat writes no surface/ file; each finding lands whole as its own
+     one-line `surface |` log entry whose payload opens with a bolded head, and this
+     window renders it from log.md directly. Entries before the seam are bookkeeping
+     summaries, never findings; files before the seam are the historical briefs and
+     render exactly as they always did. Same two-regime seam pattern as readBeat's
+     clocks, for the same reason: both regimes really exist in the record. */
+  const SURF_SEAM = "2026-08-08 11:00";
+  function logBriefs(log) {
+    const by = new Map();
+    for (const o of logOps(log)) {
+      if (o.verb !== "surface") continue;
+      if (`${o.day} ${o.time || "00:00"}` < SURF_SEAM) continue;
+      if (!/^\*\*/.test(o.text)) continue;   // renderable entries open bold; the rest is bookkeeping
+      if (!by.has(o.day)) by.set(o.day, []);
+      by.get(o.day).push(o.text);
+    }
+    return [...by.entries()].map(([day, entries]) => ({ day, entries }));
+  }
+  const groupMd = g => g.entries.map(t => "- " + t).join("\n");
   function findings(md) {
     const { body } = splitFrontmatter(md || "");
     const out = []; let pulse = "", cur = null, inPulse = false;
@@ -2763,7 +2783,7 @@ const Surface = (() => {
       inner = `<div class="well sf-conn"><p class="quiet">Nothing found yet. A findings file ` +
               `is written only when a beat actually finds something.</p></div>`;
     } else {
-      const path = briefs[idx], day = path.slice(8, 18), age = daysAgo(day, D.today);
+      const bi = briefs[idx], day = bi.day, age = daysAgo(day, D.today);
       const when = longDate(dateOf(day)).toUpperCase();
       /* The findings log is written only on days that found something, so "no file
          for today" is the normal case and must never read as an error. Always show
@@ -2798,7 +2818,8 @@ const Surface = (() => {
         </div>`;
         const rest = f.list.length - 1;
         more = `<div class="sf-more">${rest > 0 ? `${plural(rest, "more finding")} that day ` : ""}` +
-               `<a data-open="${esc(path)}">Read the whole entry \u25b8</a></div>`;
+               `<a data-open="${esc(bi.path || "log.md")}">${bi.path ? "Read the whole entry \u25b8"
+                                                                    : "Read it in the log \u25b8"}</a></div>`;
       }
     }
     host.innerHTML = `<legend>What connected</legend>${head}${inner}${more}`;
@@ -3006,23 +3027,31 @@ const Surface = (() => {
     N.gates = parseGates(gatesR.v);
     stat.gates = N.gates.length;
 
-    /* The findings log: written only when a beat found something, so there is
-       routinely no file for today. The newest one is the current one. */
+    /* The findings record: files before the 2026-08-08 seam, one-line surface|
+       log entries after it (SURFACE.md second revision). Written only when a beat
+       found something, so there is routinely nothing for today. Newest first;
+       within a day the log group outranks a file, being the later regime. */
     briefs = tree.filter(e => /^surface\/\d{4}-\d{2}-\d{2}\.md$/.test(e.path))
-                 .map(e => e.path).sort().reverse();
+                 .map(e => ({ day: e.path.slice(8, 18), path: e.path }))
+                 .concat(logBriefs(logR.v))
+                 .sort((a, b) => b.day.localeCompare(a.day) ||
+                                 (a.path ? 1 : 0) - (b.path ? 1 : 0));
     if (idx >= briefs.length) idx = 0;
     N.brief = ""; N.briefUnread = false;
     if (briefs.length) {
-      const bR = await readOr(briefs[idx], "");
-      N.brief = bR.v; N.briefUnread = !bR.ok;
+      const bi = briefs[idx];
+      if (bi.path) { const bR = await readOr(bi.path, ""); N.brief = bR.v; N.briefUnread = !bR.ok; }
+      else N.brief = groupMd(bi);
     }
-    /* Quiet legacy entry: reach one file back for the last real connection. */
+    /* Quiet legacy entry: reach one brief back for the last real connection. */
     N.lastConn = null;
     if (briefs.length && !findings(N.brief).list.length) {
       for (let j = idx + 1; j < Math.min(briefs.length, idx + 4) && !N.lastConn; j++) {
         try {
-          const b = splitBullet((findings(await getFile(briefs[j])).list || [])[0] || "");
-          if (b.head) { const dd = briefs[j].slice(8, 18), a = daysAgo(dd, today);
+          const bj = briefs[j];
+          const md = bj.path ? await getFile(bj.path) : groupMd(bj);
+          const b = splitBullet((findings(md).list || [])[0] || "");
+          if (b.head) { const a = daysAgo(bj.day, today);
             N.lastConn = { head: b.head, rel: a === 1 ? "yesterday" : `${a} days ago` }; }
         } catch (e) {}
       }
@@ -3039,8 +3068,8 @@ const Surface = (() => {
     try { cards = await orderCards(cards); } catch (e) { await fillCard(cards[0]); }
     if (cardI >= cards.length) cardI = 0;
 
-    const dateNote = briefs.length && !mobile() ? longDate(dateOf(briefs[idx].slice(8, 18)))
-                   : briefs.length ? `${dateOf(briefs[idx].slice(8, 18)).getDate()} ${MON3[dateOf(briefs[idx].slice(8, 18)).getMonth()]}`
+    const dateNote = briefs.length && !mobile() ? longDate(dateOf(briefs[idx].day))
+                   : briefs.length ? `${dateOf(briefs[idx].day).getDate()} ${MON3[dateOf(briefs[idx].day).getMonth()]}`
                    : mobile() ? `${today.getDate()} ${MON3[today.getMonth()]}` : longDate(today);
 
     D = N;                    // one statement: the only moment D is ever partly built
@@ -3120,7 +3149,8 @@ const Surface = (() => {
   APPS.surface.onOpen = () => render().catch(err);
   Object.assign(PFCT, { sfD: () => D, sfMonthPool: monthPool, sfParseGates: parseGates,
                      sfPaintGates: paintGates, sfPaintInstruments: paintInstruments,
-                     sfReadBeat: readBeat });
+                     sfReadBeat: readBeat, sfLogBriefs: logBriefs, sfFindings: findings,
+                     sfSplitBullet: splitBullet });
   return { render };
 })();
 /* ----- Wiki Explorer ----- */
