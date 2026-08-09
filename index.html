@@ -449,6 +449,7 @@
       box-shadow: inset 0 -1px 0 var(--face-sh), inset 0 -2px 0 var(--face-hi); font-size:12px;
       flex-wrap:wrap; }
   .np-ptools .sp { flex:1; }
+  .np-ptools .brk { display:none; }      /* a flex row-break, mobile only */
   #np-q { flex:1; min-width:120px; font-size:12px; height:22px; box-sizing:border-box; }
   .np-feed { flex:1; min-height:76px; overflow:auto; background:var(--window); margin:5px 5px 0;
       box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-sh),
@@ -500,6 +501,7 @@
   .web-tools { flex:none; display:flex; align-items:center; gap:4px; padding:4px 5px;
       flex-wrap:wrap; font-size:12px; }
   .web-tools .sp { flex:1; }
+  .web-tools .brk { display:none; }      /* a flex row-break, mobile only */
   .web-tools button { min-height:22px; font-size:12px; }
   .web-tools select { font-size:12px; height:22px; }
   #web-q { width:130px; font-size:12px; height:22px; box-sizing:border-box; }
@@ -536,7 +538,12 @@
     /* 390 / Z=1.25 leaves 296 layout px for five targets, so the band is tight by
        construction: clip rather than let a label bleed over its neighbour, and give
        the icon-to-label gap back to the label. */
-    .np-tb { height:44px; min-height:44px; flex:1; justify-content:center; padding:0 1px;
+    /* `.np-tb` is worn by BOTH the compose kind buttons and the feed's filter
+       chips. Only the compose band is a fixed five-across row, so only it gets
+       flex:1 — unscoped, it crushed the filter chips into single letters ("A N A
+       F G") in a row they share with a text field and a month select. */
+    .np-bar .np-tb { flex:1; }
+    .np-tb { height:44px; min-height:44px; justify-content:center; padding:0 1px;
              font-size:13px; gap:3px; overflow:hidden; }
     .np-tb .lb { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
     .np-tb img { flex:none; }
@@ -545,7 +552,7 @@
     .np-bar.tight .np-tb img { display:none; }
     .np-bar.tight .np-tb { padding:0 1px; }
     /* Tidy sizes to its own content so "Tidy 12" never wraps inside a 44px target */
-    .np-bar #np-tidy { flex:0 0 auto; min-width:76px; padding:0 7px; }
+    .np-bar #np-tidy { flex:0 0 auto; min-width:58px; padding:0 6px; }
     .np-bar { gap:3px; padding:5px; }
     /* the spacer pushes Tidy right on a desktop; on a phone the buttons are flex:1
        and already fill the row, so a flex:1 spacer just steals a fifth of the band */
@@ -555,11 +562,28 @@
        Field 1 keeps the Tidy count line intact; the outbox count keeps its bold. */
     #win-note .status-bar .draft { display:none; }
     /* 16px, not 15: below 16 iOS Safari zooms the page on focus and fights the shell's own zoom */
-    #np-text { font-size:16px; margin:6px 6px 0; }
-    .np-dest { padding:6px; }
-    .np-dest select, .np-dest button { min-height:34px; }
+    /* It grows to 132 the moment you tap it, and nothing autofocuses any more,
+       so at rest it can be two lines instead of four — that is a note and a half
+       of feed handed back on a 390px phone. */
+    #np-text { font-size:16px; margin:6px 6px 0; height:52px; }
+    /* The label is redundant — the select says "Inbox — the brain files it" — and
+       on a phone the row it costs is a note you cannot see. */
+    .np-dest { padding:5px 6px 0; }
+    .np-dest label { display:none; }
+    .np-dest select, .np-dest button { min-height:38px; }
+    /* 64px of Save was the single biggest thing on the screen and it is one tap.
+       44 is the comfortable target; the rest of that height goes back to the feed. */
     .np-commit { padding:6px; }
-    .np-commit .np-save { height:64px; font-size:16px; }
+    .np-commit .np-save { height:44px; font-size:15px; }
+    /* The filter band gets two rows of its own instead of one crushed one: the
+       chips at a real size, then the query, the month and Refresh — which used to
+       be clipped off the right edge entirely. */
+    .np-ptools { padding:5px 6px; gap:4px; row-gap:5px; }
+    .np-ptools .np-tb { flex:1 1 0; min-width:52px; height:38px; min-height:38px; font-size:13px; }
+    .np-ptools .brk { flex-basis:100%; height:0; margin:0; }
+    #np-q { flex:1 1 90px; min-width:0; height:38px; font-size:16px; }
+    .np-ptools select { flex:0 1 auto; min-width:0; max-width:34%; height:38px; font-size:13px; }
+    .np-ptools #np-refresh { flex:0 0 auto; min-width:0; min-height:38px; padding:0 8px; }
     /* not caret-anchored on a phone: caret geometry is unreliable once the soft
        keyboard is up, so the list docks in the flow above the commit row */
     .np-ac { position:static; width:auto; margin:0 5px; }
@@ -614,6 +638,21 @@
   .md-toc a { display: block; color: var(--accent-on-face); cursor: pointer; text-decoration: none;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .md-toc a.h3 { padding-left: 10px; }
+  @media (max-width: 700px) {
+    /* Same lesson as the notebook's filter band: one row of eight controls on a
+       390px phone is eight controls you cannot hit. Two rows, thumb-sized. */
+    .web-tools { gap:4px; row-gap:5px; padding:5px 6px; }
+    .web-tools button { min-height:38px; font-size:13px; }
+    .web-tools select { height:38px; font-size:13px; }
+    .web-tools .brk { flex-basis:100%; height:0; }
+    .web-tools #web-back .lb { display:none; }
+    .web-tools #web-back { min-width:44px; padding:0 6px; }
+    .web-tools #web-relax { display:none; }
+    .web-tools button { padding:0 8px; }
+    #web-q { flex:1 1 120px; min-width:0; height:38px; font-size:16px; }
+    .web-tools .sp { display:none; }
+    .web-stage { margin:0 5px 5px; }
+  }
   @media (max-width: 700px) { .md-toc { display: none; } }
   /* wikilink hover preview: an info-tip, so a link can be checked without
      losing your place. Desktop pointers only; built with textContent. */
@@ -5368,6 +5407,7 @@ async function loadPages(force) {
           <button class="np-tb" data-kf="oracle" aria-pressed="false"><span class="lb">Ask</span></button>
           <button class="np-tb" data-kf="flag" aria-pressed="false"><span class="lb">Flag</span></button>
           <button class="np-tb" data-kf="gate" aria-pressed="false"><span class="lb">Gate</span></button>
+          <i class="brk" aria-hidden="true"></i>
           <input id="np-q" type="search" spellcheck="false" autocomplete="off"
                  placeholder="text · type:ask · is:queued · became:page · before:2026-08">
           <select id="np-month" title="Which month of the notebook to show"></select>
@@ -5525,8 +5565,13 @@ async function loadPages(force) {
     build();
     renderBook();                     // the feed is the app — load it on open
     const d = restoreDraft();
-    ta.focus();                       // synchronous, inside the gesture — iOS will not
-    paintDraft(); paintOutbox();      // raise the keyboard for a focus after an await
+    /* Desktop only. On a phone, opening the notebook raised the keyboard over the
+       feed before you had asked to write anything — the app is a notebook first
+       (2026-08-08), and a notebook does not hand you a pen the moment it opens.
+       Tapping the paper still focuses it, synchronously inside that gesture, which
+       is what iOS requires to raise the keyboard at all. */
+    if (!isMobile()) ta.focus();
+    paintDraft(); paintOutbox();
     paintSave(); paintTidy(); recount(true);
     if (!localStorage.getItem(LSK.tip)) {
       localStorage.setItem(LSK.tip, "1");
@@ -6637,17 +6682,20 @@ const Search = (() => {
   let cool = 0, raf = null, scanning = false;
   let mode = "global", depth = 1, showOrphans = true, showUnresolved = false;
   let query = "", hover = null, sel = null, drag = null;
+  let root = null, trail = [];       // the local view's centre, and how you got there
   let cvs = null, ctx = null, pal = null;
+  const isNarrow = () => matchMedia("(max-width: 700px)").matches;
 
   try { const s = JSON.parse(localStorage.getItem(LSK) || "{}");
         pins = s.pins || {}; saved = s.pos || {};
         if (s.mode) mode = s.mode; if (s.depth) depth = s.depth;
         if (typeof s.orphans === "boolean") showOrphans = s.orphans;
+        if (s.root) root = s.root;
   } catch (e) { /* a corrupt layout is not worth a broken window */ }
   const persist = () => { try {
     const pos = {};
     nodes.forEach(n => { pos[n.id] = [Math.round(n.x), Math.round(n.y)]; });
-    localStorage.setItem(LSK, JSON.stringify({ pins, pos, mode, depth, orphans: showOrphans }));
+    localStorage.setItem(LSK, JSON.stringify({ pins, pos, mode, depth, orphans: showOrphans, root }));
   } catch (e) {} };
 
   /* ---------- the scan. Rebuilt, never cached: a graph assembled from a partial
@@ -6715,6 +6763,7 @@ const Search = (() => {
       computeLocal();
       cool = 1;
       status();
+      paintNav();
       kick();
     } catch (e) {
       status("Could not read the wiki — " + e.message);
@@ -6807,15 +6856,23 @@ const Search = (() => {
     return true;
   }
   let localSet = null;
+  /* The root of the local view. A tap sets it; otherwise it follows whatever the
+     Explorer is showing, so opening a page and then opening the web lands you on
+     that page's neighbourhood without a second gesture. */
+  function localRoot() {
+    if (root && byId.has(root)) return root;
+    const here = (Explorer.shown() || "").match(/^wiki\/(.+)\.md$/);
+    return here && byId.has(here[1]) ? here[1] : null;
+  }
   function computeLocal() {
     localSet = null;
     if (mode !== "local") return;
-    const here = (Explorer.shown() || "").match(/^wiki\/(.+)\.md$/);
-    if (!here || !byId.has(here[1])) { localSet = new Set(); return; }
+    const from = localRoot();
+    if (!from) { localSet = new Set(); return; }
     const adj = new Map(nodes.map(n => [n.id, []]));
     edges.forEach(e => { adj.get(e.a.id).push(e.b.id); adj.get(e.b.id).push(e.a.id); });
-    const out = new Set([here[1]]);
-    let ring = [here[1]];
+    const out = new Set([from]);
+    let ring = [from];
     for (let d = 0; d < depth; d++) {
       const next = [];
       ring.forEach(id => (adj.get(id) || []).forEach(x => {
@@ -6865,7 +6922,10 @@ const Search = (() => {
          picked — the same vocabulary the shell uses for "this one" */
       const label = n.title.length > 22 ? n.title.slice(0, 21) + "…" : n.title;
       const w = ctx.measureText(label).width;
-      const lx = Math.round(n.x - w / 2), ly = Math.round(n.y + s / 2 + 3);
+      /* keep a name inside the panel rather than letting the edge eat its first
+         half — a clipped label is worse than a nudged one */
+      const lx = Math.max(2, Math.min(cvs.width - w - 2, Math.round(n.x - w / 2)));
+      const ly = Math.round(n.y + s / 2 + 3);
       if (!clear(lx - 2, ly - 1, w + 4, 14) && n !== sel && n !== hover) return;
       taken.push([lx - 2, ly - 1, w + 4, 14]);
       if (n === sel) { ctx.fillStyle = P.chip; ctx.fillRect(lx - 2, ly - 1, w + 4, 14); }
@@ -6883,7 +6943,9 @@ const Search = (() => {
              y: (e.clientY - r.top) / r.height * cvs.height };
   }
   function pick(p) {
-    let best = null, bd = 15 * 15;
+    /* a fingertip is not a mouse pointer */
+    const reach = isNarrow() ? 24 : 15;
+    let best = null, bd = reach * reach;
     nodes.forEach(n => { if (!fits(n)) return;
       const d = (n.x - p.x) ** 2 + (n.y - p.y) ** 2;
       if (d < bd) { bd = d; best = n; } });
@@ -6910,6 +6972,14 @@ const Search = (() => {
     return true;
   }
   function status(msg) {
+    if (!msg && mode === "local") {
+      const r = localRoot();
+      const shown = localSet ? localSet.size : 0;
+      WM.status("web", r
+        ? `${(byId.get(r) || {}).title || r} · ${plural(shown, "page")} within ${depth} hop${depth === 1 ? "" : "s"}`
+        : "Tap a page to centre the web on it.");
+      return;
+    }
     WM.status("web", msg || (stats.fatal
       ? `${plural(stats.pages, "page")} · ${plural(stats.links, "link")} · ${stats.fatal === "rate"
           ? "GitHub is rate-limiting — the web is short" : "sign-in expired — the web is short"}`
@@ -6924,12 +6994,15 @@ const Search = (() => {
     b.classList.remove("white");
     b.innerHTML = `
       <div class="web-tools">
-        <button id="web-scope" title="Local shows only what the open page reaches">Global</button>
-        <select id="web-depth" title="How far Local reaches">
+        <button id="web-back" title="Back to the last page you were centred on" disabled>◀<span class="lb"> Back</span></button>
+        <button id="web-scope" title="Switch between one neighbourhood and the whole wiki">Local</button>
+        <select id="web-depth" title="How many hops out from the centre">
           <option value="1">1 hop</option><option value="2">2 hops</option><option value="3">3 hops</option>
         </select>
-        <span class="sp"></span>
+        <button id="web-open" title="Read this page in the Explorer" disabled>Open page</button>
+        <i class="brk" aria-hidden="true"></i>
         <input id="web-q" type="text" placeholder="Find a page…">
+        <span class="sp"></span>
         <button id="web-orph" aria-pressed="true" title="Pages nothing links to">Orphans</button>
         <button id="web-unres" aria-pressed="false" title="Links with no page behind them">Unresolved</button>
         <button id="web-relax" title="Shake the layout loose">Relax</button>
@@ -6938,11 +7011,25 @@ const Search = (() => {
     cvs = $("#web-cvs"); ctx = cvs.getContext("2d");
     const scope = $("#web-scope"), dsel = $("#web-depth");
     dsel.value = String(depth);
-    scope.textContent = mode === "local" ? "Local" : "Global";
-    scope.onclick = () => { mode = mode === "local" ? "global" : "local";
-      scope.textContent = mode === "local" ? "Local" : "Global";
-      computeLocal(); persist(); draw(); status(); };
-    dsel.onchange = () => { depth = +dsel.value; computeLocal(); persist(); draw(); };
+    /* The button says where it takes you, not where you are — a control labelled
+       with the current state is a coin toss every time you read it. */
+    scope.onclick = () => {
+      if (mode === "local") { mode = "global"; trail = []; }
+      else { mode = "local"; if (!root) root = sel && sel.id; }
+      computeLocal(); persist(); paintNav(); status(); kick();
+    };
+    dsel.onchange = () => { depth = +dsel.value; computeLocal(); persist();
+      const r = localRoot(); if (r && byId.get(r)) recentre(byId.get(r));
+      paintNav(); kick(); };
+    $("#web-open").onclick = () => { const r = localRoot(); if (r) openNode(byId.get(r)); };
+    $("#web-back").onclick = () => {
+      if (!trail.length) return;
+      root = trail.pop();
+      sel = byId.get(root) || null;
+      computeLocal();
+      if (sel) recentre(sel);
+      persist(); paintNav(); status(); kick();
+    };
     $("#web-q").addEventListener("input", e => { query = e.target.value.trim().toLowerCase(); draw(); });
     const tog = (id, get, set) => { const el2 = $(id);
       el2.setAttribute("aria-pressed", String(get()));
@@ -6969,18 +7056,75 @@ const Search = (() => {
       if (n !== hover) { hover = n; cvs.style.cursor = n ? "pointer" : "default"; draw(); }
     });
     const end = () => { if (!drag) return; const d = drag; drag = null;
-      if (d.moved) { persist(); kick(); } else openNode(d.n); };
+      if (d.moved) { persist(); kick(); } else focusNode(d.n); };
     cvs.addEventListener("pointerup", end);
     cvs.addEventListener("pointercancel", () => { drag = null; });
+    /* Double-click is the shell's own "open it" gesture — the desktop icons work
+       exactly this way — so it opens the page. It also releases a pin, because a
+       pinned node you are done with is usually one you just finished reading. */
     cvs.addEventListener("dblclick", e => { const n = pick(at(e));
-      if (n) { delete pins[n.id]; persist(); kick(); } });
+      if (!n) return;
+      if (pins[n.id]) { delete pins[n.id]; persist(); }
+      openNode(n);
+    });
     addEventListener("resize", () => { if (alive() && size()) kick(); });
     document.addEventListener("pfc:zoom", () => { if (size()) draw(); });
     document.addEventListener("pfc:scheme", () => { pal = null; draw(); });
   }
+  /* A tap moves you AROUND the web, it does not leave it. This is the graph
+     navigator's whole trick, and the first cut got it backwards: tapping a node
+     opened the wiki page, which meant every exploratory tap threw away the graph
+     and put you in another window. Now a tap re-roots the local view on what you
+     touched at the current hop depth, so you walk the web one neighbourhood at a
+     time; reading the page is a separate, deliberate control. */
+  function focusNode(n) {
+    sel = n;
+    if (n.kind === "missing") {
+      status(`${n.title} has no page yet — nothing links out of it.`);
+      draw(); paintNav(); return;
+    }
+    if (mode === "local" && root && root !== n.id) trail.push(root);
+    root = n.id;
+    if (mode !== "local") { mode = "local"; trail = []; }
+    computeLocal();
+    /* Re-seed the ring around its new centre so the neighbourhood arrives as a
+       neighbourhood rather than as whatever corner it occupied in the whole web. */
+    recentre(n);
+    persist(); paintNav(); status(); kick();
+  }
+  function recentre(n) {
+    if (!cvs.width || !localSet) return;
+    const W = cvs.width, H = cvs.height;
+    n.x = W / 2; n.y = H / 2;
+    const ring = [...localSet].filter(id => id !== n.id);
+    const R = Math.min(W, H) * 0.33;
+    ring.forEach((id, i) => {
+      const m = byId.get(id); if (!m) return;
+      const a = (i / Math.max(1, ring.length)) * Math.PI * 2;
+      m.x = W / 2 + Math.cos(a) * R;
+      m.y = H / 2 + Math.sin(a) * R;
+      m.vx = m.vy = 0;
+    });
+  }
   function openNode(n) {
-    if (n.kind === "missing") { status(`${n.title} has no page yet — nothing to open.`); return; }
+    if (!n || n.kind === "missing") return;
     WM.show("explorer"); Explorer.openPage(n.id);
+  }
+  /* Where you are, and the two ways out: back to where you came from, or all the
+     way out to the whole web. Nothing here is a mystery gesture. */
+  function paintNav() {
+    const b = el(); if (!b) return;
+    const open = b.querySelector("#web-open"), back = b.querySelector("#web-back"),
+          scope = b.querySelector("#web-scope");
+    const here = mode === "local" ? localRoot() : null;
+    if (open) {
+      open.disabled = !here;
+      const name = (byId.get(here) || {}).title || here;
+      open.textContent = !here ? "Open page" : isNarrow() ? "Open" : `Open ${name}`;
+      open.title = here ? `Read ${name} in the Explorer` : "Centre the web on a page first";
+    }
+    if (back) back.disabled = !trail.length;
+    if (scope) scope.textContent = mode === "local" ? "Whole web" : "Local";
   }
 
   APPS.web.onOpen = () => {
@@ -6989,6 +7133,7 @@ const Search = (() => {
     /* onOpen fires before the window has been laid out, so the first measurement
        waits a frame — every later one rides on draw(). */
     requestAnimationFrame(() => { size(); draw(); kick(); });
+    paintNav();
     if (!nodes.length && !scanning) scan(); else status();
   };
   APPS.web.onResize = () => { if (size()) kick(); else draw(); };
@@ -6999,7 +7144,10 @@ const Search = (() => {
                           for (let i = 0; i < n; i++) tick(); draw(); return nodes.length; },
                         webScan: scan, webNodes: () => nodes, webEdges: () => edges,
                         webStats: () => stats, webPick: pick,
-                        webMode: m => { mode = m; computeLocal(); draw(); },
+                        webMode: m => { mode = m; computeLocal(); paintNav(); draw(); },
+                        webTap: id => { const n = byId.get(id); if (n) focusNode(n); return root; },
+                        webRoot: () => localRoot(), webTrail: () => trail.slice(),
+                        webBack: () => { const b = el().querySelector("#web-back"); if (b) b.click(); return root; },
                         webLocal: () => localSet && [...localSet] });
 })();
 
