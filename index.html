@@ -2958,20 +2958,70 @@ const Surface = (() => {
     if (!best || isNaN(best)) return { state: "COLD", key: "cold", frac: 0, h: null,
                                        said: unread ? "log unread \u2014 beat state unknown"
                                                     : "no full beat on record" };
-    const h = Math.max(0, Math.floor((Date.now() - best) / 36e5));
+    return { ...beatAge(best), at: best };
+  }
+  function beatAge(when) {
+    const h = Math.max(0, Math.floor((Date.now() - when) / 36e5));
     const amount = h >= 48 ? `${Math.floor(h / 24)}d` : `${h}h`;
     const key   = h < 12 ? "ok" : h <= 24 ? "due" : "late";
     const state = h < 12 ? "KEPT" : h <= 24 ? "DUE" : "LATE";
-    return { state, key, h, frac: Math.min(h / 24, 1),
+    return { state, key, h, frac: Math.min(h / 24, 1), at: when,
              said: key === "late" ? `no full beat for ${amount}` : `last full beat ${amount} ago` };
   }
-  /* Copy law: the promise is the CHECK, never the beat. The hourly pulse
-     quiet-exits unless inbox/ holds an *-oracle.md or *-beatnow.md. */
-  function nextCheck() {
-    const n = new Date(); n.setMinutes(31, 0, 0);
-    if (n <= Date.now()) n.setHours(n.getHours() + 1);
-    return clock(n);
+
+  /* ---- the brain's own signature ----
+     `beat.sh` sets GIT_AUTHOR_NAME="PFC heartbeat" for exactly this purpose — its
+     comment calls `git log --author` "the only working signal for did the brain
+     run" — and until 2026-08-09 this band ignored it and read log.md prose. What
+     that measured was whether a beat had NARRATED itself: beats stopped writing
+     the `heartbeat |` verb on 2026-08-06 (BRAIN.md spends that verb on "the
+     machine changed", not on "a beat happened"), so the badge stood at LATE for
+     four days while the heartbeat ran, committed and pushed every morning at
+     06:03. The prose is a weaker signal for the same question and stays only as
+     the fallback, labelled, for when the commits cannot be read. */
+  const BEAT_AUTHOR = "PFC heartbeat";
+  const BEAT_WINDOW = 100;      // commits scanned; the pulse commits several times a day
+  async function lastBeatCommit() {
+    /* Demo has no commits, so it answers from its own fixture rather than
+       inventing a beat — the badge a demo shows must match the log it ships. */
+    if (DEMO) { const b = readBeat(DEMO_FILES["log.md"] || "", false);
+                return b.at ? { ok: true, when: b.at } : { ok: false }; }
+    try {
+      const list = await gh(`/repos/${CFG.owner}/${CFG.repo}/commits`
+                          + `?sha=${encodeURIComponent(CFG.branch)}&per_page=${BEAT_WINDOW}`);
+      if (!Array.isArray(list)) return { ok: false };
+      for (const c of list) {                                   // newest first
+        if (!c || !c.commit || !c.commit.author) continue;
+        if (c.commit.author.name !== BEAT_AUTHOR) continue;
+        const when = new Date(c.commit.author.date);
+        return isNaN(when) ? { ok: false } : { ok: true, when };
+      }
+      /* A full window with no heartbeat in it is an answer, not a failed read —
+         but the age it implies is a floor, not a measurement, so it is said as one. */
+      const last = list.length && list[list.length - 1].commit;
+      return { ok: true, when: null, seen: list.length,
+               floor: last ? new Date(last.author.date) : null };
+    } catch (e) { return { ok: false }; }
   }
+  /* Strongest signal first, and never a weak one wearing a strong one's clothes. */
+  function beatBand(commit, log, logUnread) {
+    if (commit.ok && commit.when) return beatAge(commit.when);
+    if (commit.ok && commit.floor) {
+      const b = beatAge(commit.floor);
+      return { ...b, frac: 1, said: `no full beat in the last ${commit.seen} commits` };
+    }
+    const b = readBeat(log, logUnread);
+    if (b.h === null) return { ...b, said: logUnread ? b.said : "commits unread — beat state unknown" };
+    return { ...b, said: `${b.said} (from the log)` };
+  }
+  /* Copy law: the promise is the CHECK, never the beat. This used to name a time
+     — "pulse checks at 12:31" — which was the cloud cron's hourly slot and has
+     been wrong since the beat moved onto the Mac: `watch.sh` runs every sixty
+     seconds (sixty StartCalendarInterval entries, because StartInterval measured
+     unreliable here), and a capture pushed from the Face is picked up on the next
+     tick. The pulse still quiet-exits unless inbox/ holds a capture — the check is
+     what is promised, and the check is every minute. */
+  const CHECK_SAID = "pulse checks every minute";
   function beatHTML(b) {
     const C = `var(--${b.key})`, T = `var(--${b.key}T)`;
     const seg = c => `repeating-linear-gradient(90deg, ${c} 0 5px, transparent 5px 7px)`;
@@ -2989,7 +3039,7 @@ const Surface = (() => {
         <u></u>
       </span>
       <span class="sp"></span>
-      <span class="said">pulse checks at ${nextCheck()}</span>
+      <span class="said">${CHECK_SAID}</span>
     </div>`;
   }
 
@@ -3607,7 +3657,7 @@ const Surface = (() => {
 
     const logR = await readOr("log.md", "");
     N.logUnread = !logR.ok;
-    N.beat    = readBeat(logR.v, !logR.ok);
+    N.beat    = beatBand(await lastBeatCommit(), logR.v, !logR.ok);
     N.tending = tendingData(logR.v);
     N.archive = archiveGrid(tree, N.hidden);
 
@@ -3738,7 +3788,8 @@ const Surface = (() => {
   APPS.surface.onOpen = () => render().catch(err);
   Object.assign(PFCT, { sfD: () => D, sfMonthPool: monthPool, sfParseGates: parseGates,
                      sfPaintGates: paintGates, sfPaintInstruments: paintInstruments,
-                     sfReadBeat: readBeat, sfLogBriefs: logBriefs, sfFindings: findings,
+                     sfReadBeat: readBeat, sfBeatBand: beatBand, sfBeatCommit: lastBeatCommit,
+                     sfLogBriefs: logBriefs, sfFindings: findings,
                      sfSplitBullet: splitBullet });
   return { render };
 })();
