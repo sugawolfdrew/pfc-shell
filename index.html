@@ -27,6 +27,17 @@
     --face:#c0c0c0; --face-light:#dfdfdf; --face-hi:#fff; --face-sh:#808080; --face-dk:#0a0a0a;
     --window:#fff; --window-text:#000; --outline:#000; --body-text:#222;
     --gray-text:#a9a9a9; --disabled:#a9a9a9;
+    /* 98.css writes disabled text as `grey` — the same literal it uses for every
+       dark bevel and for the inactive title bar, which is how the first pass came
+       to give all three the same variable. They are three different jobs; on a
+       dark flavor the bevel colour is darker than the face and the title colour is
+       lighter, so sharing one made bevels vanish and disabled text unreadable. */
+    --disabled-text:grey;
+    /* small-caps labels that sit on a raised --face-light plate */
+    --ink-on-face:var(--ink-2);
+    /* accent TEXT on that same raised plate — the window-ground accent is too
+       close to --face on the lighter dark flavors */
+    --accent-on-face:var(--select);
     --ink-1:#333; --ink-2:#3a3a3a; --ink-3:#444; --ink-4:#555; --ink-5:#606060;
     --paper-line:#d4d4d4; --paper-line-soft:#efefef; --paper-dim:#f4f4f4; --paper-dim2:#f0f0f0;
     --paper-sh:#b0b0b0; --paper-border:#999;
@@ -34,6 +45,11 @@
     --select-bevel-hi:#6a7ac0; --select-bevel-dk:#000040;
     --title-1:navy; --title-2:#1084d0; --title-text:#fff;
     --title-inactive-1:grey; --title-inactive-2:#b5b5b5; --title-inactive-text:#c7c7c7;
+    /* Desktop icon captions. Their own roles because the accent is the WRONG
+       source on a dark flavor: `--select` is a light pastel there, so every
+       caption became a bright chip floating on a near-black desktop. Standard
+       and Latte keep the accent — these defaults are today's values exactly. */
+    --icon-label-bg:var(--select); --icon-label-text:var(--select-text);
     --desktop:#008080; --info-bg:#ffffe1; --info-border:#b8b060; --warn-text:#7a5c00;
     --error:#800000; --retired:#505050; --link98:#00f;
     --phosphor:#00ff00; --phosphor-rgb:0,255,0; }
@@ -115,13 +131,16 @@
   .desktop-icons { position: absolute; top: 8px; left: 8px; bottom: 8px;
                    display: flex; flex-flow: column wrap; align-content: flex-start;
                    gap: 14px; max-width: calc(100% - 16px); }
-  .desktop-icon { width: 84px; text-align: center; color: var(--select-text); cursor: pointer;
+  .desktop-icon { width: 84px; text-align: center; color: var(--icon-label-text); cursor: pointer;
                   user-select: none; -webkit-user-select: none; }
   .desktop-icon .ico { height: 32px; }
   .desktop-icon .lbl { font-size: 13px; margin-top: 3px; padding: 1px 2px;
-                       background: var(--select); display: inline-block; max-width: 100%; }
+                       background: var(--icon-label-bg); display: inline-block; max-width: 100%; }
+  /* Selection is where the accent belongs — which is also how Win98 did it, and
+     on Standard it is a no-op because the resting chip is already the accent. */
   .desktop-icon:focus .lbl, .desktop-icon.selected .lbl
-                     { outline: 1px dotted var(--select-text); }
+                     { background: var(--select); color: var(--select-text);
+                       outline: 1px dotted var(--select-text); }
 
   /* Windows (depth comes from 98.css bevels — Win98 had no soft shadows) */
   .window.app { position: absolute; display: none; min-width: 260px; }
@@ -187,11 +206,16 @@
                 box-shadow: inset -1px -1px var(--face-dk), inset 1px 1px var(--face-light),
                             inset -2px -2px var(--face-sh), inset 2px 2px var(--face-hi); }
   #start-menu.open { display: flex; }
-  #start-menu .side { width: 24px; background: var(--select); color: var(--select-text);
+  /* The rail carries the wordmark, Win98-style: a gradient in the title bar's own
+     two accents (so it re-tints with the scheme instead of sitting flat), and the
+     wordmark starts at the FOOT of the rail and runs up — the rail is rotated
+     180deg, so `flex-start` is the bottom of the screen, not the top. */
+  #start-menu .side { width: 24px; color: var(--title-text);
+                      background: linear-gradient(to bottom, var(--title-1), var(--title-2));
                       writing-mode: vertical-rl; transform: rotate(180deg);
                       font-weight: bold; font-size: 15px; padding: 8px 2px;
                       letter-spacing: 1px; display: flex; align-items: flex-end;
-                      justify-content: center; white-space: nowrap; overflow: hidden; }
+                      justify-content: flex-start; white-space: nowrap; overflow: hidden; }
   #start-menu ul { list-style: none; margin: 0; padding: 0; flex: 1; }
   #start-menu li { padding: 10px 12px; display: flex; gap: 10px; cursor: pointer;
                    font-size: 14px; align-items: center; }
@@ -279,7 +303,7 @@
   .sf-gate:hover, .sf-gate:focus { background: var(--select); color: var(--select-text); outline: none; }
   .sf-gate:hover .a, .sf-gate:focus .a, .sf-gate:hover .q, .sf-gate:focus .q { color: var(--select-text); }
   .sf-gate .k { flex: none; width: 88px; text-align: center; padding: 2px 0;
-                font-size: 9px; letter-spacing: .6px; font-family: Arial, sans-serif; color: var(--ink-2);
+                font-size: 9px; letter-spacing: .6px; font-family: Arial, sans-serif; color: var(--ink-on-face);
                 background: var(--face-light); box-shadow: inset -1px -1px var(--face-sh), inset 1px 1px var(--face-hi); }
   .sf-gate .q { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
                 white-space: nowrap; color: var(--window-text); }
@@ -371,8 +395,9 @@
       font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:1.45;
       padding:5px 6px; }
   #np-text:focus { height:132px; }
-  #np-text::placeholder { color:var(--face-sh); }
+  html[data-scheme] ::placeholder { color:var(--ink-4); opacity:1; }
   #np-text::selection { background:var(--select); color:var(--select-text); }
+  html[data-scheme] ::selection { background:var(--select); color:var(--select-text); }
 
   /* -- destination row: address band. Clear stays here, at 23px, deliberately:
         a destructive control does not belong at thumb size next to the commit one. -- */
@@ -423,7 +448,7 @@
                   inset -2px -2px var(--face-light), inset 2px 2px var(--face-dk); }
   .np-day { position:sticky; top:0; z-index:2; padding:3px 8px; font-size:10px;
       font-family:Arial, sans-serif; letter-spacing:1.2px; text-transform:uppercase;
-      color:var(--ink-2); background:var(--face-light);
+      color:var(--ink-on-face); background:var(--face-light);
       box-shadow: inset -1px -1px var(--face-sh), inset 1px 1px var(--face-hi); }
   .np-card { padding:7px 9px 8px; border-bottom:1px solid var(--paper-line);
       font-family:Arial, Helvetica, sans-serif; }
@@ -549,9 +574,9 @@
       padding: 6px 8px 8px; background: var(--face);
       font-family: Arial, sans-serif; font-size: 11px; line-height: 1.5; z-index: 3;
       box-shadow: inset -1px -1px var(--face-sh), inset 1px 1px var(--face-hi); }
-  .md-toc b { display: block; font-size: 10px; letter-spacing: 1px; color: var(--ink-2);
+  .md-toc b { display: block; font-size: 10px; letter-spacing: 1px; color: var(--ink-on-face);
       margin: 0 0 3px; text-transform: uppercase; }
-  .md-toc a { display: block; color: var(--select); cursor: pointer; text-decoration: none;
+  .md-toc a { display: block; color: var(--accent-on-face); cursor: pointer; text-decoration: none;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .md-toc a.h3 { padding-left: 10px; }
   @media (max-width: 700px) { .md-toc { display: none; } }
@@ -691,11 +716,11 @@
   /* Oracle.exe, skinned as the Haruspex (Spex's diviner) */
   #oracle-mast { margin: 0 6px; padding: 3px 8px; text-align: center;
                  font-family: Arial; font-size: 11px; font-weight: bold;
-                 letter-spacing: 3px; color: #5a1030; background: #ece4d0;
+                 letter-spacing: 3px; color: var(--warn-text); background: var(--info-bg);
                  box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-sh); }
   .oracle-item { padding: 4px 6px 10px; border-bottom: 2px groove var(--face-light); }
   .oracle-item.pending { padding: 10px 12px; font-family: Arial; font-size: 14px; }
-  .oracle-item.pending b { color: #5a1030; }
+  .oracle-item.pending b { color: var(--warn-text); }
   .oracle-item .fine { color: var(--ink-3); font-size: 12px; margin-top: 3px; font-style: italic; }
 
   /* Logon + dialogs */
@@ -746,56 +771,96 @@
      is pixel-identical by construction and a scheme swap reaches the whole chrome.
      Glyph data-URIs are handled at runtime by SCHEME (dark schemes re-tint). ==== */
   body { color: var(--body-text); }
-  u { border-bottom: .5px solid #222; }
-  button,input[type=reset],input[type=submit] { box-shadow: inset -1px -1px var(--face-dk),inset 1px 1px var(--face-hi),inset -2px -2px var(--title-inactive-1),inset 2px 2px var(--face-light); text-shadow: 0 0 #222; }
-  button.default,input[type=reset].default,input[type=submit].default { box-shadow: inset -2px -2px var(--face-dk),inset 1px 1px var(--face-dk),inset 2px 2px var(--face-hi),inset -3px -3px var(--title-inactive-1),inset 3px 3px var(--face-light); }
-  .vertical-bar { box-shadow: inset -1px -1px var(--face-dk),inset 1px 1px var(--face-hi),inset -2px -2px var(--title-inactive-1),inset 2px 2px var(--face-light); }
-  button:not(:disabled):active,input[type=reset]:not(:disabled):active,input[type=submit]:not(:disabled):active { box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--face-dk),inset -2px -2px var(--face-light),inset 2px 2px var(--title-inactive-1); text-shadow: 1px 1px #222; }
-  button.default:not(:disabled):active,input[type=reset].default:not(:disabled):active,input[type=submit].default:not(:disabled):active { box-shadow: inset 2px 2px var(--face-dk),inset -1px -1px var(--face-dk),inset -2px -2px var(--face-hi),inset 3px 3px var(--title-inactive-1),inset -3px -3px var(--face-light); }
-  button:not(:disabled):hover,input[type=reset]:not(:disabled):hover,input[type=submit]:not(:disabled):hover { box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--face-dk),inset -2px -2px var(--face-light),inset 2px 2px var(--title-inactive-1); }
-  button:focus,input[type=reset]:focus,input[type=submit]:focus { outline: 1px dotted #000; }
-  :disabled,:disabled+label,input[readonly],input[readonly]+label { color: var(--title-inactive-1); }
-  :disabled+label,button:disabled,input[type=reset]:disabled,input[type=submit]:disabled { text-shadow: 1px 1px 0 #fff; }
-  .window { box-shadow: inset -1px -1px var(--face-dk),inset 1px 1px var(--face-light),inset -2px -2px var(--title-inactive-1),inset 2px 2px var(--face-hi); }
+  u { border-bottom: .5px solid var(--body-text); }
+  button,input[type=reset],input[type=submit] { box-shadow: inset -1px -1px var(--face-dk),inset 1px 1px var(--face-hi),inset -2px -2px var(--face-sh),inset 2px 2px var(--face-light); text-shadow: 0 0 var(--body-text); }
+  button.default,input[type=reset].default,input[type=submit].default { box-shadow: inset -2px -2px var(--face-dk),inset 1px 1px var(--face-dk),inset 2px 2px var(--face-hi),inset -3px -3px var(--face-sh),inset 3px 3px var(--face-light); }
+  .vertical-bar { box-shadow: inset -1px -1px var(--face-dk),inset 1px 1px var(--face-hi),inset -2px -2px var(--face-sh),inset 2px 2px var(--face-light); }
+  button:not(:disabled):active,input[type=reset]:not(:disabled):active,input[type=submit]:not(:disabled):active { box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--face-dk),inset -2px -2px var(--face-light),inset 2px 2px var(--face-sh); text-shadow: 1px 1px var(--body-text); }
+  button.default:not(:disabled):active,input[type=reset].default:not(:disabled):active,input[type=submit].default:not(:disabled):active { box-shadow: inset 2px 2px var(--face-dk),inset -1px -1px var(--face-dk),inset -2px -2px var(--face-hi),inset 3px 3px var(--face-sh),inset -3px -3px var(--face-light); }
+  button:not(:disabled):hover,input[type=reset]:not(:disabled):hover,input[type=submit]:not(:disabled):hover { box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--face-dk),inset -2px -2px var(--face-light),inset 2px 2px var(--face-sh); }
+  button:focus,input[type=reset]:focus,input[type=submit]:focus { outline: 1px dotted var(--outline); }
+  :disabled,:disabled+label,input[readonly],input[readonly]+label { color: var(--disabled-text); }
+  :disabled+label,button:disabled,input[type=reset]:disabled,input[type=submit]:disabled { text-shadow: 1px 1px 0 var(--face-hi); }
+  .window { box-shadow: inset -1px -1px var(--face-dk),inset 1px 1px var(--face-light),inset -2px -2px var(--face-sh),inset 2px 2px var(--face-hi); }
   .title-bar { background: linear-gradient(90deg,var(--title-1),var(--title-2)); }
   .title-bar.inactive { background: linear-gradient(90deg,var(--title-inactive-1),var(--title-inactive-2)); }
   .title-bar-text { color: var(--title-text); }
-  .status-bar-field { box-shadow: inset -1px -1px var(--face-light),inset 1px 1px var(--title-inactive-1); }
-  input[type=checkbox]:focus+label,input[type=radio]:focus+label { outline: 1px dotted #000; }
-  input[type=checkbox]+label:before { background: var(--window); box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--title-inactive-1),inset -2px -2px var(--face-light),inset 2px 2px var(--face-dk); }
-  input[type=email],input[type=number],input[type=password],input[type=search],input[type=tel],input[type=text],input[type=url],select { background-color: var(--window); box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--title-inactive-1),inset -2px -2px var(--face-light),inset 2px 2px var(--face-dk); }
-  textarea { background-color: var(--window); box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--title-inactive-1),inset -2px -2px var(--face-light),inset 2px 2px var(--face-dk); }
-  input[type=range]::-webkit-slider-runnable-track { background: var(--outline); border-bottom: 1px solid var(--title-inactive-1); border-right: 1px solid var(--title-inactive-1); box-shadow: 1px 0 0 var(--face-hi),1px 1px 0 var(--face-hi),0 1px 0 var(--face-hi),-1px 0 0 var(--disabled),-1px -1px 0 var(--disabled),0 -1px 0 var(--disabled),-1px 1px 0 var(--face-hi),1px -1px var(--disabled); }
-  input[type=range]::-moz-range-track { background: var(--outline); border-bottom: 1px solid var(--title-inactive-1); border-right: 1px solid var(--title-inactive-1); box-shadow: 1px 0 0 var(--face-hi),1px 1px 0 var(--face-hi),0 1px 0 var(--face-hi),-1px 0 0 var(--disabled),-1px -1px 0 var(--disabled),0 -1px 0 var(--disabled),-1px 1px 0 var(--face-hi),1px -1px var(--disabled); }
-  .is-vertical>input[type=range]::-webkit-slider-runnable-track { border-bottom: 1px solid var(--title-inactive-1); border-left: 1px solid var(--title-inactive-1); box-shadow: -1px 0 0 var(--face-hi),-1px 1px 0 var(--face-hi),0 1px 0 var(--face-hi),1px 0 0 var(--disabled),1px -1px 0 var(--disabled),0 -1px 0 var(--disabled),1px 1px 0 var(--face-hi),-1px -1px var(--disabled); }
-  .is-vertical>input[type=range]::-moz-range-track { border-bottom: 1px solid var(--title-inactive-1); border-left: 1px solid var(--title-inactive-1); box-shadow: -1px 0 0 var(--face-hi),-1px 1px 0 var(--face-hi),0 1px 0 var(--face-hi),1px 0 0 var(--disabled),1px -1px 0 var(--disabled),0 -1px 0 var(--disabled),1px 1px 0 var(--face-hi),-1px -1px var(--disabled); }
+  .title-bar.inactive .title-bar-text { color: var(--title-inactive-text); }
+  .status-bar-field { box-shadow: inset -1px -1px var(--face-light),inset 1px 1px var(--face-sh); }
+  input[type=checkbox]:focus+label,input[type=radio]:focus+label { outline: 1px dotted var(--outline); }
+  input[type=checkbox]+label:before { background: var(--window); box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--face-sh),inset -2px -2px var(--face-light),inset 2px 2px var(--face-dk); }
+  input[type=email],input[type=number],input[type=password],input[type=search],input[type=tel],input[type=text],input[type=url],select { background-color: var(--window); box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--face-sh),inset -2px -2px var(--face-light),inset 2px 2px var(--face-dk); }
+  textarea { background-color: var(--window); box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--face-sh),inset -2px -2px var(--face-light),inset 2px 2px var(--face-dk); }
+  input[type=range]::-webkit-slider-runnable-track { background: var(--outline); border-bottom: 1px solid var(--face-sh); border-right: 1px solid var(--face-sh); box-shadow: 1px 0 0 var(--face-hi),1px 1px 0 var(--face-hi),0 1px 0 var(--face-hi),-1px 0 0 var(--disabled),-1px -1px 0 var(--disabled),0 -1px 0 var(--disabled),-1px 1px 0 var(--face-hi),1px -1px var(--disabled); }
+  input[type=range]::-moz-range-track { background: var(--outline); border-bottom: 1px solid var(--face-sh); border-right: 1px solid var(--face-sh); box-shadow: 1px 0 0 var(--face-hi),1px 1px 0 var(--face-hi),0 1px 0 var(--face-hi),-1px 0 0 var(--disabled),-1px -1px 0 var(--disabled),0 -1px 0 var(--disabled),-1px 1px 0 var(--face-hi),1px -1px var(--disabled); }
+  .is-vertical>input[type=range]::-webkit-slider-runnable-track { border-bottom: 1px solid var(--face-sh); border-left: 1px solid var(--face-sh); box-shadow: -1px 0 0 var(--face-hi),-1px 1px 0 var(--face-hi),0 1px 0 var(--face-hi),1px 0 0 var(--disabled),1px -1px 0 var(--disabled),0 -1px 0 var(--disabled),1px 1px 0 var(--face-hi),-1px -1px var(--disabled); }
+  .is-vertical>input[type=range]::-moz-range-track { border-bottom: 1px solid var(--face-sh); border-left: 1px solid var(--face-sh); box-shadow: -1px 0 0 var(--face-hi),-1px 1px 0 var(--face-hi),0 1px 0 var(--face-hi),1px 0 0 var(--disabled),1px -1px 0 var(--disabled),0 -1px 0 var(--disabled),1px 1px 0 var(--face-hi),-1px -1px var(--disabled); }
   select:focus { background-color: var(--title-1); color: var(--title-text); }
   select:focus option { background-color: var(--window); color: var(--window-text); }
+  /* A `select[multiple]` that does not have focus paints its chosen row with the
+     browser's own grey — the one light slab in Settings that no 98.css rule owns. */
+  input[type=email],input[type=number],input[type=password],input[type=search],input[type=tel],input[type=text],input[type=url],textarea,select { color: var(--window-text); caret-color: var(--window-text); }
+  select option { background-color: var(--window); color: var(--window-text); }
+  select option:checked { background: var(--select); color: var(--select-text); }
   a { color: var(--link98); }
-  a:focus { outline: 1px dotted #00f; }
-  ul.tree-view { background: var(--window); box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--title-inactive-1),inset -2px -2px var(--face-light),inset 2px 2px var(--face-dk); }
+  a:focus { outline: 1px dotted var(--link98); }
+  ul.tree-view { background: var(--window); box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--face-sh),inset -2px -2px var(--face-light),inset 2px 2px var(--face-dk); }
   ul.tree-view a { color: var(--window-text); }
   ul.tree-view a:focus { background-color: var(--title-1); color: var(--title-text); }
-  ul.tree-view ul { border-left: 1px dotted var(--title-inactive-1); }
-  ul.tree-view ul>li:before { border-bottom: 1px dotted var(--title-inactive-1); }
+  ul.tree-view ul { border-left: 1px dotted var(--face-sh); }
+  ul.tree-view ul>li:before { border-bottom: 1px dotted var(--face-sh); }
   ul.tree-view ul>li:last-child:after { background: var(--window); }
-  ul.tree-view details>summary:before { background-color: var(--window); border: 1px solid var(--title-inactive-1); }
-  pre { background: var(--window); box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--title-inactive-1),inset -2px -2px var(--face-light),inset 2px 2px var(--face-dk); }
-  summary:focus { outline: 1px dotted #000; }
+  ul.tree-view details>summary:before { background-color: var(--window); border: 1px solid var(--face-sh); }
+  pre { background: var(--window); box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--face-sh),inset -2px -2px var(--face-light),inset 2px 2px var(--face-dk); }
+  summary:focus { outline: 1px dotted var(--outline); }
   ::-webkit-scrollbar-corner { background: var(--face-light); }
-  ::-webkit-scrollbar-thumb { background-color: var(--face-light); box-shadow: inset -1px -1px var(--face-dk),inset 1px 1px var(--face-hi),inset -2px -2px var(--title-inactive-1),inset 2px 2px var(--face-light); }
-  menu[role=tablist]>li { box-shadow: inset -1px 0 var(--face-dk),inset 1px 1px var(--face-light),inset -2px 0 var(--title-inactive-1),inset 2px 2px var(--face-hi); }
+  ::-webkit-scrollbar-thumb { background-color: var(--face-light); box-shadow: inset -1px -1px var(--face-dk),inset 1px 1px var(--face-hi),inset -2px -2px var(--face-sh),inset 2px 2px var(--face-light); }
+  /* The track's dither and the four arrow buttons live ONLY as data-URIs in the
+     vendored file, so on a dark flavor they depend entirely on SCHEME's runtime
+     re-tint — and that waits on a fetch. Until it lands (or if it never does)
+     the bar would paint 1998 silver against a near-black window. This is the
+     floor underneath it: flat face, correct bevel, no arrow glyph. `:where()`
+     keeps specificity at zero so the re-tinted layer still wins and puts the
+     arrows back. Scoped to [data-scheme], so Windows Standard keeps its dither —
+     note that a bare `background:` shorthand here would erase it. */
+  :where(html[data-scheme="catppuccin-frappe"], html[data-scheme="catppuccin-macchiato"],
+         html[data-scheme="catppuccin-mocha"], html[data-scheme="tokyo-night"],
+         html[data-scheme="tokyo-night-storm"], html[data-scheme="tokyo-night-moon"])
+      ::-webkit-scrollbar-track { background-image: none; background-color: var(--face); }
+  :where(html[data-scheme="catppuccin-frappe"], html[data-scheme="catppuccin-macchiato"],
+         html[data-scheme="catppuccin-mocha"], html[data-scheme="tokyo-night"],
+         html[data-scheme="tokyo-night-storm"], html[data-scheme="tokyo-night-moon"])
+      ::-webkit-scrollbar-button { background-image: none; background-color: var(--face);
+        box-shadow: inset -1px -1px var(--face-dk), inset 1px 1px var(--face-hi),
+                    inset -2px -2px var(--face-sh), inset 2px 2px var(--face-light); }
+  menu[role=tablist]>li { box-shadow: inset -1px 0 var(--face-dk),inset 1px 1px var(--face-light),inset -2px 0 var(--face-sh),inset 2px 2px var(--face-hi); }
   menu[role=tablist]>li>a { color: var(--body-text); }
-  menu[role=tablist]>li>a:focus { outline: 1px dotted #222; }
+  menu[role=tablist]>li>a:focus { outline: 1px dotted var(--body-text); }
   .sunken-panel,table { background-color: var(--window); }
-  table>thead>tr>* { box-shadow: inset -1px -1px var(--face-dk),inset 1px 1px var(--face-hi),inset -2px -2px var(--title-inactive-1),inset 2px 2px var(--face-light); }
+  table>thead>tr>* { box-shadow: inset -1px -1px var(--face-dk),inset 1px 1px var(--face-hi),inset -2px -2px var(--face-sh),inset 2px 2px var(--face-light); }
   table>tbody>tr.highlighted { background-color: var(--title-1); color: var(--title-text); }
-  .progress-indicator { box-shadow: inset -2px -2px var(--face-light),inset 2px 2px var(--title-inactive-1); }
+  .progress-indicator { box-shadow: inset -2px -2px var(--face-light),inset 2px 2px var(--face-sh); }
   .progress-indicator>.progress-indicator-bar { background-color: var(--title-1); }
   .progress-indicator.segmented>.progress-indicator-bar { background-image: linear-gradient(90deg,var(--title-1) 16px,transparent 0 2px); }
   .field-border { background: var(--window); }
-  .field-border,.field-border-disabled { box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--title-inactive-1),inset -2px -2px var(--face-light),inset 2px 2px var(--face-dk); }
-  .status-field-border { box-shadow: inset -1px -1px var(--face-light),inset 1px 1px var(--title-inactive-1); }
+  .field-border,.field-border-disabled { box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--face-sh),inset -2px -2px var(--face-light),inset 2px 2px var(--face-dk); }
+  .status-field-border { box-shadow: inset -1px -1px var(--face-light),inset 1px 1px var(--face-sh); }
+  /* The eleven `background: silver` declarations the first generation pass missed:
+     it re-declared every bevel but not the face the bevel is drawn around, so on a
+     dark flavor the chrome kept its 1998 grey — every button, every table header,
+     the window frame, legends, tabs, disabled fields. Stock silver IS `--face`, so
+     Windows Standard is unchanged and the dark flavors finally inherit. */
+  button,input[type=reset],input[type=submit] { background: var(--face); }
+  .vertical-bar { background: var(--face); }
+  .window { background: var(--face); }
+  legend { background: var(--face); }
+  input[type=checkbox]:active+label:before { background: var(--face); }
+  input[type=checkbox][disabled]+label:before { background: var(--face); }
+  input[type=email]:disabled,input[type=email]:read-only,input[type=number]:disabled,input[type=number]:read-only,input[type=password]:disabled,input[type=password]:read-only,input[type=search]:disabled,input[type=search]:read-only,input[type=tel]:disabled,input[type=tel]:read-only,input[type=text]:disabled,input[type=text]:read-only,input[type=url]:disabled,input[type=url]:read-only,textarea:disabled { background-color: var(--face); }
+  menu[role=tablist]>li[aria-selected=true] { background-color: var(--face); }
+  table>thead>tr>* { background: var(--face); }
+  .field-border-disabled { background: var(--face); }
+  .status-field-border { background: var(--face); }
 
   /* ==== Appearance schemes — Display Properties → Appearance. Each block is one
      saved set of role values, exactly like Win98's named Colors schemes. Official
@@ -803,13 +868,13 @@
      text flip dark-on-pastel on the dark flavors — white fails contrast there.
      Wallpaper, pixel icons, and chart palettes stay scheme-independent (ruled
      2026-08-08, docs/apps-v3.md). ==== */
-  html[data-scheme="catppuccin-frappe"] { --face:#414559; --face-light:#51576d; --face-hi:#626880; --face-sh:#292c3c; --face-dk:#232634; --window:#303446; --window-text:#c6d0f5; --outline:#232634; --body-text:#c6d0f5; --gray-text:#737994; --disabled:#737994; --ink-1:#b5bfe2; --ink-2:#a5adce; --ink-3:#a5adce; --ink-4:#949cbb; --ink-5:#838ba7; --paper-line:#414559; --paper-line-soft:#414559; --paper-dim:#292c3c; --paper-dim2:#414559; --paper-sh:#737994; --paper-border:#737994; --select:#8caaee; --select-text:#232634; --select-tint:#292c3c; --select-bevel-hi:#aec4f3; --select-bevel-dk:#4d5e83; --title-1:#ca9ee6; --title-2:#babbf1; --title-text:#232634; --title-inactive-1:#51576d; --title-inactive-2:#626880; --title-inactive-text:#a5adce; --desktop:#292c3c; --info-bg:#5f5d63; --info-border:#e5c890; --warn-text:#e5c890; --error:#e78284; --retired:#838ba7; --link98:#8caaee; --phosphor:#a6d189; --phosphor-rgb:166,209,137; }
-  html[data-scheme="catppuccin-macchiato"] { --face:#363a4f; --face-light:#494d64; --face-hi:#5b6078; --face-sh:#1e2030; --face-dk:#181926; --window:#24273a; --window-text:#cad3f5; --outline:#181926; --body-text:#cad3f5; --gray-text:#6e738d; --disabled:#6e738d; --ink-1:#b8c0e0; --ink-2:#a5adcb; --ink-3:#a5adcb; --ink-4:#939ab7; --ink-5:#8087a2; --paper-line:#363a4f; --paper-line-soft:#363a4f; --paper-dim:#1e2030; --paper-dim2:#363a4f; --paper-sh:#6e738d; --paper-border:#6e738d; --select:#8aadf4; --select-text:#181926; --select-tint:#1e2030; --select-bevel-hi:#adc6f7; --select-bevel-dk:#4c5f86; --title-1:#c6a0f6; --title-2:#b7bdf8; --title-text:#181926; --title-inactive-1:#494d64; --title-inactive-2:#5b6078; --title-inactive-text:#a5adcb; --desktop:#1e2030; --info-bg:#57565d; --info-border:#eed49f; --warn-text:#eed49f; --error:#ed8796; --retired:#8087a2; --link98:#8aadf4; --phosphor:#a6da95; --phosphor-rgb:166,218,149; }
-  html[data-scheme="catppuccin-mocha"] { --face:#313244; --face-light:#45475a; --face-hi:#585b70; --face-sh:#181825; --face-dk:#11111b; --window:#1e1e2e; --window-text:#cdd6f4; --outline:#11111b; --body-text:#cdd6f4; --gray-text:#6c7086; --disabled:#6c7086; --ink-1:#bac2de; --ink-2:#a6adc8; --ink-3:#a6adc8; --ink-4:#9399b2; --ink-5:#7f849c; --paper-line:#313244; --paper-line-soft:#313244; --paper-dim:#181825; --paper-dim2:#313244; --paper-sh:#6c7086; --paper-border:#6c7086; --select:#89b4fa; --select-text:#11111b; --select-tint:#181825; --select-bevel-hi:#accafc; --select-bevel-dk:#4b638a; --title-1:#cba6f7; --title-2:#b4befe; --title-text:#11111b; --title-inactive-1:#45475a; --title-inactive-2:#585b70; --title-inactive-text:#a6adc8; --desktop:#181825; --info-bg:#555257; --info-border:#f9e2af; --warn-text:#f9e2af; --error:#f38ba8; --retired:#7f849c; --link98:#89b4fa; --phosphor:#a6e3a1; --phosphor-rgb:166,227,161; }
-  html[data-scheme="catppuccin-latte"] { --face:#bcc0cc; --face-light:#ccd0da; --face-hi:#eff1f5; --face-sh:#9ca0b0; --face-dk:#4c4f69; --window:#eff1f5; --window-text:#4c4f69; --outline:#4c4f69; --body-text:#4c4f69; --gray-text:#9ca0b0; --disabled:#9ca0b0; --ink-1:#4c4f69; --ink-2:#5c5f77; --ink-3:#5c5f77; --ink-4:#6c6f85; --ink-5:#7c7f93; --paper-line:#ccd0da; --paper-line-soft:#e6e9ef; --paper-dim:#e6e9ef; --paper-dim2:#e6e9ef; --paper-sh:#9ca0b0; --paper-border:#9ca0b0; --select:#1e66f5; --select-text:#fff; --select-tint:#dce0e8; --select-bevel-hi:#6d9cf8; --select-bevel-dk:#103887; --title-1:#8839ef; --title-2:#7287fd; --title-text:#fff; --title-inactive-1:#acb0be; --title-inactive-2:#bcc0cc; --title-inactive-text:#6c6f85; --desktop:#179299; --info-bg:#ebdbc5; --info-border:#df8e1d; --warn-text:#915c13; --error:#d20f39; --retired:#8c8fa1; --link98:#1e66f5; --phosphor:#40a02b; --phosphor-rgb:64,160,43; }
-  html[data-scheme="tokyo-night"] { --face:#292e42; --face-light:#414868; --face-hi:#737aa2; --face-sh:#16161e; --face-dk:#0c0e14; --window:#1a1b26; --window-text:#c0caf5; --outline:#0c0e14; --body-text:#c0caf5; --gray-text:#565f89; --disabled:#565f89; --ink-1:#a9b1d6; --ink-2:#a9b1d6; --ink-3:#a9b1d6; --ink-4:#737aa2; --ink-5:#565f89; --paper-line:#292e42; --paper-line-soft:#292e42; --paper-dim:#16161e; --paper-dim2:#292e42; --paper-sh:#737aa2; --paper-border:#545c7e; --select:#7aa2f7; --select-text:#16161e; --select-tint:#3b4261; --select-bevel-hi:#a2bef9; --select-bevel-dk:#435988; --title-1:#3d59a1; --title-2:#7aa2f7; --title-text:#16161e; --title-inactive-1:#3b4261; --title-inactive-2:#414868; --title-inactive-text:#565f89; --desktop:#0c0e14; --info-bg:#444148; --info-border:#e0af68; --warn-text:#e0af68; --error:#db4b4b; --retired:#545c7e; --link98:#7aa2f7; --phosphor:#9ece6a; --phosphor-rgb:158,206,106; }
-  html[data-scheme="tokyo-night-storm"] { --face:#292e42; --face-light:#414868; --face-hi:#737aa2; --face-sh:#1f2335; --face-dk:#1b1e2d; --window:#24283b; --window-text:#c0caf5; --outline:#1b1e2d; --body-text:#c0caf5; --gray-text:#565f89; --disabled:#565f89; --ink-1:#a9b1d6; --ink-2:#a9b1d6; --ink-3:#a9b1d6; --ink-4:#737aa2; --ink-5:#565f89; --paper-line:#292e42; --paper-line-soft:#292e42; --paper-dim:#1f2335; --paper-dim2:#292e42; --paper-sh:#737aa2; --paper-border:#545c7e; --select:#7aa2f7; --select-text:#1f2335; --select-tint:#3b4261; --select-bevel-hi:#a2bef9; --select-bevel-dk:#435988; --title-1:#3d59a1; --title-2:#7aa2f7; --title-text:#1f2335; --title-inactive-1:#3b4261; --title-inactive-2:#414868; --title-inactive-text:#565f89; --desktop:#1b1e2d; --info-bg:#444148; --info-border:#e0af68; --warn-text:#e0af68; --error:#db4b4b; --retired:#545c7e; --link98:#7aa2f7; --phosphor:#9ece6a; --phosphor-rgb:158,206,106; }
-  html[data-scheme="tokyo-night-moon"] { --face:#2f334d; --face-light:#444a73; --face-hi:#737aa2; --face-sh:#1e2030; --face-dk:#191b29; --window:#222436; --window-text:#c8d3f5; --outline:#191b29; --body-text:#c8d3f5; --gray-text:#636da6; --disabled:#636da6; --ink-1:#828bb8; --ink-2:#828bb8; --ink-3:#828bb8; --ink-4:#737aa2; --ink-5:#636da6; --paper-line:#2f334d; --paper-line-soft:#2f334d; --paper-dim:#1e2030; --paper-dim2:#2f334d; --paper-sh:#737aa2; --paper-border:#545c7e; --select:#82aaff; --select-text:#1e2030; --select-tint:#3b4261; --select-bevel-hi:#a8c4ff; --select-bevel-dk:#485e8c; --title-1:#3e68d7; --title-2:#82aaff; --title-text:#1e2030; --title-inactive-1:#3b4261; --title-inactive-2:#444a73; --title-inactive-text:#636da6; --desktop:#191b29; --info-bg:#4e4953; --info-border:#ffc777; --warn-text:#ffc777; --error:#c53b53; --retired:#545c7e; --link98:#82aaff; --phosphor:#c3e88d; --phosphor-rgb:195,232,141; }
+  html[data-scheme="catppuccin-frappe"] { --accent-on-face:var(--select-bevel-hi); --ink-on-face:var(--window-text); --disabled-text:#838ba7; --face:#414559; --face-light:#51576d; --face-hi:#626880; --face-sh:#292c3c; --face-dk:#232634; --window:#303446; --window-text:#c6d0f5; --outline:#232634; --body-text:#c6d0f5; --gray-text:#737994; --disabled:#737994; --ink-1:#b5bfe2; --ink-2:#a5adce; --ink-3:#a5adce; --ink-4:#949cbb; --ink-5:#838ba7; --paper-line:#414559; --paper-line-soft:#414559; --paper-dim:#292c3c; --paper-dim2:#414559; --paper-sh:#737994; --paper-border:#737994; --select:#8caaee; --select-text:#232634; --select-tint:#292c3c; --select-bevel-hi:#aec4f3; --select-bevel-dk:#4d5e83; --title-1:#ca9ee6; --title-2:#babbf1; --title-text:#232634; --title-inactive-1:#51576d; --title-inactive-2:#626880; --title-inactive-text:var(--window-text); --icon-label-bg:var(--window); --icon-label-text:var(--window-text); --desktop:#292c3c; --info-bg:#57555b; --info-border:#e5c890; --warn-text:#e5c890; --error:#e78284; --retired:#838ba7; --link98:#8caaee; --phosphor:#a6d189; --phosphor-rgb:166,209,137; }
+  html[data-scheme="catppuccin-macchiato"] { --accent-on-face:var(--select-bevel-hi); --ink-on-face:var(--window-text); --disabled-text:#8087a2; --face:#363a4f; --face-light:#494d64; --face-hi:#5b6078; --face-sh:#1e2030; --face-dk:#181926; --window:#24273a; --window-text:#cad3f5; --outline:#181926; --body-text:#cad3f5; --gray-text:#6e738d; --disabled:#6e738d; --ink-1:#b8c0e0; --ink-2:#a5adcb; --ink-3:#a5adcb; --ink-4:#939ab7; --ink-5:#8087a2; --paper-line:#363a4f; --paper-line-soft:#363a4f; --paper-dim:#1e2030; --paper-dim2:#363a4f; --paper-sh:#6e738d; --paper-border:#6e738d; --select:#8aadf4; --select-text:#181926; --select-tint:#1e2030; --select-bevel-hi:#adc6f7; --select-bevel-dk:#4c5f86; --title-1:#c6a0f6; --title-2:#b7bdf8; --title-text:#181926; --title-inactive-1:#494d64; --title-inactive-2:#5b6078; --title-inactive-text:var(--window-text); --icon-label-bg:var(--window); --icon-label-text:var(--window-text); --desktop:#1e2030; --info-bg:#57565d; --info-border:#eed49f; --warn-text:#eed49f; --error:#ed8796; --retired:#8087a2; --link98:#8aadf4; --phosphor:#a6da95; --phosphor-rgb:166,218,149; }
+  html[data-scheme="catppuccin-mocha"] { --accent-on-face:var(--select-bevel-hi); --ink-on-face:var(--window-text); --disabled-text:#7f849c; --face:#313244; --face-light:#45475a; --face-hi:#585b70; --face-sh:#181825; --face-dk:#11111b; --window:#1e1e2e; --window-text:#cdd6f4; --outline:#11111b; --body-text:#cdd6f4; --gray-text:#6c7086; --disabled:#6c7086; --ink-1:#bac2de; --ink-2:#a6adc8; --ink-3:#a6adc8; --ink-4:#9399b2; --ink-5:#7f849c; --paper-line:#313244; --paper-line-soft:#313244; --paper-dim:#181825; --paper-dim2:#313244; --paper-sh:#6c7086; --paper-border:#6c7086; --select:#89b4fa; --select-text:#11111b; --select-tint:#181825; --select-bevel-hi:#accafc; --select-bevel-dk:#4b638a; --title-1:#cba6f7; --title-2:#b4befe; --title-text:#11111b; --title-inactive-1:#45475a; --title-inactive-2:#585b70; --title-inactive-text:var(--window-text); --icon-label-bg:var(--window); --icon-label-text:var(--window-text); --desktop:#181825; --info-bg:#555257; --info-border:#f9e2af; --warn-text:#f9e2af; --error:#f38ba8; --retired:#7f849c; --link98:#89b4fa; --phosphor:#a6e3a1; --phosphor-rgb:166,227,161; }
+  html[data-scheme="catppuccin-latte"] { --disabled-text:#8c8fa1; --face:#bcc0cc; --face-light:#ccd0da; --face-hi:#eff1f5; --face-sh:#9ca0b0; --face-dk:#4c4f69; --window:#eff1f5; --window-text:#4c4f69; --outline:#4c4f69; --body-text:#4c4f69; --gray-text:#9ca0b0; --disabled:#9ca0b0; --ink-1:#4c4f69; --ink-2:#5c5f77; --ink-3:#5c5f77; --ink-4:#6c6f85; --ink-5:#7c7f93; --paper-line:#ccd0da; --paper-line-soft:#e6e9ef; --paper-dim:#e6e9ef; --paper-dim2:#e6e9ef; --paper-sh:#9ca0b0; --paper-border:#9ca0b0; --select:#1e66f5; --select-text:#fff; --select-tint:#dce0e8; --select-bevel-hi:#6d9cf8; --select-bevel-dk:#103887; --title-1:#8839ef; --title-2:#7287fd; --title-text:#fff; --title-inactive-1:#acb0be; --title-inactive-2:#bcc0cc; --title-inactive-text:#6c6f85; --desktop:#179299; --info-bg:#ebdbc5; --info-border:#df8e1d; --warn-text:#915c13; --error:#d20f39; --retired:#8c8fa1; --link98:#1e66f5; --phosphor:#40a02b; --phosphor-rgb:64,160,43; }
+  html[data-scheme="tokyo-night"] { --accent-on-face:var(--select-bevel-hi); --ink-on-face:var(--window-text); --disabled-text:#565f89; --face:#292e42; --face-light:#414868; --face-hi:#737aa2; --face-sh:#16161e; --face-dk:#0c0e14; --window:#1a1b26; --window-text:#c0caf5; --outline:#0c0e14; --body-text:#c0caf5; --gray-text:#565f89; --disabled:#565f89; --ink-1:#a9b1d6; --ink-2:#a9b1d6; --ink-3:#a9b1d6; --ink-4:#8891bc; --ink-5:#565f89; --paper-line:#292e42; --paper-line-soft:#292e42; --paper-dim:#16161e; --paper-dim2:#292e42; --paper-sh:#737aa2; --paper-border:#545c7e; --select:#7aa2f7; --select-text:#16161e; --select-tint:#3b4261; --select-bevel-hi:#a2bef9; --select-bevel-dk:#435988; --title-1:#7aa2f7; --title-2:#89ddff; --title-text:#16161e; --title-inactive-1:#3b4261; --title-inactive-2:#414868; --title-inactive-text:var(--window-text); --icon-label-bg:var(--window); --icon-label-text:var(--window-text); --desktop:#0c0e14; --info-bg:#444148; --info-border:#e0af68; --warn-text:#e0af68; --error:#db4b4b; --retired:#545c7e; --link98:#7aa2f7; --phosphor:#9ece6a; --phosphor-rgb:158,206,106; }
+  html[data-scheme="tokyo-night-storm"] { --accent-on-face:var(--select-bevel-hi); --ink-on-face:var(--window-text); --disabled-text:#565f89; --face:#292e42; --face-light:#414868; --face-hi:#737aa2; --face-sh:#1f2335; --face-dk:#1b1e2d; --window:#24283b; --window-text:#c0caf5; --outline:#1b1e2d; --body-text:#c0caf5; --gray-text:#565f89; --disabled:#565f89; --ink-1:#a9b1d6; --ink-2:#a9b1d6; --ink-3:#a9b1d6; --ink-4:#8891bc; --ink-5:#565f89; --paper-line:#292e42; --paper-line-soft:#292e42; --paper-dim:#1f2335; --paper-dim2:#292e42; --paper-sh:#737aa2; --paper-border:#545c7e; --select:#7aa2f7; --select-text:#1f2335; --select-tint:#3b4261; --select-bevel-hi:#a2bef9; --select-bevel-dk:#435988; --title-1:#7aa2f7; --title-2:#89ddff; --title-text:#1f2335; --title-inactive-1:#3b4261; --title-inactive-2:#414868; --title-inactive-text:var(--window-text); --icon-label-bg:var(--window); --icon-label-text:var(--window-text); --desktop:#1b1e2d; --info-bg:#444148; --info-border:#e0af68; --warn-text:#e0af68; --error:#db4b4b; --retired:#545c7e; --link98:#7aa2f7; --phosphor:#9ece6a; --phosphor-rgb:158,206,106; }
+  html[data-scheme="tokyo-night-moon"] { --accent-on-face:var(--select-bevel-hi); --ink-on-face:var(--window-text); --disabled-text:#636da6; --face:#2f334d; --face-light:#444a73; --face-hi:#737aa2; --face-sh:#1e2030; --face-dk:#191b29; --window:#222436; --window-text:#c8d3f5; --outline:#191b29; --body-text:#c8d3f5; --gray-text:#636da6; --disabled:#636da6; --ink-1:#828bb8; --ink-2:#828bb8; --ink-3:#828bb8; --ink-4:#8891bc; --ink-5:#636da6; --paper-line:#2f334d; --paper-line-soft:#2f334d; --paper-dim:#1e2030; --paper-dim2:#2f334d; --paper-sh:#737aa2; --paper-border:#545c7e; --select:#82aaff; --select-text:#1e2030; --select-tint:#3b4261; --select-bevel-hi:#a8c4ff; --select-bevel-dk:#485e8c; --title-1:#82aaff; --title-2:#86e1fc; --title-text:#1e2030; --title-inactive-1:#3b4261; --title-inactive-2:#444a73; --title-inactive-text:var(--window-text); --icon-label-bg:var(--window); --icon-label-text:var(--window-text); --desktop:#191b29; --info-bg:#4e4953; --info-border:#ffc777; --warn-text:#ffc777; --error:#ff757f; --retired:#545c7e; --link98:#82aaff; --phosphor:#c3e88d; --phosphor-rgb:195,232,141; }
 </style>
 </head>
 <body>
@@ -848,7 +913,7 @@
         <input id="token-input" type="password" placeholder="github_pat_…"
                autocomplete="off" style="flex:1; min-width:0">
       </div>
-      <p id="logon-err" style="color:#800000; font-size:11px;"></p>
+      <p id="logon-err" style="color:var(--error); font-size:11px;"></p>
       <section class="field-row" style="justify-content: flex-end; gap: 6px;">
         <button id="logon-ok" class="default">OK</button>
         <button id="logon-demo">Demo</button>
@@ -859,7 +924,7 @@
 
 <!-- ============ Taskbar ============ -->
 <div id="taskbar">
-  <button id="start-btn" aria-label="Start menu"><img id="start-flag" alt=""> Start</button>
+  <button id="start-btn" aria-label="Begin menu"><img id="start-flag" alt=""> Begin</button>
   <div id="task-buttons"></div>
   <div id="ticker"><div class="tape" id="ticker-tape"></div></div><div id="tray"><span id="clock">--:--</span></div>
 </div>
@@ -892,9 +957,10 @@ function setZoom(v) {
 }
 /* ==== Appearance schemes (docs/apps-v3.md slice 1). A scheme is a [data-scheme]
    var block in the stylesheet; this module just moves the attribute, persists the
-   pick, and — on dark schemes — re-tints the 26 black SVG glyphs the vendored
-   98.css bakes into data-URIs (checks, radio dots, arrows), which would otherwise
-   vanish on a dark face. Applied before any window is built, so no flash. ==== */
+   pick, and — on dark schemes — re-tints the 26 SVG glyphs the vendored 98.css
+   bakes into data-URIs (checks, radio dots, arrows, scrollbar buttons and their
+   bevels), which would otherwise stay stock silver-and-black on a dark face.
+   Applied before any window is built, so no flash. ==== */
 const SCHEME = (() => {
   const KEY = "pfc_scheme";
   const NAMES = { standard: "Windows Standard",
@@ -909,11 +975,31 @@ const SCHEME = (() => {
     let el = document.getElementById("scheme-glyphs");
     if (!DARK.has(name)) { if (el) el.remove(); return; }
     try {
-      if (cssText === null) cssText = await (await fetch("assets/98.css")).text();
-      const ink = getComputedStyle(document.documentElement)
-        .getPropertyValue("--window-text").trim().replace("#", "%23");
+      if (cssText === null) {
+        cssText = await (await fetch("assets/98.css")).text();
+        /* The first fetch is the only slow step here, and a scheme can be picked
+           again while it is in flight: switching to a dark flavor and back to a
+           light one used to let the dark layer land AFTER the light one had
+           already cleared it, leaving re-tinted glyphs on a silver face. Every
+           later call is synchronous from here, so this is the only gap. */
+        if (current() !== name) return;
+      }
+      const cs = getComputedStyle(document.documentElement);
+      const v = n => cs.getPropertyValue(n).trim().replace("#", "%23");
+      /* Every colour 98.css bakes into an SVG data-URI, mapped to the role it is
+         playing. Only the black ink used to be re-tinted, which left the bevel
+         drawn *around* it stock silver — so a dark scheme got a light-grey
+         scrollbar button with a light arrow sitting on it, and the same for the
+         select box's arrow well, the tree's +/- boxes and the slider thumb. The
+         eight tokens below are the complete set the vendored file uses. */
+      const MAP = { "%23000": v("--window-text"), "%230a0a0a": v("--face-dk"),
+                    "%23fff": v("--face-hi"), "%23dfdfdf": v("--face-light"),
+                    "silver": v("--face"), "%23c0c7c8": v("--face"),
+                    "gray": v("--face-sh"), "%2387888f": v("--face-sh") };
+      const TOKEN = /%23[0-9a-f]{6}|%23[0-9a-f]{3}|silver|gray/gi;
       const rules = [...cssText.matchAll(/([^{}@]+)\{([^{}]*data:image[^{}]*)\}/g)]
-        .map(m => m[1].trim() + "{" + m[2].replaceAll("%23000", ink) + "}");
+        .map(m => m[1].trim() + "{" +
+          m[2].replace(TOKEN, t => MAP[t.toLowerCase()] || t) + "}");
       if (!el) { el = document.createElement("style"); el.id = "scheme-glyphs";
                  document.head.appendChild(el); }
       el.textContent = rules.join("\n");
@@ -2922,7 +3008,7 @@ const Surface = (() => {
     return { grid, total, first, last };
   }
   const LVL = v => v === 0 ? 0 : v < 15 ? 1 : v < 35 ? 2 : 3;
-  const ARC_FILL = ["#ffffff", "#a868d0", "#6a3890", "#4a1a68"];
+  const ARC_FILL = ["var(--window)", "#a868d0", "#6a3890", "#4a1a68"];   // [0] is paper; 1-3 are brand
   const ARC = { LB: 30, CW: 40, CH: 19, GAP: 3, TOP: 19 };
   function archiveSVG(grid, total, today, compact) {
     const years = Object.keys(grid).map(Number).sort((a, b) => a - b);
@@ -2937,15 +3023,15 @@ const Surface = (() => {
     MONL.forEach((m, i) => { const cur = i === curM && years.includes(curY);
       s += `<text x="${LB + i * (CW + GAP) + CW / 2}" y="14" text-anchor="middle" font-family="Arial" ` +
            `font-size="${cur ? 10 : 9}" font-weight="${cur ? "bold" : "normal"}" ` +
-           `fill="${cur ? "#000" : "#444"}">${m}</text>`; });
+           `fill="${cur ? "var(--window-text)" : "var(--ink-3)"}">${m}</text>`; });
     years.forEach((y, r) => {
       const yy = TOP + r * (CH + GAP);
       s += `<text x="${LB - 6}" y="${yy + CH - 6}" text-anchor="end" font-family="Arial" ` +
-           `font-size="10" fill="#3a3a3a">${y}</text>`;
+           `font-size="10" fill="var(--ink-2)">${y}</text>`;
       grid[y].forEach((v, i) => {
         const x = LB + i * (CW + GAP), L = LVL(v);
         s += `<rect x="${x}" y="${yy}" width="${CW}" height="${CH}" fill="${ARC_FILL[L]}"` +
-             (L === 0 ? ` stroke="#d4d4d4"` : ``) + `/>`;
+             (L === 0 ? ` stroke="var(--paper-line)"` : ``) + `/>`;
         if (v >= 35 && !compact)                          // label the peaks only
           s += `<text x="${x + CW / 2}" y="${yy + CH - 6}" text-anchor="middle" font-family="Arial" ` +
                `font-size="9" fill="${L === 1 ? "#000" : "#fff"}">${v}</text>`;
@@ -2953,8 +3039,8 @@ const Surface = (() => {
     });
     if (years.includes(curY)) {                           // today's month, outside the cell
       const tx = LB + curM * (CW + GAP), ty = TOP + years.indexOf(curY) * (CH + GAP);
-      s += `<rect x="${tx - 2}" y="${ty - 2}" width="${CW + 4}" height="${CH + 4}" fill="none" stroke="#000"/>`;
-      s += `<path d="M${tx + CW / 2 - 4} 0 L${tx + CW / 2 + 4} 0 L${tx + CW / 2} 5 Z" fill="#000"/>`;
+      s += `<rect x="${tx - 2}" y="${ty - 2}" width="${CW + 4}" height="${CH + 4}" fill="none" stroke="var(--window-text)"/>`;
+      s += `<path d="M${tx + CW / 2 - 4} 0 L${tx + CW / 2 + 4} 0 L${tx + CW / 2} 5 Z" fill="var(--window-text)"/>`;
     }
     return s + `</svg>`;
   }
@@ -2991,15 +3077,15 @@ const Surface = (() => {
             `last ${DAYS} days; ${total} in all.">`;
     for (let v = 0; v <= MAX; v += MAX / 3) {
       s += `<line x1="${PL - 3}" x2="${W - PR}" y1="${y(v)}" y2="${y(v)}" ` +
-           `stroke="${v ? "#d4d4d4" : "#808080"}"/>`;     // baseline is one step darker
+           `stroke="${v ? "var(--paper-line)" : "var(--paper-sh)"}"/>`;     // baseline is one step darker
       s += `<text x="${PL - 6}" y="${y(v) + 3}" text-anchor="end" font-family="Arial" ` +
-           `font-size="9" fill="#444">${v}</text>`;
+           `font-size="9" fill="var(--ink-3)">${v}</text>`;
     }
     const tallest = keys.reduce((a, k) => sumDay(byDay[k]) > sumDay(byDay[a]) ? k : a, keys[0]);
     keys.forEach((k, i) => {
       const x = PL + i * (CW + GAP), rec = byDay[k];
       if (!rec) {                          // a day with nothing logged: a stub, not a gap
-        s += `<rect x="${x}" y="${y(0) - 1}" width="${CW}" height="1" fill="#d4d4d4"/>`;
+        s += `<rect x="${x}" y="${y(0) - 1}" width="${CW}" height="1" fill="var(--paper-line)"/>`;
       } else {
         let acc = 0;
         [["took", "#007800"], ["conn", "#6a3890"], ["built", "#a8005c"]].forEach(([f, col]) => {
@@ -3011,11 +3097,11 @@ const Surface = (() => {
         });
         if (DAYS > 10 || k === tallest)    // mobile labels only the tallest column
           s += `<text x="${x + CW / 2}" y="${(y(acc) - 4).toFixed(2)}" text-anchor="middle" ` +
-               `font-family="Arial" font-size="10" font-weight="bold" fill="#000">${acc}</text>`;
+               `font-family="Arial" font-size="10" font-weight="bold" fill="var(--window-text)">${acc}</text>`;
       }
       if (i % 2 === 1 || i === DAYS - 1)
         s += `<text x="${x + CW / 2}" y="${H - 3}" text-anchor="middle" font-family="Arial" ` +
-             `font-size="9" fill="#444">${dateOf(k).getDate()}</text>`;
+             `font-size="9" fill="var(--ink-3)">${dateOf(k).getDate()}</text>`;
     });
     return s + `</svg>`;
   }
@@ -3237,7 +3323,7 @@ const Surface = (() => {
         `${MON3[last % 12]} ${Math.floor(last / 12)}`;
     const sw = (c, lbl, none) => `<span><i${none ? ' class="none"' : ""} style="background:${c}"></i>${lbl}</span>`;
     const legend = `<div class="sf-legend">
-        ${sw("#fff", "none", true)}${sw(ARC_FILL[1], "1\u201314")}${sw(ARC_FILL[2], "15\u201334")}${sw(ARC_FILL[3], "35+")}
+        ${sw("var(--window)", "none", true)}${sw(ARC_FILL[1], "1\u201314")}${sw(ARC_FILL[2], "15\u201334")}${sw(ARC_FILL[3], "35+")}
         <span class="sp"></span><span>${esc(span)}</span>
         <a data-t="archive">${asTable.archive ? "Chart \u25b8" : "Table \u25b8"}</a>
       </div>`;
@@ -3747,8 +3833,8 @@ const Explorer = (() => {
     if (view.querySelector(".flag-box")) return;
     const box = document.createElement("div");
     box.className = "flag-box";
-    box.style.cssText = "margin:4px 14px 14px; padding:8px; background:#c0c0c0;" +
-      "box-shadow: inset -1px -1px #808080, inset 1px 1px #fff;";
+    box.style.cssText = "margin:4px 14px 14px; padding:8px; background:var(--face);" +
+      "box-shadow: inset -1px -1px var(--face-sh), inset 1px 1px var(--face-hi);";
     box.innerHTML = `
       <p style="margin:0 0 6px; font-family:Arial; font-size:13px;">
         What's wrong on <b>${path}</b>? Say what it should be if you know —
@@ -5108,7 +5194,7 @@ const Explorer = (() => {
               `<li role="tab" data-tab="${id}" aria-selected="${id === cur}"><a href="#log">${escHtml(label)}</a></li>`).join("")}
           </menu>
         </div>
-        <div id="log-list" class="sunken-panel" style="overflow:auto; background:#fff;
+        <div id="log-list" class="sunken-panel" style="overflow:auto; background:var(--window);
              margin:0 8px 8px 8px; height:calc(100% - 52px);"></div>`;
       body.querySelectorAll("[role=tab]").forEach(li =>
         li.addEventListener("click", e => { e.preventDefault(); cur = li.dataset.tab; renderList(body); }));
@@ -5164,9 +5250,9 @@ const Search = (() => {
     body.dataset.ready = 1;
     body.classList.remove("white");
     body.innerHTML = `
-      <div class="row"><input id="q" placeholder="Search the brain…">
+      <div class="row"><input id="q" type="text" placeholder="Search the brain…">
         <button id="go" class="default">Find</button></div>
-      <div id="results" class="sunken-panel" style="overflow:auto; height:calc(100% - 42px); background:#fff; margin:0 6px 6px;"></div>`;
+      <div id="results" class="sunken-panel" style="overflow:auto; height:calc(100% - 42px); background:var(--window); margin:0 6px 6px;"></div>`;
     const q = body.querySelector("#q"), res = body.querySelector("#results");
     async function run() {
       const term = q.value.trim().toLowerCase();
@@ -5256,11 +5342,11 @@ const Search = (() => {
       body.classList.remove("white");
       body.innerHTML = `
         <div class="row" style="display:flex; gap:4px; padding:6px;">
-          <input id="oracle-q" placeholder="Put a question to the archive\u2026" style="flex:1">
+          <input id="oracle-q" type="text" placeholder="Put a question to the archive\u2026" style="flex:1">
           <button id="oracle-ask" class="default">Divine</button>
         </div>
         <div id="oracle-mast">HARVSPEX \u00b7 READS THE ARCHIVE \u00b7 INVENTS NOTHING</div>
-        <div id="oracle-list" class="sunken-panel" style="overflow:auto; background:#fff;
+        <div id="oracle-list" class="sunken-panel" style="overflow:auto; background:var(--window);
              margin:6px 6px; height:calc(100% - 72px);"></div>`;
       const q = body.querySelector("#oracle-q"), btn = body.querySelector("#oracle-ask");
       btn.onclick = async () => {
@@ -5450,7 +5536,7 @@ const Search = (() => {
         </menu>
         <div class="window" role="tabpanel" style="margin:0 6px 6px; height:calc(100% - 40px);
              display:flex; flex-direction:column;">
-          <div id="inq-list" style="overflow:auto; flex:1; background:#c0c0c0; padding:8px;"></div>
+          <div id="inq-list" style="overflow:auto; flex:1; background:var(--face); padding:8px;"></div>
         </div>`;
       body.querySelectorAll("menu[role=tablist] li").forEach(li =>
         li.addEventListener("click", e => { e.preventDefault(); render(li.dataset.tab).catch(inqFail); }));
@@ -5748,9 +5834,9 @@ const Search = (() => {
           <input id="why-file" type="file" accept="image/*" multiple style="display:none">
           <div class="spacer"></div><span class="note">DO IT FOR HER</span>
         </div>
-        <div id="why-viewport" style="margin:6px; background:#fff;
-             box-shadow: inset -1px -1px #fff, inset 1px 1px #808080;">
-          <div id="why-stage" style="position:relative; width:100%; padding-top:76.12%; background:#fff;">
+        <div id="why-viewport" style="margin:6px; background:var(--window);
+             box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-sh);">
+          <div id="why-stage" style="position:relative; width:100%; padding-top:76.12%; background:var(--window);">
             <img class="why-frame" src="assets/why-frame.png" alt="DO IT FOR HER"
                  style="position:absolute; inset:0; width:100%; height:100%; z-index:2;">
           </div>
@@ -6139,7 +6225,7 @@ const Search = (() => {
       <img src="assets/pfc-logo.png" alt="" style="display:block; width:132px; height:132px;
            margin:0 auto 6px; image-rendering:pixelated;">
       <h1 style="text-align:center; font-size:21px; margin:0">Postfrontal Cortex 98</h1>
-      <p style="text-align:center; margin:2px 0 0; font-family:Arial; font-size:12px; color:#444">
+      <p style="text-align:center; margin:2px 0 0; font-family:Arial; font-size:12px; color:var(--ink-3)">
         Version 2.0 &nbsp;·&nbsp; Build 2026-08-03 &nbsp;·&nbsp; Andrew De Young</p>
       </div>
       <div class="md" style="padding:0 14px 14px">
@@ -6168,7 +6254,7 @@ const Search = (() => {
       API. <b>Stores</b> nothing here: this window is glass. The wiki loads from the
       repository into this tab and goes no further — no server of ours ever sees it.</p>
 
-      <p style="color:#444; font-size:13px">Spine: <code>github.com/sugawolfdrew/PFC</code>
+      <p style="color:var(--ink-3); font-size:13px">Spine: <code>github.com/sugawolfdrew/PFC</code>
       &nbsp;·&nbsp; Brain: Claude Cowork &nbsp;·&nbsp; Memory: the Karpathy LLM-Wiki
       pattern &nbsp;·&nbsp; Chrome: 98.css</p>
       </div>`;
