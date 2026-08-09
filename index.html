@@ -476,8 +476,36 @@
   .np-card .np-became { margin:5px 0 0; }
   .np-card .np-acts { margin-top:6px; }
   .np-card .np-acts button { min-height:22px; font-size:12px; }
+  /* -- the in-place editor (v3 slice 4). It replaces the card's own body so the
+        note is edited where it is read, and the card keeps its header, its state
+        strip and its Became line while you work. Nothing else on the feed moves:
+        paintFeed() refuses to run while this is open. -- */
+  .np-card.np-editing { background:var(--paper-dim); }
+  /* the editor's own bar IS the card's controls while it is open */
+  .np-card.np-editing .np-acts { display:none; }
+  .np-ed { width:100%; box-sizing:border-box; min-height:74px; resize:vertical;
+      font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:1.5; }
+  .np-ed-why { font-size:11px; color:var(--ink-3); margin:0 0 4px;
+      font-family:Arial, Helvetica, sans-serif; }
+  .np-ed-bar { display:flex; align-items:center; gap:5px; margin-top:5px; }
+  .np-ed-bar .sp { flex:1; }
+  .np-ed-bar button { min-height:22px; font-size:12px; }
+  .np-ed-bar .np-ed-note { font-size:11px; color:var(--ink-3); }
   .np-empty { font-family:Arial, Helvetica, sans-serif; font-size:13px; color:var(--ink-5);
       padding:10px 8px; }
+
+  /* ---- Wiki Web. The canvas fills the panel and is sized from its own rect, so
+     it stays right under both the UI scale and a window drag. ---- */
+  #win-web .window-body { display:flex; flex-direction:column; }
+  .web-tools { flex:none; display:flex; align-items:center; gap:4px; padding:4px 5px;
+      flex-wrap:wrap; font-size:12px; }
+  .web-tools .sp { flex:1; }
+  .web-tools button { min-height:22px; font-size:12px; }
+  .web-tools select { font-size:12px; height:22px; }
+  #web-q { width:130px; font-size:12px; height:22px; box-sizing:border-box; }
+  .web-stage { flex:1; min-height:120px; margin:0 5px 5px; overflow:hidden;
+      background:var(--window); }
+  #web-cvs { display:block; width:100%; height:100%; touch-action:none; }
   .np-became { font-family:Arial, Helvetica, sans-serif; font-size:12px; margin:7px 0 0;
       color:var(--ink-1); }
   .np-became code { font-family:"Courier New", monospace; font-size:11px; }
@@ -961,6 +989,10 @@ function setZoom(v) {
   document.documentElement.style.zoom = Z;
   refreshIcons();
   if (typeof WALL !== "undefined") WALL.resize(); // WALL is a top-level const, never a window property
+  /* Changing the UI scale fires no resize event, so anything holding a canvas sized
+     in layout pixels would keep a stale backing store until the next drag. The two
+     that existed were called by name above; announce it for the rest. */
+  document.dispatchEvent(new CustomEvent("pfc:zoom", { detail: { z: Z } }));
 }
 /* ==== Appearance schemes (docs/apps-v3.md slice 1). A scheme is a [data-scheme]
    var block in the stylesheet; this module just moves the attribute, persists the
@@ -1084,6 +1116,7 @@ const PNG_ICONS = new Map(); // name -> HTMLImageElement | false (tried and abse
    Log Off is the last hand-drawn glyph in the shell; without this the page
    spends a 404 on every load looking for a file that has never existed. */
 PNG_ICONS.set("logoff", false);
+PNG_ICONS.set("web", false);      // Wiki Web is hand-drawn too — see ART.web
 function pngIcon(name) {
   if (PNG_ICONS.has(name)) return PNG_ICONS.get(name);
   const im = new Image();
@@ -1333,6 +1366,25 @@ const ART = {
     "..kyyyyyyyyk....",
     "..kkkkkkkkkk....",
     "................",
+    "................",
+    "................"],
+  /* Wiki Web: the constellation the wallpaper draws at night, as a 16px glyph —
+     four pages and the hub they all reach, with the links drawn between. */
+  web: [
+    "................",
+    "................",
+    "..kBBk....kBBk..",
+    "..BBBB....BBBB..",
+    "...dd......dd...",
+    "....d......d....",
+    ".....d....d.....",
+    "....kbbbbbbk....",
+    "....kbbbbbbk....",
+    ".....d....d.....",
+    "....d......d....",
+    "...dd......dd...",
+    "..BBBB....BBBB..",
+    "..kBBk....kBBk..",
     "................",
     "................"],
 };
@@ -2747,6 +2799,7 @@ const APPS = {
   oracle: { title: "Oracle.exe" },
   inquest: { title: "Inquest.exe" },
   why: { title: "why.exe" },
+  web: { title: "Wiki Web" },
   settings: { title: "Settings" },
   about: { title: "About PFC98" },
 };
@@ -3938,8 +3991,70 @@ const Explorer = (() => {
     if (view && /^wiki\//.test(shown || "")) addToc(view);
   };
   Object.assign(PFCT, { exAddToc: addToc });
-  return { openPage, openPath, hiddenOpen: () => HIDDEN_OPEN, refreshTree: renderTree };
+  /* `shown`, deliberately, and never `current`: current is CLAIMED before the fetch
+     and survives a failed one, so it names a page that may not be on screen. Wiki
+     Web's Local mode asks what the reader is actually looking at. */
+  return { openPage, openPath, shown: () => shown,
+           hiddenOpen: () => HIDDEN_OPEN, refreshTree: renderTree };
 })();
+
+/* A slug read back as a title. Lives beside the index parse because both Tidy and
+   the wiki index need it, and a page must not be called two different things in
+   two different windows. */
+const ACRONYMS = new Set("ai llm ogl srd it pfc css crt p2p mdm m4 98".split(" "));
+const PARTICLES = new Set("and of the a an in on for vs to".split(" "));
+const titleOf = toks => toks.map((t, i) =>
+  ACRONYMS.has(t) ? t.toUpperCase()
+    : (i > 0 && PARTICLES.has(t)) ? t
+      : t.charAt(0).toUpperCase() + t.slice(1)).join(" ");
+
+/* ==================================================== the wiki index, shared
+   index.md is the maintained list of pages and the `##` headings above them are
+   the only grouping the wiki has. Notepad builds Tidy's entity table from it and
+   Wiki Web seeds its layout by the same sections — one parse, one source, and a
+   guard that maintains itself as LINT check 3 keeps index.md current. */
+let PAGES = null, PAGES_LOAD = null;
+async function loadPages(force) {
+  if (PAGES && !force) return PAGES;
+  if (PAGES_LOAD && !force) return PAGES_LOAD;
+  PAGES_LOAD = (async () => {
+    const slugs = new Set(), section = new Map(), title = new Map();
+    try {
+      (await getTree(force)).forEach(e => {
+        const m = /^wiki\/([^/]+)\.md$/.exec(e.path);
+        if (m) slugs.add(m[1]);
+      });
+    } catch (e) { /* no tree, no entities — Tidy simply skips pass 3 */ }
+    try {
+      const idx = await getFile("index.md", force);
+      let head = "";
+      idx.split("\n").forEach(line => {
+        const h = /^##\s+(.+?)\s*$/.exec(line);
+        if (h) { head = h[1]; return; }
+        const l = /^\s*[-*]\s*\[\[([^\]|]+)\]\](?:\s*[—-]\s*(.*))?/.exec(line);
+        if (!l) return;
+        const slug = slugify(l[1]);
+        /* index.md is the maintained list; a page it names counts even if the tree
+           fetch is stale (and in DEMO the tree is a handful of files) */
+        slugs.add(slug);
+        section.set(slug, head);
+      });
+    } catch (e) { /* index.md optional: Tier A still works, Tier B stays shut */ }
+    const list = [...slugs].sort();
+    list.forEach(s => title.set(s, titleOf(s.split("-").filter(Boolean))));
+    /* Hidden pages were offered by name in the [[ list and, worse, auto-capitalised
+       into the body of notes by Tidy — a page you took off the index re-entering
+       your text unprompted. Tidy never sees them now. The [[ list follows the same
+       rule Search does: they come back while the Explorer's Hidden group is open,
+       which is the app's idiom for "I'm alone". */
+    let hidden = new Set();
+    try { hidden = await getHidden(); } catch (e) { /* unread: assume nothing hidden */ }
+    PAGES = { list, section, title, hidden };
+    return PAGES;
+  })();
+  return PAGES_LOAD;
+}
+
 
 /* ----- Notepad+++ v2 — the receiving bench -----
    The app cannot hear. Dictation happens at the iOS keyboard mic or macOS Fn-Fn and
@@ -4143,12 +4258,6 @@ const Explorer = (() => {
   const STOP = new Set(("dad mom mother father sister brother son daughter wife husband baby " +
     "home work gear cooking gardening anime cannabis music food health money time thing day " +
     "night house car job team note page game book").split(" "));
-  const ACRONYMS = new Set("ai llm ogl srd it pfc css crt p2p mdm m4 98".split(" "));
-  const PARTICLES = new Set("and of the a an in on for vs to".split(" "));
-  const titleOf = toks => toks.map((t, i) =>
-    ACRONYMS.has(t) ? t.toUpperCase()
-      : (i > 0 && PARTICLES.has(t)) ? t
-        : t.charAt(0).toUpperCase() + t.slice(1)).join(" ");
 
   function buildEntities(slugs, section) {
     const list = [];
@@ -4210,47 +4319,13 @@ const Explorer = (() => {
      getTree() is already cached, so the slugs are free; index.md costs one request
      and buys three things — the section gate above, the titles in the [[ list, and
      a guard that maintains itself as LINT check 3 keeps index.md current. */
-  let PAGES = null, PAGES_LOAD = null, ENTS = { map: new Map(), re: null, count: 0 };
-  async function loadPages(force) {
-    if (PAGES && !force) return PAGES;
-    if (PAGES_LOAD && !force) return PAGES_LOAD;
-    PAGES_LOAD = (async () => {
-      const slugs = new Set(), section = new Map(), title = new Map();
-      try {
-        (await getTree(force)).forEach(e => {
-          const m = /^wiki\/([^/]+)\.md$/.exec(e.path);
-          if (m) slugs.add(m[1]);
-        });
-      } catch (e) { /* no tree, no entities — Tidy simply skips pass 3 */ }
-      try {
-        const idx = await getFile("index.md", force);
-        let head = "";
-        idx.split("\n").forEach(line => {
-          const h = /^##\s+(.+?)\s*$/.exec(line);
-          if (h) { head = h[1]; return; }
-          const l = /^\s*[-*]\s*\[\[([^\]|]+)\]\](?:\s*[—-]\s*(.*))?/.exec(line);
-          if (!l) return;
-          const slug = slugify(l[1]);
-          /* index.md is the maintained list; a page it names counts even if the tree
-             fetch is stale (and in DEMO the tree is a handful of files) */
-          slugs.add(slug);
-          section.set(slug, head);
-        });
-      } catch (e) { /* index.md optional: Tier A still works, Tier B stays shut */ }
-      const list = [...slugs].sort();
-      list.forEach(s => title.set(s, titleOf(s.split("-").filter(Boolean))));
-      /* Hidden pages were offered by name in the [[ list and, worse, auto-capitalised
-         into the body of notes by Tidy — a page you took off the index re-entering
-         your text unprompted. Tidy never sees them now. The [[ list follows the same
-         rule Search does: they come back while the Explorer's Hidden group is open,
-         which is the app's idiom for "I'm alone". */
-      let hidden = new Set();
-      try { hidden = await getHidden(); } catch (e) { /* unread: assume nothing hidden */ }
-      PAGES = { list, section, title, hidden };
-      ENTS = buildEntities(list.filter(x => !hidden.has(x)), section);
-      return PAGES;
-    })();
-    return PAGES_LOAD;
+  let ENTS = { map: new Map(), re: null, count: 0 };
+  /* Tidy's entity table is built from the shared index; the parse itself lives at
+     top level because Wiki Web seeds its layout from the same sections. */
+  async function loadEntities(force) {
+    const p = await loadPages(force);
+    ENTS = buildEntities(p.list.filter(x => !p.hidden.has(x)), p.section);
+    return p;
   }
 
   /* ============================================================ the outbox
@@ -4264,6 +4339,24 @@ const Explorer = (() => {
   function capturePath(kind, now) {
     const d = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
     return `inbox/${d}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}-${kind}.md`;
+  }
+  /* Every capture this app makes goes through here, whether it was typed at the
+     composer or added to a note down in the feed — one place that decides what a
+     capture IS, and one queue that makes it durable before the network is asked. */
+  function queueCapture(text, kind, meta) {
+    const now = new Date();
+    /* capturePath resolves to the second, and flush PUTs with a null sha — the
+       create-only form. Two captures of one kind inside the same second would
+       therefore mint the same path, and the second would 422 against the first
+       forever, retrying identically. Rare from one composer; entirely reachable
+       now that every card can save. Step the clock until the path is free. */
+    const taken = new Set(outbox().map(x => x.path));
+    while (taken.has(capturePath(kind, now))) now.setSeconds(now.getSeconds() + 1);
+    const item = { id: `${now.getTime()}-${Math.random().toString(36).slice(2, 7)}`,
+      path: capturePath(kind, now), kind, ts: now.getTime(), tries: 0,
+      body: captureBody(text, kind, meta, now) };
+    setOutbox(outbox().concat([item]));
+    return item;
   }
   /* Same body putCapture writes (line 744) — built here rather than there because the
      queue has to freeze {path, body} at capture time, so an offline capture is filed
@@ -4317,6 +4410,11 @@ const Explorer = (() => {
   let editing = null;            // {path, sha, front} when re-opening a pending note
   let kind = "note", dest = "inbox", destPage = null;
   let kindFilter = "all", feedQuery = "";       // the v3 feed's two filters
+  /* The card being edited in place, or null. While this is set the feed is frozen
+     (see paintFeed) — the one thing a notes app must never do is move the note you
+     are typing into. `armed` is Escape's second press: the first only warns. */
+  let openEd = null;             // {id, stem, mode, r, ta, card, was, armed}
+  let paintDeferred = false, renderDeferred = 0;   // 0 none, 1 render held, 2 forced
   let undoBefore = null;         // the exact pre-Tidy string, byte for byte
   let heard = null;              // what was in the box before Tidy touched it (§13)
   let counts = { marks: 0, capitals: 0, pages: 0 };
@@ -4454,11 +4552,18 @@ const Explorer = (() => {
   const acPool = () => !PAGES ? 0
     : acAlone() || !PAGES.hidden ? PAGES.list.length
     : PAGES.list.filter(x => !PAGES.hidden.has(x)).length;
-  Object.assign(PFCT, { noteLoadPages: loadPages, noteAcPool: () => acPool(),
+  Object.assign(PFCT, { noteLoadPages: loadEntities, noteAcPool: () => acPool(),
                      noteEntHas: slug => !!(ENTS.map && ENTS.map.has(slug)),
                      bookRender: renderBook, bookRows: () => rows, bookVisible: visible,
                      bookThread: thread, bookAct: act, bookMonths: () => months,
                      bookAppendTo: () => appendTo,
+                     bookOpenEditor: async id => { const r = rows.find(x => x.id === id);
+                       const card = r && $("#np-feed").querySelector(`.np-card[data-id="${CSS.escape(r.id)}"]`);
+                       if (r && card) await openEditor(r, card); return !!openEd; },
+                     bookEditor: () => openEd && { id: openEd.id, stem: openEd.stem,
+                       mode: openEd.mode, value: openEd.ta.value, armed: openEd.armed },
+                     bookEditorSet: v => { if (openEd) openEd.ta.value = v; },
+                     bookEditorSave: saveEditor, bookEditorClose: () => closeEditor(true),
                      bookScope: m => { scopeMonth = m; scopeTouched = true; paintFeed(); },
                      noteParseQuery: parseQuery,
                      noteSetQuery: q => { feedQuery = q; paintFeed(); },
@@ -4589,11 +4694,20 @@ const Explorer = (() => {
   async function renderBook(force) {
     const list = $("#np-feed");
     if (!list) return;
+    /* The freeze is bigger than the DOM. A render refetches the tree, rebuilds the
+       months rail, can move the scope, and reassigns `rows` — which would leave the
+       open editor holding a row the feed no longer knows about. Nothing here needs a
+       gesture: coming back online and switching tabs both reach this through flush().
+       So the whole render waits, and the strongest request pending is replayed. */
+    if (openEd) { heldSay(); renderDeferred = Math.max(renderDeferred, force ? 2 : 1); return; }
     const q = outbox().map(it => {
       const st = stampOf(it.path);
       return { id: it.id, kind: it.kind, path: it.path, stage: "queued", stem: stemOf(it.path),
         name: gistOf(it.body) || "(no text)", ts: it.ts, when: hhmm(new Date(it.ts)),
-        month: st.month, ymd: st.ymd, item: it }; });
+        month: st.month, ymd: st.ymd, item: it,
+        /* an addendum written offline threads under its parent from the moment it
+           is queued, not only once the push lands */
+        addendumTo: captureMeta(it.body).addendumTo }; });
     let tree = [];
     if (!list.dataset.loaded || force) list.innerHTML =
       `<div class="np-empty">Reading the ledger…</div>`;
@@ -4649,6 +4763,9 @@ const Explorer = (() => {
      order it was thought. An addendum whose root is out of scope stands on its own
      rather than vanishing — see the limit noted in docs/notebook.md. */
   function thread(list) {
+    /* `rows` outlives a repaint, so last compose's flag would still be on a card
+       whose root has since been filtered away — indented under nothing. */
+    list.forEach(r => { r.nested = false; });
     const byStem = new Map(list.map(r => [r.stem, r]));
     const kids = new Map();
     for (const r of list) {
@@ -4710,8 +4827,20 @@ const Explorer = (() => {
   const feedBodyOf = r => r.stage === "queued" ? bodyOf(r.item.body)
     : bodies.has(r.path) ? bodyOf(bodies.get(r.path)) : null;
 
+  /* Everything the freeze swallows says this once — the latches are the de-dupe.
+     Without it the chips and Refresh look dead, and the status count keeps
+     describing a filter the reader has already changed. */
+  function heldSay() {
+    if (!paintDeferred && !renderDeferred)
+      say("Held while you write — the feed catches up when you close this note.");
+  }
   function paintFeed() {
     const list = $("#np-feed"); if (!list) return;
+    /* The hard rule of slice 4: the feed does not reflow under an open editor.
+       Every caller — a filter keystroke, a body arriving, a whole renderBook —
+       lands here, so one guard covers them all. The repaint is DEFERRED, never
+       dropped: closing the editor runs it, so nothing goes stale either. */
+    if (openEd) { heldSay(); paintDeferred = true; return; }
     const vis = visible();
     if (!vis.length) {
       list.innerHTML = `<div class="np-empty">${feedQuery.trim()
@@ -4755,7 +4884,15 @@ const Explorer = (() => {
       const r = rows.find(x => x.id === card.dataset.id);
       if (!r) return;
       card.querySelectorAll("[data-a]").forEach(b =>
-        b.addEventListener("click", () => act(b.dataset.a, r)));
+        b.addEventListener("click", () => act(b.dataset.a, r, card)));
+      /* The note itself is the control: click the text to edit it where you read
+         it. Links inside it still navigate — they were the reason to click. */
+      const cb = card.querySelector(".np-card-body");
+      if (cb) cb.addEventListener("click", e => {
+        if (e.target.closest("a") || openEd) return;
+        if (String(getSelection())) return;          // a drag to select is not a click
+        openEditor(r, card);
+      });
       card.querySelectorAll("a.wikilink").forEach(a => a.addEventListener("click", () => {
         WM.show("explorer");
         a.dataset.page ? Explorer.openPage(a.dataset.page) : Explorer.openPath(a.dataset.path);
@@ -4787,6 +4924,9 @@ const Explorer = (() => {
      summary and threw the rest away, which is why you had to leave Notepad+++ to read
      something you wrote in it. */
   async function fetchBodies() {
+    /* Its paints are all swallowed by the freeze, so this would be up to 48 reads
+       spent against the rate limit for nothing visible. closeEditor calls it back. */
+    if (openEd) return;
     /* The feed shows full text, and the query filters on it — so when a query or
        kind filter is live, load bodies for everything the cheap fields let
        through, not just the first screen. In-month scope bounds the worst case. */
@@ -4813,7 +4953,214 @@ const Explorer = (() => {
       paintFeed();
     }
   }
-  async function act(a, r) {
+  /* ---- the in-place editor (slice 4) -------------------------------------
+     What Save does is decided by the law, not by the button:
+
+       "A filed capture is immutable" (BRAIN.md, 2026-08-04) — so a filed note is
+       never rewritten. Its editor writes an ADDENDUM capture carrying
+       `addendum-to: <stem>`, the mechanism INGEST.md already specifies, into
+       inbox/; the widened pulse predicate means the beat reads it within the
+       hour and the watcher usually within the minute.
+
+       A capture that has NOT been filed is still his, per the same rule's own
+       carve-out, so it edits in place: a queued one in the outbox, a pushed one
+       through putFileSha against a fresh sha.
+
+     The original stays exactly as written in both cases — the record is
+     append-only, and the thread is what makes it read as one living note. ---- */
+  const EDMODE = { queued: "edit", pushed: "edit", filed: "addendum" };
+  function editorHtml(mode, r) {
+    const why = mode === "addendum"
+      ? `This note is filed, so it keeps its words. What you write here is added to it — the brain threads it under the original.`
+      : r.stage === "queued"
+        ? `Still in the outbox. Editing changes what gets sent.`
+        : `Not filed yet, so this edits the capture itself.`;
+    return `<p class="np-ed-why">${esc(why)}</p>` +
+      `<textarea class="np-ed" spellcheck="true"></textarea>` +
+      `<div class="np-ed-bar"><button data-e="save">${mode === "addendum" ? "Add to note" : "Save changes"}</button>` +
+      `<button data-e="cancel">Cancel</button>` +
+      `<button data-e="bench" title="Move this to the box at the top, where Tidy and [[ live">Composer</button>` +
+      `<span class="sp"></span><span class="np-ed-note">Esc to close</span></div>`;
+  }
+  async function openEditor(r, card) {
+    if (openEd) {
+      if (openEd.id === r.id) return;
+      /* Opening another note must not be a way to lose this one silently. */
+      if (openEd.ta.value.trim() !== openEd.was.trim()) {
+        say("Finish or cancel the note you are editing first.");
+        openEd.ta.focus(); return;
+      }
+      closeEditor();
+    }
+    const mode = EDMODE[r.stage] || "addendum";
+    /* An addendum starts empty — you are adding a thought, not restating one.
+       An edit starts with exactly what is on disk, which means it cannot open
+       until the body has actually been read: an unread card shows "Reading…",
+       and an editor over that would look like an empty note and SAVE as one. */
+    let was = "";
+    if (mode === "edit") {
+      if (r.stage !== "queued" && !bodies.has(r.path)) {
+        say("Reading the note…");
+        try {
+          const t = await getFile(r.path);
+          bodies.set(r.path, t); gists.set(r.path, gistOf(t));
+        } catch (e) { say("Could not read that note — " + e.message); return; }
+        if (!card.isConnected) return;          // the feed repainted while we read
+      }
+      was = feedBodyOf(r) || "";
+      if (!was) {
+        /* fetchBodies records a failed read as an empty body, so "" here means
+           "unread" as often as it means "empty" — and those must never look the
+           same. Ask once more, uncached, before calling anyone's note blank. */
+        try {
+          const t = await getFile(r.path, true);
+          bodies.set(r.path, t); gists.set(r.path, gistOf(t));
+        } catch (e) { say("Could not read that note — " + e.message); return; }
+        if (!card.isConnected) return;
+        was = feedBodyOf(r) || "";
+        if (!was) { say("That capture is empty."); return; }
+      }
+    }
+    const body = card.querySelector(".np-card-body");
+    body.innerHTML = editorHtml(mode, r);
+    card.classList.add("np-editing");
+    const ed = body.querySelector(".np-ed");
+    ed.value = was;
+    openEd = { id: r.id, stem: r.stem, mode, r, ta: ed, card, was, armed: false };
+    body.querySelector('[data-e="save"]').addEventListener("click", () => saveEditor());
+    body.querySelector('[data-e="cancel"]').addEventListener("click", () => closeEditor(true));
+    body.querySelector('[data-e="bench"]').addEventListener("click", () => toBench());
+    /* on the CARD, not the textarea: Escape has to work from the buttons too */
+    card.addEventListener("keydown", e => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        /* Two presses to throw away typing. One press to close something you
+           only opened to look at. */
+        if (ed.value.trim() !== openEd.was.trim() && !openEd.armed) {
+          openEd.armed = true; say("Escape again to discard this edit.");
+        } else closeEditor(true);
+      } else openEd.armed = false;
+    });
+    ed.focus();
+    ed.setSelectionRange(ed.value.length, ed.value.length);
+    say(mode === "addendum" ? `Adding to ${r.stem}` : `Editing ${r.stem}`);
+  }
+  function closeEditor(repaint) {
+    if (!openEd) return;
+    const { card } = openEd;
+    openEd = null;
+    card.classList.remove("np-editing");
+    /* Any repaint the freeze swallowed runs now, so the feed is never left showing
+       what it knew before the editor opened. */
+    if (renderDeferred) {
+      const forced = renderDeferred > 1;
+      renderDeferred = 0; paintDeferred = false;
+      renderBook(forced);            // ends in paintFeed and fetchBodies itself
+      return;
+    }
+    if (paintDeferred || repaint) { paintDeferred = false; paintFeed(); fetchBodies(); }
+  }
+  /* Hand the open editor up to the composer at the top, text and target intact —
+     the card's textarea is deliberately plain, and sometimes you want the bench. */
+  async function toBench() {
+    if (!openEd) return;
+    const { mode, r, ta: ed } = openEd;
+    const text = ed.value;
+    closeEditor(true);
+    if (mode === "addendum") {
+      const root = r.addendumTo || r.stem;
+      setAppendTo({ stem: root, gist: (rows.find(x => x.stem === root) || r).name || root });
+      setKind(r.kind);
+      writeField(text);
+    } else if (r.stage === "queued") {
+      setOutbox(outbox().filter(x => x.id !== r.id));
+      paintOutbox(); renderBook();
+      setKind(r.kind); writeField(text);
+      say("Pulled back out of the outbox — Save puts it back in.");
+    } else {
+      try {
+        const { text: cur, sha } = await getFileFull(r.path);
+        const m = cur.match(/^(---\n[\s\S]*?\n---\n?)([\s\S]*)$/);
+        setEditing({ path: r.path, sha, front: m ? m[1] : "" });
+        writeField(text);
+      } catch (e) { say("Could not open — " + e.message); return; }
+    }
+    ta.focus(); recount(); scheduleSave();
+  }
+  async function saveEditor() {
+    if (!openEd) return;
+    const { mode, r, ta: ed } = openEd;
+    const text = ed.value.trim();
+    const btn = openEd.card.querySelector('[data-e="save"]');
+    if (!text) { say(mode === "addendum" ? "Nothing to add." : "A note cannot be emptied — Cancel leaves it as it was."); return; }
+    if (btn) btn.disabled = true;
+    try {
+      if (mode === "addendum") {
+        /* Through the outbox, exactly like a capture typed at the top: an addendum
+           written on a train is a capture like any other and must survive offline.
+           Flat, never chained — an addendum to an addendum points at the root. */
+        const root = r.addendumTo || r.stem;
+        queueCapture(text, r.kind, { input: "typed", "addendum-to": root });
+        paintOutbox();
+        closeEditor(true);
+        say("Added here — sending…");
+        const sent = await flush(true);
+        await renderBook();
+        if (sent) say(`Added to ${root} — the beat threads it in.`);
+      } else if (r.stage === "queued") {
+        const it = outbox().find(x => x.id === r.id);
+        if (!it) { say("That capture already left the outbox."); closeEditor(true); return; }
+        const m = it.body.match(/^(---\n[\s\S]*?\n---\n?)([\s\S]*)$/);
+        it.body = (m ? m[1] : "") + text + "\n";
+        setOutbox(outbox().map(x => x.id === it.id ? it : x));
+        paintOutbox();
+        closeEditor(true);
+        await renderBook();
+        say("Changed — still queued.");
+      } else {
+        const { text: cur, sha } = await getFileFull(r.path);
+        const m = cur.match(/^(---\n[\s\S]*?\n---\n?)([\s\S]*)$/);
+        await putFileSha(r.path, (m ? m[1] : "") + text + "\n",
+          `capture: edited ${r.path.split("/").pop()}`, sha);
+        bodies.set(r.path, (m ? m[1] : "") + text + "\n");
+        gists.set(r.path, gistOf(bodies.get(r.path)));
+        r.name = gists.get(r.path);
+        Search.invalidate();
+        closeEditor(true);
+        say("Saved.");
+      }
+    } catch (e) {
+      if (btn) btn.disabled = false;
+      /* The one race worth naming: the beat filed this capture while it was open —
+         it MOVES inbox/<stem>.md to inbox/processed/, so the PUT hits a path that
+         is no longer there. The text is never thrown away. If the editor is still
+         up it becomes the addendum composer it should have been; if it was closed
+         while the write was in flight, the text goes to the composer at the top,
+         which is the only place left that can still hold it. */
+      const conflict = /404|409|422|GitHub 4/.test(e.message);
+      if (conflict && !openEd) {
+        setAppendTo({ stem: r.addendumTo || r.stem, gist: r.name || r.stem });
+        setKind(r.kind); writeField(text);
+        ta.focus(); recount(); scheduleSave();
+        say("Filed while you were saving — your text is in the composer, ready to add.");
+      } else if (conflict && openEd && openEd.mode === "edit") {
+        openEd.mode = "addendum";
+        openEd.was = "";
+        const bar = openEd.card.querySelector('[data-e="save"]');
+        if (bar) bar.textContent = "Add to note";
+        const why = openEd.card.querySelector(".np-ed-why");
+        if (why) why.textContent = "The brain filed this while you were writing, so it keeps its words — this will be added to it instead.";
+        say("Filed mid-edit — press Add to note to keep what you wrote.");
+      } else say(e.message === "rate" ? "GitHub rate limit — your text is still here."
+        : "Could not save — " + e.message);
+    }
+  }
+
+  async function act(a, r, card) {
+    /* Edit and Add-to-this now open the editor ON THE CARD. Called without one —
+       programmatically, or from a jump — they fall back to the composer bench at
+       the top, which is the same two operations with Tidy and `[[` in reach. */
+    if ((a === "edit" || a === "append") && card) { openEditor(r, card); return; }
     if (a === "send") { say("Sending…"); await flush(true); renderBook(); return; }
     if (a === "discard") {
       setOutbox(outbox().filter(x => x.id !== r.id));
@@ -4914,14 +5261,10 @@ const Explorer = (() => {
       } else {
         /* the capture is durable the moment it is in the outbox — the field can be
            cleared before the network has said anything */
-        const now = new Date();
         const meta = { input: "typed" };
         if (heard != null && heard !== text) meta.heard = heard;
         if (appendTo) meta["addendum-to"] = appendTo.stem;   // stem, not path (see setAppendTo)
-        const item = { id: `${now.getTime()}-${Math.random().toString(36).slice(2, 7)}`,
-          path: capturePath(kind, now), kind, ts: now.getTime(), tries: 0,
-          body: captureBody(text, kind, meta, now) };
-        setOutbox(outbox().concat([item]));
+        const item = queueCapture(text, kind, meta);
         clearField();
         paintOutbox();
         say("Saved here — sending…");
@@ -5152,13 +5495,13 @@ const Explorer = (() => {
       /* fires on the second [, and never inside a link already */
       const v = ta.value, c = ta.selectionStart;
       if (c > 0 && v[c - 1] === "[" && v.slice(0, c - 1).lastIndexOf("[[") <= v.lastIndexOf("]]"))
-        setTimeout(() => { if (PAGES) acOpen("", ta.selectionStart - 2); else loadPages().then(() => acOpen("", ta.selectionStart - 2)); }, 0);
+        setTimeout(() => { if (PAGES) acOpen("", ta.selectionStart - 2); else loadEntities().then(() => acOpen("", ta.selectionStart - 2)); }, 0);
     }
   }
 
   /* the destination picker is the same list as [[ — one control, two doors */
   function pickPage() {
-    if (!PAGES) { loadPages().then(pickPage); return; }
+    if (!PAGES) { loadEntities().then(pickPage); return; }
     acRows = PAGES.list.slice(); acSel = 0; acStart = -1; acMode = "dest";
     paintAc();
   }
@@ -5191,7 +5534,7 @@ const Explorer = (() => {
     } else if (d) {
       say(`Draft restored — last saved ${d.at ? hhmm(new Date(d.at)) : "earlier"}.`);
     }
-    loadPages().then(() => recount(true)).catch(() => { });
+    loadEntities().then(() => recount(true)).catch(() => { });
     flush();
   };
 })();
@@ -6267,6 +6610,399 @@ const Search = (() => {
   };
 })();
 
+/* ----- Wiki Web — the wiki drawn as its own constellation (apps-v3 slice 5) -----
+   The daytime twin of the wallpaper's one-star-per-page night sky. No graph
+   library: at this corpus's scale a hand-rolled spring embedder settles in a few
+   hundred ticks and a few milliseconds, and Barnes-Hut would be machinery with
+   nothing to do. Everything it draws it gets from the app it lives in — getTree
+   for the pages, readMany for the text, resolveLink for the grammar — so a link
+   means here exactly what it means in the Explorer.
+
+   Two obligations it inherits rather than invents. Hidden pages stay hidden: the
+   feature exists for the moment this is on a screen with other people in the
+   room, and a graph that draws every node would label them all. And a partial
+   read never renders as a small wiki — the status bar says how many pages it
+   could not read, the way Search does. ----- */
+(() => {
+  const LSK = "pfc_web";
+  const el = () => document.querySelector("#win-web .window-body");
+  const $ = s => el().querySelector(s);
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                            .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const LINK_RX = /\[\[([^\]|]+)\]\]/g;
+
+  let nodes = [], edges = [], byId = new Map();
+  let stats = { pages: 0, links: 0, missed: 0, fatal: null };
+  let pins = {}, saved = {};
+  let cool = 0, raf = null, scanning = false;
+  let mode = "global", depth = 1, showOrphans = true, showUnresolved = false;
+  let query = "", hover = null, sel = null, drag = null;
+  let cvs = null, ctx = null, pal = null;
+
+  try { const s = JSON.parse(localStorage.getItem(LSK) || "{}");
+        pins = s.pins || {}; saved = s.pos || {};
+        if (s.mode) mode = s.mode; if (s.depth) depth = s.depth;
+        if (typeof s.orphans === "boolean") showOrphans = s.orphans;
+  } catch (e) { /* a corrupt layout is not worth a broken window */ }
+  const persist = () => { try {
+    const pos = {};
+    nodes.forEach(n => { pos[n.id] = [Math.round(n.x), Math.round(n.y)]; });
+    localStorage.setItem(LSK, JSON.stringify({ pins, pos, mode, depth, orphans: showOrphans }));
+  } catch (e) {} };
+
+  /* ---------- the scan. Rebuilt, never cached: a graph assembled from a partial
+     read must not be able to outlive the failure that made it partial. ---------- */
+  async function scan() {
+    if (scanning) return;
+    scanning = true;
+    status("Reading the wiki…");
+    try {
+      const tree = await getTree();
+      await getRetired();                       // so a dead link lands on its successor
+      await loadPages().catch(() => {});        // titles, and the sections we seed by
+      const hidden = await getHidden();
+      const open = Explorer.hiddenOpen();
+      const all = tree.filter(e => /^wiki\/[^/]+\.md$/.test(e.path)).map(e => e.path);
+      const paths = all.filter(p => open || !hidden.has(p.slice(5, -3)));
+      const { docs, missed, fatal } = await readMany(paths);
+      const live = new Set(paths.map(p => p.slice(5, -3)));
+      const seen = new Map(), out = [];
+      paths.forEach(p => {
+        const slug = p.slice(5, -3);
+        seen.set(slug, { id: slug, path: p, kind: "page",
+          title: (PAGES && PAGES.title.get(slug)) || slug, deg: 0 });
+      });
+      const pairs = new Set();
+      docs.forEach(({ path: p, text }) => {
+        const from = p.slice(5, -3);
+        let m;
+        LINK_RX.lastIndex = 0;
+        while ((m = LINK_RX.exec(text))) {
+          const t = resolveLink(m[1]);
+          if (t.tier || !t.slug || t.slug === from) continue;
+          let to = t.slug, kind = "page";
+          if (!live.has(to)) {
+            const r = retiredTo(to);
+            if (r && live.has(r.to)) to = r.to;               // history, not breakage
+            else if (hidden.has(to) && !open) continue;       // never name a hidden page
+            else kind = "missing";
+          }
+          if (kind === "missing") {
+            if (!showUnresolved) continue;
+            if (!seen.has(to)) seen.set(to, { id: to, path: `wiki/${to}.md`, kind: "missing",
+              title: to, deg: 0 });
+          }
+          const key = from < to ? from + " " + to : to + " " + from;
+          if (pairs.has(key)) continue;
+          pairs.add(key);
+          out.push([from, to]);
+        }
+      });
+      /* Carry positions across a rescan so the map you learned stays put. */
+      const prev = new Map(nodes.map(n => [n.id, n]));
+      nodes = [...seen.values()].map(n => {
+        const was = prev.get(n.id), sv = saved[n.id];
+        return Object.assign(n, was ? { x: was.x, y: was.y, vx: 0, vy: 0 }
+          : sv ? { x: sv[0], y: sv[1], vx: 0, vy: 0 } : { x: null, y: null, vx: 0, vy: 0 });
+      });
+      byId = new Map(nodes.map(n => [n.id, n]));
+      edges = out.filter(([a, b]) => byId.has(a) && byId.has(b))
+                 .map(([a, b]) => ({ a: byId.get(a), b: byId.get(b) }));
+      edges.forEach(e => { e.a.deg++; e.b.deg++; });
+      stats = { pages: nodes.filter(n => n.kind === "page").length, links: edges.length,
+                missed: missed ? missed.length : 0, fatal: fatal || null };
+      seedPositions();
+      computeLocal();
+      cool = 1;
+      status();
+      kick();
+    } catch (e) {
+      status("Could not read the wiki — " + e.message);
+    } finally { scanning = false; }
+  }
+
+  /* Seeded radially rather than at random: index.md's own `##` sections are
+     ready-made groups, so a page starts near its neighbours and the embedder
+     spends its ticks refining an arrangement instead of inventing one. */
+  function seedPositions() {
+    const W = cvs ? cvs.width : 600, H = cvs ? cvs.height : 400;
+    const groups = new Map();
+    nodes.forEach(n => { const g = sectionOf(n.id) || "·";
+      if (!groups.has(g)) groups.set(g, []); groups.get(g).push(n); });
+    const gs = [...groups.keys()];
+    gs.forEach((g, gi) => {
+      const a0 = (gi / gs.length) * Math.PI * 2, R = Math.min(W, H) * 0.33;
+      groups.get(g).forEach((n, i, arr) => {
+        if (n.x != null) return;
+        const a = a0 + (i - arr.length / 2) * 0.22;
+        n.x = W / 2 + Math.cos(a) * R * (0.55 + 0.45 * (i % 3) / 2);
+        n.y = H / 2 + Math.sin(a) * R * (0.55 + 0.45 * (i % 3) / 2);
+      });
+    });
+  }
+  const sectionOf = slug => (PAGES && PAGES.section && PAGES.section.get(slug)) || null;
+
+  /* ---------- the embedder. d3's cooling constants, three forces, no library. */
+  function tick() {
+    const W = cvs.width, H = cvs.height, k = Math.sqrt((W * H) / Math.max(1, nodes.length));
+    for (let i = 0; i < nodes.length; i++) {
+      const a = nodes[i];
+      for (let j = i + 1; j < nodes.length; j++) {
+        const b = nodes[j];
+        let dx = a.x - b.x, dy = a.y - b.y;
+        let d2 = dx * dx + dy * dy;
+        if (d2 < 1) { dx = (Math.random() - 0.5) || 0.5; dy = (Math.random() - 0.5) || 0.5; d2 = 1; }
+        const f = (k * k) / d2 * 0.022;
+        a.vx += dx * f; a.vy += dy * f; b.vx -= dx * f; b.vy -= dy * f;
+      }
+    }
+    edges.forEach(e => {
+      const dx = e.b.x - e.a.x, dy = e.b.y - e.a.y;
+      const d = Math.hypot(dx, dy) || 1;
+      /* degree-weighted: a hub pulls less per edge, or it drags the whole map in */
+      const w = 1 / Math.sqrt(Math.min(e.a.deg, e.b.deg) || 1);
+      const f = ((d - k * 0.48) / d) * 0.055 * w;
+      e.a.vx += dx * f; e.a.vy += dy * f; e.b.vx -= dx * f; e.b.vy -= dy * f;
+    });
+    nodes.forEach(n => {
+      n.vx += (W / 2 - n.x) * 0.006; n.vy += (H / 2 - n.y) * 0.006;     // weak centering
+      if (pins[n.id] || (drag && drag.n === n)) { n.vx = n.vy = 0; return; }
+      n.x += Math.max(-12, Math.min(12, n.vx *= 0.86 * cool + 0.05));
+      n.y += Math.max(-12, Math.min(12, n.vy *= 0.86 * cool + 0.05));
+      n.x = Math.max(26, Math.min(W - 26, n.x));
+      n.y = Math.max(16, Math.min(H - 22, n.y));
+    });
+    cool *= 0.985;
+  }
+  function kick() { cool = Math.max(cool, 0.55); loop(); }
+  function alive() {
+    const w = document.getElementById("win-web");
+    return !!w && w.classList.contains("open") && !document.hidden;
+  }
+  /* The window manager has no close hook, so the loop polices itself the way the
+     wallpaper does — and it stops entirely once the layout is still. */
+  function loop() {
+    if (raf) return;
+    raf = requestAnimationFrame(function step() {
+      raf = null;
+      if (!alive()) return;
+      if (cool > 0.012 || drag) { tick(); draw(); raf = requestAnimationFrame(step); }
+      else { draw(); persist(); }
+    });
+  }
+
+  /* ---------- paint ---------- */
+  function roles() {
+    if (pal) return pal;
+    const cs = getComputedStyle(document.documentElement);
+    const v = n => cs.getPropertyValue(n).trim();
+    pal = { ink: v("--window-text"), paper: v("--window"), line: v("--paper-line"),
+            live: v("--select"), liveText: v("--select-text"), miss: v("--error"),
+            dim: v("--ink-5"), edge: v("--paper-sh"), chip: v("--select") };
+    return pal;
+  }
+  function fits(n) {
+    if (!showOrphans && !n.deg) return false;
+    if (mode === "local" && localSet && !localSet.has(n.id)) return false;
+    return true;
+  }
+  let localSet = null;
+  function computeLocal() {
+    localSet = null;
+    if (mode !== "local") return;
+    const here = (Explorer.shown() || "").match(/^wiki\/(.+)\.md$/);
+    if (!here || !byId.has(here[1])) { localSet = new Set(); return; }
+    const adj = new Map(nodes.map(n => [n.id, []]));
+    edges.forEach(e => { adj.get(e.a.id).push(e.b.id); adj.get(e.b.id).push(e.a.id); });
+    const out = new Set([here[1]]);
+    let ring = [here[1]];
+    for (let d = 0; d < depth; d++) {
+      const next = [];
+      ring.forEach(id => (adj.get(id) || []).forEach(x => {
+        if (!out.has(x)) { out.add(x); next.push(x); } }));
+      ring = next;
+    }
+    localSet = out;
+  }
+  const matches = n => !query || n.id.includes(query) || n.title.toLowerCase().includes(query);
+  function draw() {
+    if (!ctx) return;
+    if (size()) cool = Math.max(cool, 0.35);   // a new box wants a settle
+    if (!cvs.width) return;
+    const P = roles();
+    ctx.fillStyle = P.paper; ctx.fillRect(0, 0, cvs.width, cvs.height);
+    const near = hover ? new Set(edges.filter(e => e.a === hover || e.b === hover)
+      .flatMap(e => [e.a.id, e.b.id])) : null;
+    ctx.lineWidth = 1;
+    edges.forEach(e => {
+      if (!fits(e.a) || !fits(e.b)) return;
+      const lit = !hover || e.a === hover || e.b === hover;
+      ctx.strokeStyle = lit ? P.edge : P.line;
+      ctx.globalAlpha = lit ? 1 : 0.35;
+      ctx.beginPath();
+      ctx.moveTo(Math.round(e.a.x) + 0.5, Math.round(e.a.y) + 0.5);
+      ctx.lineTo(Math.round(e.b.x) + 0.5, Math.round(e.b.y) + 0.5);
+      ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+    ctx.font = '11px Arial, Helvetica, sans-serif';
+    ctx.textBaseline = "top";
+    /* Hubs claim their label first and anything that would collide goes without —
+       a stack of overlapping names is less legible than the few that fit. */
+    const taken = [];
+    const clear = (x, y, w, h) => !taken.some(t =>
+      x < t[0] + t[2] && x + w > t[0] && y < t[1] + t[3] && y + h > t[1]);
+    [...nodes].sort((a, b) => b.deg - a.deg).forEach(n => {
+      if (!fits(n)) return;
+      const faded = (hover && !near.has(n.id) && n !== hover) || (query && !matches(n));
+      ctx.globalAlpha = faded ? 0.3 : 1;
+      const s = Math.max(5, Math.min(13, 5 + n.deg));       // degree IS the size
+      const x = Math.round(n.x - s / 2), y = Math.round(n.y - s / 2);
+      ctx.fillStyle = n.kind === "missing" ? P.miss : n === sel ? P.live : P.ink;
+      ctx.fillRect(x, y, s, s);
+      if (pins[n.id]) { ctx.fillStyle = P.paper; ctx.fillRect(x + 2, y + 2, s - 4, s - 4); }
+      /* a label chip, drawn like a selected desktop icon when it is the one you
+         picked — the same vocabulary the shell uses for "this one" */
+      const label = n.title.length > 22 ? n.title.slice(0, 21) + "…" : n.title;
+      const w = ctx.measureText(label).width;
+      const lx = Math.round(n.x - w / 2), ly = Math.round(n.y + s / 2 + 3);
+      if (!clear(lx - 2, ly - 1, w + 4, 14) && n !== sel && n !== hover) return;
+      taken.push([lx - 2, ly - 1, w + 4, 14]);
+      if (n === sel) { ctx.fillStyle = P.chip; ctx.fillRect(lx - 2, ly - 1, w + 4, 14); }
+      ctx.fillStyle = n === sel ? P.liveText : n.kind === "missing" ? P.miss : P.dim;
+      ctx.fillText(label, lx, ly);
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  /* ---------- geometry. Rect and backing store, never offsetWidth: the page is
+     scaled with `zoom`, so those two disagree by exactly Z. ---------- */
+  function at(e) {
+    const r = cvs.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width * cvs.width,
+             y: (e.clientY - r.top) / r.height * cvs.height };
+  }
+  function pick(p) {
+    let best = null, bd = 15 * 15;
+    nodes.forEach(n => { if (!fits(n)) return;
+      const d = (n.x - p.x) ** 2 + (n.y - p.y) ** 2;
+      if (d < bd) { bd = d; best = n; } });
+    return best;
+  }
+  /* Sized from the canvas's own rect divided by the UI scale, so the backing store
+     is one pixel per layout pixel whatever the zoom. Checked on every paint rather
+     than only on a resize event: the window is display:none until it is shown, so
+     the first measurement is zero, and changing the UI scale fires no event at all. */
+  function size() {
+    if (!cvs) return false;
+    const r = cvs.getBoundingClientRect();
+    if (!r.width) return false;
+    const w = Math.max(200, Math.round(r.width / Z)), h = Math.max(140, Math.round(r.height / Z));
+    if (cvs.width === w && cvs.height === h) return false;
+    const ow = cvs.width, oh = cvs.height;
+    cvs.width = w; cvs.height = h;
+    /* Carry the arrangement into the new box instead of leaving it huddled in a
+       corner: resizing a window should not cost you the map you had learned. */
+    if (nodes.length && ow > 1 && oh > 1) {
+      const sx = w / ow, sy = h / oh;
+      nodes.forEach(n => { if (n.x != null) { n.x *= sx; n.y *= sy; } });
+    }
+    return true;
+  }
+  function status(msg) {
+    WM.status("web", msg || (stats.fatal
+      ? `${plural(stats.pages, "page")} · ${plural(stats.links, "link")} · ${stats.fatal === "rate"
+          ? "GitHub is rate-limiting — the web is short" : "sign-in expired — the web is short"}`
+      : `${plural(stats.pages, "page")} · ${plural(stats.links, "link")}` +
+        (stats.missed ? ` · ${stats.missed} unread — the web may be short` : "")));
+  }
+
+  function build() {
+    const b = el();
+    if (b.dataset.ready) return;
+    b.dataset.ready = "1";
+    b.classList.remove("white");
+    b.innerHTML = `
+      <div class="web-tools">
+        <button id="web-scope" title="Local shows only what the open page reaches">Global</button>
+        <select id="web-depth" title="How far Local reaches">
+          <option value="1">1 hop</option><option value="2">2 hops</option><option value="3">3 hops</option>
+        </select>
+        <span class="sp"></span>
+        <input id="web-q" type="text" placeholder="Find a page…">
+        <button id="web-orph" aria-pressed="true" title="Pages nothing links to">Orphans</button>
+        <button id="web-unres" aria-pressed="false" title="Links with no page behind them">Unresolved</button>
+        <button id="web-relax" title="Shake the layout loose">Relax</button>
+      </div>
+      <div class="web-stage sunken-panel"><canvas id="web-cvs"></canvas></div>`;
+    cvs = $("#web-cvs"); ctx = cvs.getContext("2d");
+    const scope = $("#web-scope"), dsel = $("#web-depth");
+    dsel.value = String(depth);
+    scope.textContent = mode === "local" ? "Local" : "Global";
+    scope.onclick = () => { mode = mode === "local" ? "global" : "local";
+      scope.textContent = mode === "local" ? "Local" : "Global";
+      computeLocal(); persist(); draw(); status(); };
+    dsel.onchange = () => { depth = +dsel.value; computeLocal(); persist(); draw(); };
+    $("#web-q").addEventListener("input", e => { query = e.target.value.trim().toLowerCase(); draw(); });
+    const tog = (id, get, set) => { const el2 = $(id);
+      el2.setAttribute("aria-pressed", String(get()));
+      el2.onclick = () => { set(!get()); el2.setAttribute("aria-pressed", String(get()));
+        if (id === "#web-unres") scan(); else { persist(); draw(); } }; };
+    tog("#web-orph", () => showOrphans, v => showOrphans = v);
+    tog("#web-unres", () => showUnresolved, v => showUnresolved = v);
+    $("#web-relax").onclick = () => { pins = {}; nodes.forEach(n => { n.x = null; n.y = null; });
+      seedPositions(); persist(); kick(); };
+
+    cvs.addEventListener("pointerdown", e => {
+      const p = at(e), n = pick(p);
+      if (!n) return;
+      drag = { n, dx: n.x - p.x, dy: n.y - p.y, moved: false };
+      sel = n;
+      try { cvs.setPointerCapture(e.pointerId); } catch (err) {}
+      draw();
+    });
+    cvs.addEventListener("pointermove", e => {
+      const p = at(e);
+      if (drag) { drag.moved = true; drag.n.x = p.x + drag.dx; drag.n.y = p.y + drag.dy;
+                  pins[drag.n.id] = 1; draw(); return; }
+      const n = pick(p);
+      if (n !== hover) { hover = n; cvs.style.cursor = n ? "pointer" : "default"; draw(); }
+    });
+    const end = () => { if (!drag) return; const d = drag; drag = null;
+      if (d.moved) { persist(); kick(); } else openNode(d.n); };
+    cvs.addEventListener("pointerup", end);
+    cvs.addEventListener("pointercancel", () => { drag = null; });
+    cvs.addEventListener("dblclick", e => { const n = pick(at(e));
+      if (n) { delete pins[n.id]; persist(); kick(); } });
+    addEventListener("resize", () => { if (alive() && size()) kick(); });
+    document.addEventListener("pfc:zoom", () => { if (size()) draw(); });
+    document.addEventListener("pfc:scheme", () => { pal = null; draw(); });
+  }
+  function openNode(n) {
+    if (n.kind === "missing") { status(`${n.title} has no page yet — nothing to open.`); return; }
+    WM.show("explorer"); Explorer.openPage(n.id);
+  }
+
+  APPS.web.onOpen = () => {
+    build();
+    computeLocal();
+    /* onOpen fires before the window has been laid out, so the first measurement
+       waits a frame — every later one rides on draw(). */
+    requestAnimationFrame(() => { size(); draw(); kick(); });
+    if (!nodes.length && !scanning) scan(); else status();
+  };
+  APPS.web.onResize = () => { if (size()) kick(); else draw(); };
+  /* The embedder, run without the rAF loop: settling is deterministic, so a test
+     (and a hidden tab, where the loop correctly refuses to run) can advance it
+     exactly N ticks and look at the result. */
+  Object.assign(PFCT, { webSettle: (n = 240) => { size(); cool = 1;
+                          for (let i = 0; i < n; i++) tick(); draw(); return nodes.length; },
+                        webScan: scan, webNodes: () => nodes, webEdges: () => edges,
+                        webStats: () => stats, webPick: pick,
+                        webMode: m => { mode = m; computeLocal(); draw(); },
+                        webLocal: () => localSet && [...localSet] });
+})();
+
 /* ----- About PFC98 ----- */
 (() => {
   APPS.about.onOpen = () => {
@@ -6453,6 +7189,7 @@ function buildWindows() {
   WM.make("oracle", "Oracle.exe", Math.min(540, W - 40), 480, cascade(5) + 260, 60);
   WM.make("inquest", "Inquest.exe", Math.min(600, W - 40), 520, cascade(6) + 150, 70);
   WM.make("why", "why.exe", Math.min(640, W - 40), 540, cascade(6) + 220, 50);
+  WM.make("web", "Wiki Web", Math.min(700, W - 40), Math.min(520, H - 138), cascade(7) + 120, 60);
   WM.make("settings", "Settings", 350, 500, cascade(7) + 260, 60);
   WM.make("about", "About PFC98", 400, 560, cascade(8) + 300, 40);
 }
