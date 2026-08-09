@@ -20,7 +20,23 @@
 <script src="assets/marked.min.js"></script>
 <style>
   /* ==== PFC shell — everything below is 98.css-native or inspired by it ==== */
-  :root { --safe: 36px; --tb: calc(36px + var(--safe)); }
+    :root { --safe: 36px; --tb: calc(36px + var(--safe));
+    /* ==== Appearance roles (Win98 Colors vocabulary). "Windows Standard" IS these
+       defaults, verbatim — a scheme is one [data-scheme] block overriding them.
+       Slice 0 of docs/apps-v3.md; zero visual change by construction. ==== */
+    --face:#c0c0c0; --face-light:#dfdfdf; --face-hi:#fff; --face-sh:#808080; --face-dk:#0a0a0a;
+    --window:#fff; --window-text:#000; --outline:#000; --body-text:#222;
+    --gray-text:#a9a9a9; --disabled:#a9a9a9;
+    --ink-1:#333; --ink-2:#3a3a3a; --ink-3:#444; --ink-4:#555; --ink-5:#606060;
+    --paper-line:#d4d4d4; --paper-line-soft:#efefef; --paper-dim:#f4f4f4; --paper-dim2:#f0f0f0;
+    --paper-sh:#b0b0b0; --paper-border:#999;
+    --select:#000080; --select-text:#fff; --select-tint:#c8d0f0;
+    --select-bevel-hi:#6a7ac0; --select-bevel-dk:#000040;
+    --title-1:navy; --title-2:#1084d0; --title-text:#fff;
+    --title-inactive-1:grey; --title-inactive-2:#b5b5b5; --title-inactive-text:#c7c7c7;
+    --desktop:#008080; --info-bg:#ffffe1; --info-border:#b8b060; --warn-text:#7a5c00;
+    --error:#800000; --retired:#505050; --link98:#00f;
+    --phosphor:#00ff00; --phosphor-rgb:0,255,0; }
   @media (max-width: 700px) {
     :root { --safe: max(env(safe-area-inset-bottom, 0px), 36px); }
   }
@@ -30,7 +46,7 @@
   html.sim { --safe: 70px; }
   /* The dead zone under the Start bar: an Active-Desktop-style ticker.
      Non-interactive on purpose — it lives in the home-gesture area. */
-  /* Full-bleed, and no bevel. The 98 sunken border (inset #fff / #808080) framed this
+  /* Full-bleed, and no bevel. The 98 sunken border (inset var(--face-hi) / var(--face-sh)) framed this
      as a *control* — a sunken well set into the chrome. It is not one: it is
      non-interactive, and the frame was the only thing keeping it from reading as what
      it actually is, a lit strip of screen. Edge to edge, so the black runs into the
@@ -41,27 +57,27 @@
             height: var(--safe); overflow: hidden; background: #000;
             /* Phosphor: the haze a CRT throws onto its own glass around lit pixels.
                Inset so the bloom stays inside the bar and never bleeds onto the
-               taskbar's grey — a green halo on #c0c0c0 would read as a rendering
+               taskbar's grey — a green halo on var(--face) would read as a rendering
                fault rather than as light. */
-            box-shadow: inset 0 0 26px rgba(0, 255, 0, 0.13),
-                        inset 0 0 60px rgba(0, 255, 0, 0.06);
+            box-shadow: inset 0 0 26px rgba(var(--phosphor-rgb), 0.13),
+                        inset 0 0 60px rgba(var(--phosphor-rgb), 0.06);
             pointer-events: none; }
-  #ticker .tape { position: absolute; white-space: nowrap; color: #00ff00;
+  #ticker .tape { position: absolute; white-space: nowrap; color: var(--phosphor);
                   font-family: "Courier New", monospace; font-size: 14px; font-weight: bold;
                   line-height: var(--safe);
                   /* Two radii, not one: a tight core that keeps the glyphs legible and
                      a wide diffuse bloom. A single large shadow just makes the text
                      look out of focus. */
-                  text-shadow: 0 0 4px rgba(0, 255, 0, 0.95),
-                               0 0 11px rgba(0, 255, 0, 0.55),
-                               0 0 22px rgba(0, 255, 0, 0.28);
+                  text-shadow: 0 0 4px rgba(var(--phosphor-rgb), 0.95),
+                               0 0 11px rgba(var(--phosphor-rgb), 0.55),
+                               0 0 22px rgba(var(--phosphor-rgb), 0.28);
                   animation: tick 40s linear infinite; }
   @keyframes tick { from { transform: translateX(0); } to { transform: translateX(-50%); } }
   html, body { height: 100%; margin: 0; overflow: hidden; }
-  body { background: #008080; font-family: "Pixelated MS Sans Serif", Arial, sans-serif; }
+  body { background: var(--desktop); font-family: "Pixelated MS Sans Serif", Arial, sans-serif; }
 
   /* Desktop + icons */
-  #desktop { position: fixed; inset: 0 0 var(--tb) 0; overflow: hidden; background: #008080; }
+  #desktop { position: fixed; inset: 0 0 var(--tb) 0; overflow: hidden; background: var(--desktop); }
   #wallpaper { position: absolute; inset: 0; width: 100%; height: 100%;
                image-rendering: pixelated; }
   /* the hero logotype: CLI-banner ASCII, gradient flowing through the glyphs */
@@ -83,15 +99,15 @@
   @media (prefers-reduced-motion: reduce) { #wall-logo { animation: none; } }
   /* Settings.exe: Display-Properties monitor */
   .mon { width: 186px; margin: 4px auto 8px; }
-  .mon .bezel { background: #c0c0c0; padding: 7px 7px 9px; border-radius: 4px 4px 2px 2px;
-                box-shadow: inset -1px -1px #808080, inset 1px 1px #fff, 1px 1px 0 #000; }
-  .mon canvas { display: block; width: 100%; height: 108px; background: #008080;
+  .mon .bezel { background: var(--face); padding: 7px 7px 9px; border-radius: 4px 4px 2px 2px;
+                box-shadow: inset -1px -1px var(--face-sh), inset 1px 1px var(--face-hi), 1px 1px 0 var(--outline); }
+  .mon canvas { display: block; width: 100%; height: 108px; background: var(--desktop);
                 image-rendering: pixelated;
-                box-shadow: inset 1px 1px #000, inset -1px -1px #404040; }
-  .mon .stand { width: 44px; height: 8px; background: #c0c0c0; margin: 0 auto;
-                box-shadow: inset -1px -1px #808080, inset 1px 1px #fff, 1px 1px 0 #000; }
-  .mon .base { width: 84px; height: 7px; background: #c0c0c0; margin: 0 auto;
-               box-shadow: inset -1px -1px #808080, inset 1px 1px #fff, 1px 1px 0 #000; }
+                box-shadow: inset 1px 1px var(--outline), inset -1px -1px var(--face-dk); }
+  .mon .stand { width: 44px; height: 8px; background: var(--face); margin: 0 auto;
+                box-shadow: inset -1px -1px var(--face-sh), inset 1px 1px var(--face-hi), 1px 1px 0 var(--outline); }
+  .mon .base { width: 84px; height: 7px; background: var(--face); margin: 0 auto;
+               box-shadow: inset -1px -1px var(--face-sh), inset 1px 1px var(--face-hi), 1px 1px 0 var(--outline); }
   /* Icons flow down the left edge, Windows-style, and wrap into a new column to the
      right when they reach the bottom — #desktop already ends above the taskbar, so a
      bounded height is all the wrap needs. Without the bound the column just kept
@@ -99,47 +115,47 @@
   .desktop-icons { position: absolute; top: 8px; left: 8px; bottom: 8px;
                    display: flex; flex-flow: column wrap; align-content: flex-start;
                    gap: 14px; max-width: calc(100% - 16px); }
-  .desktop-icon { width: 84px; text-align: center; color: white; cursor: pointer;
+  .desktop-icon { width: 84px; text-align: center; color: var(--select-text); cursor: pointer;
                   user-select: none; -webkit-user-select: none; }
   .desktop-icon .ico { height: 32px; }
   .desktop-icon .lbl { font-size: 13px; margin-top: 3px; padding: 1px 2px;
-                       background: #000080; display: inline-block; max-width: 100%; }
+                       background: var(--select); display: inline-block; max-width: 100%; }
   .desktop-icon:focus .lbl, .desktop-icon.selected .lbl
-                     { outline: 1px dotted #fff; }
+                     { outline: 1px dotted var(--select-text); }
 
   /* Windows (depth comes from 98.css bevels — Win98 had no soft shadows) */
   .window.app { position: absolute; display: none; min-width: 260px; }
   .window.app.open { display: flex; flex-direction: column; }
   .window.app .window-body { flex: 1; overflow: auto; margin: 3px;
-                             background: #c0c0c0; }
-  .window.app .window-body.white { background: #fff; }
+                             background: var(--face); }
+  .window.app .window-body.white { background: var(--window); }
   .title-bar { cursor: default; touch-action: none; }
   .desktop-icon img, #start-menu img, #start-btn img { image-rendering: pixelated; }
 
   /* Taskbar */
   #taskbar { position: fixed; left: 0; right: 0; bottom: 0; height: var(--tb); box-sizing: border-box;
-             background: #c0c0c0; display: flex; align-items: center; gap: 4px;
-             padding: 2px 4px calc(2px + var(--safe)); box-shadow: inset 0 1px 0 #fff; z-index: 9000;
-             border-top: 1px solid #dfdfdf; }
+             background: var(--face); display: flex; align-items: center; gap: 4px;
+             padding: 2px 4px calc(2px + var(--safe)); box-shadow: inset 0 1px 0 var(--face-hi); z-index: 9000;
+             border-top: 1px solid var(--face-light); }
   #taskbar button { min-width: 0; }
   #start-btn { font-weight: bold; display: flex; align-items: center; gap: 4px; }
   #task-buttons { display: flex; gap: 3px; flex: 1; overflow: hidden; }
   #task-buttons button { max-width: 160px; overflow: hidden; white-space: nowrap;
                          text-overflow: ellipsis; flex: 0 1 auto; }
-  #task-buttons button.pressed { box-shadow: inset -1px -1px #fff,
-      inset 1px 1px #0a0a0a, inset -2px -2px #dfdfdf, inset 2px 2px #808080;
-      background: repeating-conic-gradient(#fff 0 25%, #c0c0c0 0 50%) 0 0/2px 2px; }
+  #task-buttons button.pressed { box-shadow: inset -1px -1px var(--face-hi),
+      inset 1px 1px var(--face-dk), inset -2px -2px var(--face-light), inset 2px 2px var(--face-sh);
+      background: repeating-conic-gradient(var(--face-hi) 0 25%, var(--face) 0 50%) 0 0/2px 2px; }
   #tray { display: flex; align-items: center; gap: 6px; padding: 0 8px;
-          height: 26px; box-shadow: inset 1px 1px #808080, inset -1px -1px #fff;
+          height: 26px; box-shadow: inset 1px 1px var(--face-sh), inset -1px -1px var(--face-hi);
           font-size: 13px; }
 
   /* Start menu */
   #start-menu { position: fixed; bottom: var(--tb); left: 2px; width: 230px;
-                display: none; z-index: 9500; background: #c0c0c0; padding: 2px;
-                box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #dfdfdf,
-                            inset -2px -2px #808080, inset 2px 2px #fff; }
+                display: none; z-index: 9500; background: var(--face); padding: 2px;
+                box-shadow: inset -1px -1px var(--face-dk), inset 1px 1px var(--face-light),
+                            inset -2px -2px var(--face-sh), inset 2px 2px var(--face-hi); }
   #start-menu.open { display: flex; }
-  #start-menu .side { width: 24px; background: #000080; color: #fff;
+  #start-menu .side { width: 24px; background: var(--select); color: var(--select-text);
                       writing-mode: vertical-rl; transform: rotate(180deg);
                       font-weight: bold; font-size: 15px; padding: 8px 2px;
                       letter-spacing: 1px; display: flex; align-items: flex-end;
@@ -147,8 +163,8 @@
   #start-menu ul { list-style: none; margin: 0; padding: 0; flex: 1; }
   #start-menu li { padding: 10px 12px; display: flex; gap: 10px; cursor: pointer;
                    font-size: 14px; align-items: center; }
-  #start-menu li:hover { background: #000080; color: #fff; }
-  #start-menu li.sep { border-top: 1px solid #808080; border-bottom: 1px solid #fff;
+  #start-menu li:hover { background: var(--select); color: var(--select-text); }
+  #start-menu li.sep { border-top: 1px solid var(--face-sh); border-bottom: 1px solid var(--face-hi);
                        padding: 0; margin: 3px 0; }
 
   /* ==================== Surface.exe v2 — Custodial Telemetry ====================
@@ -164,87 +180,87 @@
   .sf2 fieldset { margin: 8px; padding: 7px 9px 8px; min-width: 0; }
   .sf2 fieldset > * { min-width: 0; }   /* load-bearing: a fieldset's implicit
        min-content width otherwise lets one nowrap row widen the whole panel */
-  .sf2 .well { background: #fff; position: relative;
-               box-shadow: inset -1px -1px #dfdfdf, inset 1px 1px #808080,
-                           inset -2px -2px #fff,    inset 2px 2px #0a0a0a; }
+  .sf2 .well { background: var(--window); position: relative;
+               box-shadow: inset -1px -1px var(--face-light), inset 1px 1px var(--face-sh),
+                           inset -2px -2px var(--face-hi),    inset 2px 2px var(--face-dk); }
   .sf2 svg { display: block; width: 100%; height: auto; }  /* viewBox does the zoom work */
 
   /* ---- The beat band: the machine's own pulse, admitted once, in the margin ---- */
   .sf-beat { display: flex; align-items: center; gap: 8px; margin: 6px 8px 0; padding: 5px 8px;
-             box-shadow: inset -1px -1px #fff, inset 1px 1px #808080;
-             font: 12px Arial, sans-serif; color: #3a3a3a; flex-wrap: wrap; row-gap: 4px; }
+             box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-sh);
+             font: 12px Arial, sans-serif; color: var(--ink-2); flex-wrap: wrap; row-gap: 4px; }
   .sf-beat .led { width: 10px; height: 10px; flex: none;
-                  box-shadow: inset -1px -1px #fff, inset 1px 1px #808080; }
-  .sf-beat .state { font-size: 11px; font-weight: bold; letter-spacing: .7px; color: #000; }
+                  box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-sh); }
+  .sf-beat .state { font-size: 11px; font-weight: bold; letter-spacing: .7px; color: var(--window-text); }
   .sf-beat .said { white-space: nowrap; }
   .sf-beat .sp { flex: 1; }
-  .sf-meter { position: relative; width: 104px; height: 12px; flex: none; background: #fff;
-              box-shadow: inset -1px -1px #dfdfdf, inset 1px 1px #808080,
-                          inset -2px -2px #fff,    inset 2px 2px #0a0a0a; }
+  .sf-meter { position: relative; width: 104px; height: 12px; flex: none; background: var(--window);
+              box-shadow: inset -1px -1px var(--face-light), inset 1px 1px var(--face-sh),
+                          inset -2px -2px var(--face-hi),    inset 2px 2px var(--face-dk); }
   .sf-meter i { position: absolute; left: 2px; top: 2px; bottom: 2px; display: block; }
   .sf-meter .trk { right: 2px; }
-  .sf-meter u { position: absolute; top: 1px; bottom: 1px; width: 1px; background: #000;
+  .sf-meter u { position: absolute; top: 1px; bottom: 1px; width: 1px; background: var(--window-text);
                 left: calc(2px + (100% - 4px) * .5); }          /* the 12 h tick */
 
   /* ---- On this day: the hero. The largest, quietest region is his own voice. ---- */
   .sf-otd-head { font: bold 10px Arial, sans-serif; letter-spacing: 1.5px;
-                 color: #3a3a3a; margin: 0 0 5px; }
-  .sf-otd-head b { color: #000; }
+                 color: var(--ink-2); margin: 0 0 5px; }
+  .sf-otd-head b { color: var(--window-text); }
   .sf-otd { padding: 13px 15px 11px; }
   .sf-otd .q { margin: 0; font-family: Arial, sans-serif; font-size: 21px; line-height: 1.4;
-               color: #000; border-left: 4px solid var(--s1); padding-left: 13px; }
+               color: var(--window-text); border-left: 4px solid var(--s1); padding-left: 13px; }
   .sf-otd .q.clamp { display: -webkit-box; -webkit-line-clamp: 5; line-clamp: 5;
                      -webkit-box-orient: vertical; overflow: hidden; }
-  .sf-otd hr { border: 0; border-top: 1px solid #d4d4d4; margin: 11px 0 8px; }
-  .sf-otd .t { font-family: Arial, sans-serif; font-size: 13px; font-weight: bold; color: #000; }
-  .sf-otd .p { font: 11px "Courier New", monospace; color: #444; margin-top: 2px;
+  .sf-otd hr { border: 0; border-top: 1px solid var(--paper-line); margin: 11px 0 8px; }
+  .sf-otd .t { font-family: Arial, sans-serif; font-size: 13px; font-weight: bold; color: var(--window-text); }
+  .sf-otd .p { font: 11px "Courier New", monospace; color: var(--ink-3); margin-top: 2px;
                word-break: break-all; }
   .sf-otd-foot { display: flex; align-items: center; gap: 9px; margin-top: 7px;
-                 font-family: Arial, sans-serif; font-size: 12px; color: #3a3a3a; }
+                 font-family: Arial, sans-serif; font-size: 12px; color: var(--ink-2); }
   .sf-otd-foot .sp { flex: 1; }
-  .sf-otd-foot .dots { letter-spacing: 4px; font-size: 13px; color: #808080; }
+  .sf-otd-foot .dots { letter-spacing: 4px; font-size: 13px; color: var(--face-sh); }
   /* the pager is the only way to reach card 2 — the dots are the control */
-  .sf-otd-foot .dots b { color: #808080; cursor: pointer; padding: 4px 0; display: inline-block; }
-  .sf-otd-foot .dots b.on { color: #000; }
-  .sf-otd-foot .dots b:focus { outline: 1px dotted #000; }
-  .sf-otd-none { padding: 9px 10px; font-family: Arial, sans-serif; font-size: 13px; color: #3a3a3a; }
+  .sf-otd-foot .dots b { color: var(--face-sh); cursor: pointer; padding: 4px 0; display: inline-block; }
+  .sf-otd-foot .dots b.on { color: var(--window-text); }
+  .sf-otd-foot .dots b:focus { outline: 1px dotted var(--window-text); }
+  .sf-otd-none { padding: 9px 10px; font-family: Arial, sans-serif; font-size: 13px; color: var(--ink-2); }
 
   /* ---- What connected: one finding, verbatim, dated. ---- */
   .sf-conn { padding: 10px 12px 11px; }
   .sf-conn .h { font-family: Arial, sans-serif; font-size: 15px; font-weight: bold; margin: 0 0 4px; }
-  .sf-conn .h a { color: #000080; text-decoration: none; border-bottom: 1px dashed #000080;
+  .sf-conn .h a { color: var(--select); text-decoration: none; border-bottom: 1px dashed var(--select);
                   cursor: pointer; }
-  .sf-conn .h a.missing { color: #800000; border-bottom-color: #800000; }
+  .sf-conn .h a.missing { color: var(--error); border-bottom-color: var(--error); }
   .sf-conn .b { font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5;
-                margin: 0; color: #000; }
-  .sf-conn .e { font-family: Arial, sans-serif; font-size: 11px; color: #444; margin-top: 6px; }
+                margin: 0; color: var(--window-text); }
+  .sf-conn .e { font-family: Arial, sans-serif; font-size: 11px; color: var(--ink-3); margin-top: 6px; }
   .sf-conn .quiet { font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5;
-                    color: #3a3a3a; margin: 0; }
-  .sf-more { margin-top: 6px; font-family: Arial, sans-serif; font-size: 12px; color: #3a3a3a; }
-  .sf-more a { color: #000080; cursor: pointer; }
+                    color: var(--ink-2); margin: 0; }
+  .sf-more { margin-top: 6px; font-family: Arial, sans-serif; font-size: 12px; color: var(--ink-2); }
+  .sf-more a { color: var(--select); cursor: pointer; }
 
   /* ---- Waiting on you: the docket, front page ---- */
   .sf-gate { display: flex; align-items: center; gap: 8px; padding: 5px 7px; min-height: 24px;
              font-family: Arial, sans-serif; font-size: 13px;
-             border-bottom: 1px solid #efefef; cursor: pointer; }
+             border-bottom: 1px solid var(--paper-line-soft); cursor: pointer; }
   .sf-gate:last-child { border-bottom: 0; }
-  .sf-gate:hover, .sf-gate:focus { background: #000080; color: #fff; outline: none; }
-  .sf-gate:hover .a, .sf-gate:focus .a, .sf-gate:hover .q, .sf-gate:focus .q { color: #fff; }
+  .sf-gate:hover, .sf-gate:focus { background: var(--select); color: var(--select-text); outline: none; }
+  .sf-gate:hover .a, .sf-gate:focus .a, .sf-gate:hover .q, .sf-gate:focus .q { color: var(--select-text); }
   .sf-gate .k { flex: none; width: 88px; text-align: center; padding: 2px 0;
-                font-size: 9px; letter-spacing: .6px; font-family: Arial, sans-serif; color: #3a3a3a;
-                background: #dfdfdf; box-shadow: inset -1px -1px #808080, inset 1px 1px #fff; }
+                font-size: 9px; letter-spacing: .6px; font-family: Arial, sans-serif; color: var(--ink-2);
+                background: var(--face-light); box-shadow: inset -1px -1px var(--face-sh), inset 1px 1px var(--face-hi); }
   .sf-gate .q { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
-                white-space: nowrap; color: #000; }
-  .sf-gate .a { flex: none; font-size: 11px; color: #444; }
-  .sf-empty { padding: 9px 10px; font-family: Arial, sans-serif; font-size: 13px; color: #3a3a3a; }
+                white-space: nowrap; color: var(--window-text); }
+  .sf-gate .a { flex: none; font-size: 11px; color: var(--ink-3); }
+  .sf-empty { padding: 9px 10px; font-family: Arial, sans-serif; font-size: 13px; color: var(--ink-2); }
   /* One look for "we could not read all of it" — the opposite of an empty state, and
      it must never be mistakable for one. Warning yellow, not the error red we reserve
      for a failure that stopped the render outright. */
-  .sf-unread { margin: 0 0 4px; padding: 6px 9px; background: #ffffe1; border: 1px solid #b8b060;
-               font-family: Arial, sans-serif; font-size: 12px; color: #3a3a3a; }
-  .sf-unread b { color: #000; }
+  .sf-unread { margin: 0 0 4px; padding: 6px 9px; background: var(--info-bg); border: 1px solid var(--info-border);
+               font-family: Arial, sans-serif; font-size: 12px; color: var(--ink-2); }
+  .sf-unread b { color: var(--window-text); }
   .sf-foot { display: flex; align-items: center; gap: 8px; margin-top: 7px;
-             font-family: Arial, sans-serif; font-size: 12px; color: #3a3a3a; }
+             font-family: Arial, sans-serif; font-size: 12px; color: var(--ink-2); }
   .sf-foot .sp { flex: 1; }
 
   /* ---- Instruments: the apparatus, last and smallest ---- */
@@ -252,26 +268,26 @@
   .sf-tabs button { font-family: "Pixelated MS Sans Serif", Arial, sans-serif; font-size: 12px;
                     min-height: 0; padding: 3px 12px 4px; margin: 0 2px 0 0; }
   .sf-tabs button[aria-selected="true"] { font-weight: bold; padding-bottom: 6px;
-    box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #fff,
-                inset -2px -2px #808080, inset 2px 2px #dfdfdf; }
+    box-shadow: inset -1px -1px var(--face-dk), inset 1px 1px var(--face-hi),
+                inset -2px -2px var(--face-sh), inset 2px 2px var(--face-light); }
   .sf-chartwell { padding: 8px 9px 6px; }
   .sf-legend { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 6px;
-               font-family: Arial, sans-serif; font-size: 11px; color: #3a3a3a; }
+               font-family: Arial, sans-serif; font-size: 11px; color: var(--ink-2); }
   .sf-legend span { display: flex; align-items: center; gap: 4px; }
   .sf-legend i { width: 9px; height: 9px; display: block; flex: none; }
-  .sf-legend i.none { background: #fff; box-shadow: 0 0 0 1px #d4d4d4 inset, 0 0 0 1px #d4d4d4; }
+  .sf-legend i.none { background: var(--window); box-shadow: 0 0 0 1px var(--paper-line) inset, 0 0 0 1px var(--paper-line); }
   .sf-legend .sp { flex: 1; }
-  .sf-legend a { color: #000080; cursor: pointer; white-space: nowrap; }
+  .sf-legend a { color: var(--select); cursor: pointer; white-space: nowrap; }
   .sf-tip { position: absolute; z-index: 5; pointer-events: none; padding: 3px 6px;
-            background: #ffffe1; border: 1px solid #000; font: 11px Arial, sans-serif;
-            color: #000; white-space: pre; }
+            background: var(--info-bg); border: 1px solid var(--outline); font: 11px Arial, sans-serif;
+            color: var(--window-text); white-space: pre; }
   /* the WCAG-clean twin: every number the charts hold, in a table */
   .sf-table { max-height: 190px; }
   .sf-table table { font-family: Arial, Helvetica, sans-serif; font-size: 11px;
                     -webkit-font-smoothing: auto; width: 100%; }
   .sf-table table > tbody > tr > * { height: 18px; }
   .sf-table td.n { text-align: right; }
-  .sf-table td.z { color: #808080; }
+  .sf-table td.z { color: var(--face-sh); }
 
   /* ---- Mobile (<= 700 px): the deltas ---- */
   @media (max-width: 700px) {
@@ -289,12 +305,12 @@
   }
 
   /* ============ Notepad+++ v2 ============
-     The receiving bench. One well, white, countersunk into a flat #c0c0c0 plate;
+     The receiving bench. One well, white, countersunk into a flat var(--face) plate;
      depth is never cast, only cut. Every token below is copied from the vendored
      assets/98.css rather than eyeballed, so these controls sit at exactly the same
      depth as the old ones. Spec: docs/art/notepad-v2/spec.md. */
   #win-note .window-body { display:flex; flex-direction:column; padding:0; margin:3px;
-      overflow:hidden; background:#c0c0c0; }
+      overflow:hidden; background:var(--face); }
   #np-write, #np-book { flex:1; min-height:0; display:flex; flex-direction:column; }
   #np-write { position:relative; }        /* the [[ popup anchors inside this box */
   .np-tabs { padding:3px 4px 0; flex:none; }
@@ -304,25 +320,25 @@
         to support actions or set state"). Note is pre-pressed: zero added steps.
         Tidy sits at the right end as a command, never latching. -- */
   .np-bar { flex:none; display:flex; align-items:center; gap:2px; padding:4px 4px 4px 5px;
-      box-shadow: inset 0 -1px 0 #808080, inset 0 -2px 0 #fff; }
+      box-shadow: inset 0 -1px 0 var(--face-sh), inset 0 -2px 0 var(--face-hi); }
   .np-bar .sp { flex:1; }
   .np-tb { min-width:0; min-height:22px; height:22px; padding:0 6px 0 4px;
       display:inline-flex; align-items:center; gap:4px; font-size:12px; }
   .np-tb img { width:16px; height:16px; image-rendering:pixelated; }
   .np-tb[aria-pressed=true] {
-      box-shadow: inset -1px -1px #fff, inset 1px 1px #0a0a0a,
-                  inset -2px -2px #dfdfdf, inset 2px 2px #808080;
-      background: repeating-conic-gradient(#fff 0 25%, #c0c0c0 0 50%) 0 0/2px 2px; }
+      box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-dk),
+                  inset -2px -2px var(--face-light), inset 2px 2px var(--face-sh);
+      background: repeating-conic-gradient(var(--face-hi) 0 25%, var(--face) 0 50%) 0 0/2px 2px; }
   .np-tb[aria-pressed=true] img { position:relative; left:1px; top:1px; }
   .np-sep { width:2px; align-self:stretch; margin:1px 3px;
-      box-shadow: inset 1px 0 #808080, inset -1px 0 #fff; }
+      box-shadow: inset 1px 0 var(--face-sh), inset -1px 0 var(--face-hi); }
 
   /* -- the white well: paper. The only well in the window. -- */
   #np-text { flex:1; min-height:0; margin:5px 5px 0; resize:none;
       font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:1.45;
       padding:5px 6px; }
-  #np-text::placeholder { color:#808080; }
-  #np-text::selection { background:#000080; color:#fff; }
+  #np-text::placeholder { color:var(--face-sh); }
+  #np-text::selection { background:var(--select); color:var(--select-text); }
 
   /* -- destination row: address band. Clear stays here, at 23px, deliberately:
         a destructive control does not belong at thumb size next to the commit one. -- */
@@ -342,113 +358,113 @@
 
   /* -- [[ autocomplete: derived from the Win98 Address-bar AutoComplete drop-down -- */
   /* the shell's own popup material — same bevel as #start-menu */
-  .np-ac { position:absolute; z-index:50; width:264px; background:#c0c0c0; padding:2px;
-      box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #dfdfdf,
-                  inset -2px -2px #808080, inset 2px 2px #fff; }
-  .np-ac .hd { font-size:11px; color:#000; padding:2px 4px 3px;
+  .np-ac { position:absolute; z-index:50; width:264px; background:var(--face); padding:2px;
+      box-shadow: inset -1px -1px var(--face-dk), inset 1px 1px var(--face-light),
+                  inset -2px -2px var(--face-sh), inset 2px 2px var(--face-hi); }
+  .np-ac .hd { font-size:11px; color:var(--window-text); padding:2px 4px 3px;
       text-transform:uppercase; letter-spacing:.5px; }
   .np-ac ul { list-style:none; margin:0; padding:0; max-height:120px; overflow:auto;
-      background:#fff; box-shadow: inset -1px -1px #fff, inset 1px 1px #808080,
-                  inset -2px -2px #dfdfdf, inset 2px 2px #0a0a0a; }
+      background:var(--window); box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-sh),
+                  inset -2px -2px var(--face-light), inset 2px 2px var(--face-dk); }
   .np-ac li { font-family:Arial, Helvetica, sans-serif; font-size:13px; height:20px;
       box-sizing:border-box; padding:2px 5px; display:flex; align-items:center; gap:8px;
       cursor:pointer; }
   .np-ac li .tt { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;
       white-space:nowrap; }
-  .np-ac li .sl { color:#606060; font-size:11px; flex:0 1 auto; min-width:0;
+  .np-ac li .sl { color:var(--ink-5); font-size:11px; flex:0 1 auto; min-width:0;
       overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:46%; }
-  .np-ac li[aria-selected=true] { background:#000080; color:#fff; }
-  .np-ac li[aria-selected=true] .sl { color:#c8d0f0; }
-  .np-ac .ft { font-size:11px; color:#444; padding:2px 4px 1px; }
+  .np-ac li[aria-selected=true] { background:var(--select); color:var(--select-text); }
+  .np-ac li[aria-selected=true] .sl { color:var(--select-tint); }
+  .np-ac .ft { font-size:11px; color:var(--ink-3); padding:2px 4px 1px; }
 
   /* -- Notebook: the capture ledger. Forty rows in register, each carrying its marks at
         the same four x-positions, is the argument that nothing here gets lost. -- */
   .np-ptools { flex:none; display:flex; align-items:center; gap:4px; padding:4px 5px;
-      box-shadow: inset 0 -1px 0 #808080, inset 0 -2px 0 #fff; font-size:12px; }
+      box-shadow: inset 0 -1px 0 var(--face-sh), inset 0 -2px 0 var(--face-hi); font-size:12px; }
   .np-ptools .sp { flex:1; }
   /* The detail pane grew a body, so the list can no longer claim a fixed share — it
      yields, and the detail scrolls rather than being clipped off the bottom. */
-  .np-list { flex:1 1 auto; min-height:76px; overflow:auto; background:#fff; margin:5px 5px 0;
-      box-shadow: inset -1px -1px #fff, inset 1px 1px #808080,
-                  inset -2px -2px #dfdfdf, inset 2px 2px #0a0a0a; }
-  .np-empty { font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#606060;
+  .np-list { flex:1 1 auto; min-height:76px; overflow:auto; background:var(--window); margin:5px 5px 0;
+      box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-sh),
+                  inset -2px -2px var(--face-light), inset 2px 2px var(--face-dk); }
+  .np-empty { font-family:Arial, Helvetica, sans-serif; font-size:13px; color:var(--ink-5);
       padding:10px 8px; }
   .np-row { display:flex; align-items:center; gap:6px; padding:5px 7px;
       font-family:Arial, Helvetica, sans-serif; font-size:13px;
-      border-bottom:1px solid #dfdfdf; cursor:pointer; }
+      border-bottom:1px solid var(--face-light); cursor:pointer; }
   .np-row .g { flex:none; display:flex; gap:1px; width:30px; padding:1px;
-      box-shadow: inset -1px -1px #dfdfdf, inset 1px 1px #808080; }
+      box-shadow: inset -1px -1px var(--face-light), inset 1px 1px var(--face-sh); }
   /* fill and void, never hue: an empty stage is an empty socket, so all four cells
      stay countable at a glance */
-  .np-row .g i { flex:1; height:8px; box-shadow: inset 1px 1px #808080, inset -1px -1px #dfdfdf; }
-  .np-row .g i.on { background:#000080; box-shadow:none; }
+  .np-row .g i { flex:1; height:8px; box-shadow: inset 1px 1px var(--face-sh), inset -1px -1px var(--face-light); }
+  .np-row .g i.on { background:var(--select); box-shadow:none; }
   .np-row .g i.skip { box-shadow:none;
-      background: repeating-conic-gradient(#000080 0 25%, transparent 0 50%) 0 0/2px 2px; }
-  .np-row[aria-selected=true] .g { box-shadow: inset -1px -1px #6a7ac0, inset 1px 1px #000040; }
-  .np-row[aria-selected=true] .g i { box-shadow: inset 1px 1px #000040, inset -1px -1px #6a7ac0; }
-  .np-row[aria-selected=true] .g i.on { background:#fff; box-shadow:none; }
+      background: repeating-conic-gradient(var(--select) 0 25%, transparent 0 50%) 0 0/2px 2px; }
+  .np-row[aria-selected=true] .g { box-shadow: inset -1px -1px var(--select-bevel-hi), inset 1px 1px var(--select-bevel-dk); }
+  .np-row[aria-selected=true] .g i { box-shadow: inset 1px 1px var(--select-bevel-dk), inset -1px -1px var(--select-bevel-hi); }
+  .np-row[aria-selected=true] .g i.on { background:var(--window); box-shadow:none; }
   .np-row[aria-selected=true] .g i.skip { box-shadow:none;
-      background: repeating-conic-gradient(#fff 0 25%, transparent 0 50%) 0 0/2px 2px; }
+      background: repeating-conic-gradient(var(--select-text) 0 25%, transparent 0 50%) 0 0/2px 2px; }
   .np-row .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .np-row .st { flex:none; font-size:11px; text-transform:uppercase; letter-spacing:.5px;
-      color:#444; width:58px; text-align:right; }
-  .np-row .wh { flex:none; font-size:11px; color:#606060; width:44px; text-align:right;
+      color:var(--ink-3); width:58px; text-align:right; }
+  .np-row .wh { flex:none; font-size:11px; color:var(--ink-5); width:44px; text-align:right;
       font-family:"Courier New", monospace; }
-  .np-row[aria-selected=true] { background:#000080; color:#fff; }
-  .np-row[aria-selected=true] .st, .np-row[aria-selected=true] .wh { color:#fff; }
+  .np-row[aria-selected=true] { background:var(--select); color:var(--select-text); }
+  .np-row[aria-selected=true] .st, .np-row[aria-selected=true] .wh { color:var(--select-text); }
   .np-detail { flex:0 1 auto; max-height:62%; overflow:auto; padding:6px 7px 7px; margin:5px 5px 0;
-      background:#c0c0c0; box-shadow: inset 0 1px 0 #808080, inset 0 2px 0 #fff; }
+      background:var(--face); box-shadow: inset 0 1px 0 var(--face-sh), inset 0 2px 0 var(--face-hi); }
   .np-detail .hd { font-family:Arial, Helvetica, sans-serif; font-size:13px;
       font-weight:bold; margin:2px 0 6px; white-space:nowrap; overflow:hidden;
       text-overflow:ellipsis; }
   /* the row's micro-strip at 3x — same four cells, same order, same fill/void
      grammar, so learning one teaches the other */
-  .np-jt { display:flex; gap:2px; padding:3px; box-shadow: inset -2px -2px #dfdfdf, inset 2px 2px #808080; }
-  .np-jt span { flex:1; height:12px; box-shadow: inset 1px 1px #808080, inset -1px -1px #dfdfdf; }
-  .np-jt span.on { background:#000080; box-shadow:none; }
-  .np-jt span.skip { background: repeating-conic-gradient(#000080 0 25%, #c0c0c0 0 50%) 0 0/2px 2px;
+  .np-jt { display:flex; gap:2px; padding:3px; box-shadow: inset -2px -2px var(--face-light), inset 2px 2px var(--face-sh); }
+  .np-jt span { flex:1; height:12px; box-shadow: inset 1px 1px var(--face-sh), inset -1px -1px var(--face-light); }
+  .np-jt span.on { background:var(--select); box-shadow:none; }
+  .np-jt span.skip { background: repeating-conic-gradient(var(--select) 0 25%, var(--face) 0 50%) 0 0/2px 2px;
       box-shadow:none; }
   .np-jlab { display:flex; gap:2px; margin-top:3px; }
-  .np-jlab div { flex:1; text-align:center; font-size:10px; color:#444;
+  .np-jlab div { flex:1; text-align:center; font-size:10px; color:var(--ink-3);
       text-transform:uppercase; letter-spacing:.5px; }
-  .np-jlab div b { display:block; font-weight:normal; color:#606060;
+  .np-jlab div b { display:block; font-weight:normal; color:var(--ink-5);
       font-family:"Courier New", monospace; font-size:10px; letter-spacing:0; }
-  .np-jlab div.on { color:#000; }
+  .np-jlab div.on { color:var(--window-text); }
   .np-became { font-family:Arial, Helvetica, sans-serif; font-size:12px; margin:7px 0 0;
-      color:#333; }
+      color:var(--ink-1); }
   .np-became code { font-family:"Courier New", monospace; font-size:11px; }
-  .np-became a { color:#000080; font-weight:bold; text-decoration:none; cursor:pointer;
-      border-bottom:1px dashed #000080; }
+  .np-became a { color:var(--select); font-weight:bold; text-decoration:none; cursor:pointer;
+      border-bottom:1px dashed var(--select); }
   .np-acts { display:flex; gap:4px; margin-top:7px; }
   /* the addendum strip: you are writing INTO a thread, and the pane should say so */
   /* `display:flex` beats the UA stylesheet's [hidden] rule, so the hidden state has to
      be declared explicitly — otherwise an "empty" strip shows as a yellow band. */
   .np-append[hidden] { display:none; }
   .np-append { flex:none; display:flex; align-items:center; gap:6px; margin:0 0 5px;
-      padding:4px 6px; background:#ffffe1; border:1px solid #b8b060;
-      font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#3a3a3a; }
-  .np-append .lb { flex:none; font-weight:bold; color:#000; }
+      padding:4px 6px; background:var(--info-bg); border:1px solid var(--info-border);
+      font-family:Arial, Helvetica, sans-serif; font-size:12px; color:var(--ink-2); }
+  .np-append .lb { flex:none; font-weight:bold; color:var(--window-text); }
   .np-append .sp { flex:1; }
-  .np-append a { color:#000080; cursor:pointer; overflow:hidden; white-space:nowrap;
-      text-overflow:ellipsis; border-bottom:1px dashed #000080; }
+  .np-append a { color:var(--select); cursor:pointer; overflow:hidden; white-space:nowrap;
+      text-overflow:ellipsis; border-bottom:1px dashed var(--select); }
   /* -- the notebook: reading your own text, and threads -- */
   .np-ptools select { font-size:12px; max-width:150px; }
   .np-body { max-height:132px; overflow:auto; margin:0 0 7px; padding:6px 7px;
-      background:#fff; white-space:pre-wrap; overflow-wrap:break-word;
+      background:var(--window); white-space:pre-wrap; overflow-wrap:break-word;
       font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:1.45;
-      box-shadow: inset -1px -1px #fff, inset 1px 1px #808080,
-                  inset -2px -2px #dfdfdf, inset 2px 2px #0a0a0a; }
-  .np-dim { color:#606060; }
-  .np-parent { font-family:Arial, Helvetica, sans-serif; font-size:11px; color:#444;
+      box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-sh),
+                  inset -2px -2px var(--face-light), inset 2px 2px var(--face-dk); }
+  .np-dim { color:var(--ink-5); }
+  .np-parent { font-family:Arial, Helvetica, sans-serif; font-size:11px; color:var(--ink-3);
       margin:0 0 5px; }
-  .np-parent a { color:#000080; text-decoration:none; cursor:pointer;
-      border-bottom:1px dashed #000080; }
+  .np-parent a { color:var(--select); text-decoration:none; cursor:pointer;
+      border-bottom:1px dashed var(--select); }
   /* an addendum is indented under the note it extends, with a + in the gutter — the
      thread reads as one thing without pretending to BE one file */
   .np-row.np-sub .n { padding-left:12px; }
-  .np-row .np-plus { font-style:normal; font-weight:bold; color:#000080;
+  .np-row .np-plus { font-style:normal; font-weight:bold; color:var(--select);
       margin-right:5px; font-family:"Courier New", monospace; }
-  .np-row[aria-selected=true] .np-plus { color:#fff; }
+  .np-row[aria-selected=true] .np-plus { color:var(--select-text); }
 
   /* -- mobile deltas -- */
   @media (max-width: 700px) {
@@ -494,36 +510,63 @@
   .md { padding: 12px 16px; font-size: 16px; line-height: 1.6;
         font-family: Arial, sans-serif; }
   .md h1 { font-size: 18px; } .md h2 { font-size: 15px; } .md h3 { font-size: 13px; }
-  .md h1, .md h2 { border-bottom: 1px solid #c0c0c0; padding-bottom: 2px; }
-  .md pre { background: #f4f4f4; border: 1px inset #fff; padding: 8px;
+  .md h1, .md h2 { border-bottom: 1px solid var(--face); padding-bottom: 2px; }
+  .md pre { background: var(--paper-dim); border: 1px inset var(--face-hi); padding: 8px;
             overflow: auto; font-size: 14px; }
   .md code { font-family: "Courier New", monospace; }
-  .md blockquote { border-left: 3px solid #c0c0c0; margin-left: 0;
-                   padding-left: 10px; color: #333; }
+  .md blockquote { border-left: 3px solid var(--face); margin-left: 0;
+                   padding-left: 10px; color: var(--ink-1); }
   .md table { border-collapse: collapse; }
-  .md th, .md td { border: 1px solid #999; padding: 4px 9px; font-size: 14px; }
-  a.wikilink { color: #000080; font-weight: bold; text-decoration: none;
-               border-bottom: 1px dashed #000080; cursor: pointer; }
-  a.wikilink.missing { color: #800000; border-bottom-color: #800000; }
+  .md th, .md td { border: 1px solid var(--paper-border); padding: 4px 9px; font-size: 14px; }
+  a.wikilink { color: var(--select); font-weight: bold; text-decoration: none;
+               border-bottom: 1px dashed var(--select); cursor: pointer; }
+  a.wikilink.missing { color: var(--error); border-bottom-color: var(--error); }
   /* Retired: the page is gone but the link still goes somewhere. Grey and struck
      through, so a dated record reads as history rather than as breakage. */
-  a.wikilink.retired { color: #505050; font-weight: normal;
-                       border-bottom-color: #808080; }
+  a.wikilink.retired { color: var(--retired); font-weight: normal;
+                       border-bottom-color: var(--face-sh); }
   a.wikilink.retired s { text-decoration: line-through; }
   .frontmatter-chip { display: inline-block; font-size: 12px; padding: 1px 6px;
-      margin: 0 4px 4px 0; background: #dfdfdf;
-      box-shadow: inset -1px -1px #808080, inset 1px 1px #fff; }
+      margin: 0 4px 4px 0; background: var(--face-light);
+      box-shadow: inset -1px -1px var(--face-sh), inset 1px 1px var(--face-hi); }
+
+  /* ==== Reading pass (apps-v3 slice 2) ==== */
+  /* Measure: long wiki prose held to ~68ch — the single biggest legibility lever.
+     Scoped to the Explorer reading pane; chrome and feeds keep their widths. */
+  #explorer-view .md { max-width: 68ch; }
+  .md li { margin: 0 0 5px; }
+  /* dated bullets: the scaffolding recedes, the content leads */
+  .md .dt { color: var(--ink-4); font-size: .92em; }
+  /* the TOC rail: a sticky 98 panel for long pages (3+ headings), desktop only —
+     on a phone the tree is the navigator and the rail would eat the measure */
+  .md-toc { float: right; position: sticky; top: 6px; width: 168px;
+      margin: 8px 10px 10px 14px; padding: 6px 8px 8px; background: var(--face);
+      font-family: Arial, sans-serif; font-size: 11px; line-height: 1.5; z-index: 3;
+      box-shadow: inset -1px -1px var(--face-sh), inset 1px 1px var(--face-hi); }
+  .md-toc b { display: block; font-size: 10px; letter-spacing: 1px; color: var(--ink-2);
+      margin: 0 0 3px; text-transform: uppercase; }
+  .md-toc a { display: block; color: var(--select); cursor: pointer; text-decoration: none;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .md-toc a.h3 { padding-left: 10px; }
+  @media (max-width: 700px) { .md-toc { display: none; } }
+  /* wikilink hover preview: an info-tip, so a link can be checked without
+     losing your place. Desktop pointers only; built with textContent. */
+  .link-tip { position: fixed; z-index: 9800; max-width: 340px; padding: 5px 8px;
+      background: var(--info-bg); border: 1px solid var(--outline);
+      font: 12px/1.45 Arial, sans-serif; color: var(--window-text);
+      pointer-events: none; }
+  .link-tip b { display: block; margin-bottom: 2px; }
 
   /* Explorer layout — deep 3D wells come from 98.css sunken-panel */
   #win-explorer .window-body { display: flex; padding: 0; overflow: hidden; }
   #explorer-left { display: flex; flex-direction: column; width: 190px; margin: 2px; flex: none; }
   #tree-bar { flex: none; padding: 5px 9px; font-size: 13px; cursor: pointer; user-select: none;
-              -webkit-user-select: none; background: #c0c0c0; margin-bottom: 2px;
-              box-shadow: inset -1px -1px #808080, inset 1px 1px #fff; }
-  #explorer-tree { flex: 1; overflow: auto; background: #fff; }
+              -webkit-user-select: none; background: var(--face); margin-bottom: 2px;
+              box-shadow: inset -1px -1px var(--face-sh), inset 1px 1px var(--face-hi); }
+  #explorer-tree { flex: 1; overflow: auto; background: var(--window); }
   .tree-collapsed #explorer-tree { display: none; }
   .tree-collapsed #explorer-left { width: auto; }
-  #explorer-view { flex: 1; overflow: auto; background: #fff; margin: 2px 2px 2px 0; }
+  #explorer-view { flex: 1; overflow: auto; background: var(--window); margin: 2px 2px 2px 0; }
   /* The vendored MS Sans Serif is a bitmap face: crisp only at its native size,
      and this shell runs a global zoom. Chrome (title bars, buttons, menus, status
      bars) keeps it — that's the period look. Surfaces you READ and TYPE in get a
@@ -532,32 +575,32 @@
   #explorer-view, .status-bar { font-family: Arial, Helvetica, sans-serif; }
   ul.tree-view { border: none; box-shadow: none; }
   ul.tree-view li { cursor: pointer; }
-  ul.tree-view li.sel > span { background: #000080; color: #fff; }
-  #backlinks { padding: 8px 16px 12px; font-size: 14px; background: #c0c0c0;
-               box-shadow: inset 0 1px 0 #808080, inset 0 2px 0 #fff; }
-  #backlinks .bl-unread { color: #7a5c00; }
+  ul.tree-view li.sel > span { background: var(--select); color: var(--select-text); }
+  #backlinks { padding: 8px 16px 12px; font-size: 14px; background: var(--face);
+               box-shadow: inset 0 1px 0 var(--face-sh), inset 0 2px 0 var(--face-hi); }
+  #backlinks .bl-unread { color: var(--warn-text); }
   /* A tree that could not be read. Deliberately unlike an empty tree. */
-  li.tree-fail { list-style: none; margin: 6px; padding: 7px 9px; background: #ffffe1;
-                 border: 1px solid #b8b060; font-family: Arial, sans-serif;
-                 font-size: 12px; line-height: 1.5; color: #3a3a3a; }
-  li.tree-fail a { color: #000080; text-decoration: underline; cursor: pointer; }
+  li.tree-fail { list-style: none; margin: 6px; padding: 7px 9px; background: var(--info-bg);
+                 border: 1px solid var(--info-border); font-family: Arial, sans-serif;
+                 font-size: 12px; line-height: 1.5; color: var(--ink-2); }
+  li.tree-fail a { color: var(--select); text-decoration: underline; cursor: pointer; }
 
   /* Recent changes */
   .log-line { display: flex; gap: 8px; padding: 6px 10px; font-size: 14px;
-              border-bottom: 1px solid #dfdfdf; font-family: Arial; }
-  .log-line .d { color: #444; white-space: nowrap; }
+              border-bottom: 1px solid var(--face-light); font-family: Arial; }
+  .log-line .d { color: var(--ink-3); white-space: nowrap; }
   .log-line .p { font-weight: bold; white-space: nowrap; }
 
   /* Search */
   #win-search .row { display: flex; gap: 4px; padding: 6px; }
   #win-search input { flex: 1; }
-  .result { padding: 9px 12px; cursor: pointer; border-bottom: 1px solid #dfdfdf;
-            font-family: Arial; font-size: 14px; background: #fff; }
-  .result:hover { background: #000080; color: #fff; }
-  .result:hover .t, .result:hover .s { color: #fff; }
-  .result .t { font-weight: bold; color: #000080; }
-  .result .s { color: #333; margin-top: 2px; }
-  .result .s b { background: #ffffe1; color: #000; font-weight: normal; }
+  .result { padding: 9px 12px; cursor: pointer; border-bottom: 1px solid var(--face-light);
+            font-family: Arial; font-size: 14px; background: var(--window); }
+  .result:hover { background: var(--select); color: var(--select-text); }
+  .result:hover .t, .result:hover .s { color: var(--select-text); }
+  .result .t { font-weight: bold; color: var(--select); }
+  .result .s { color: var(--ink-1); margin-top: 2px; }
+  .result .s b { background: var(--info-bg); color: var(--window-text); font-weight: normal; }
 
   /* why.exe: photos clip to their hole's true shape; load like it's 1997.
      Divs + background-size:cover, NOT <img> + object-fit: iOS WebKit drops
@@ -578,16 +621,16 @@
   }
 
   /* Inquest.exe — the docket */
-  .gate { border: 2px groove #dfdfdf; margin: 0 0 8px; padding: 8px 10px 10px;
-          font-family: Arial; font-size: 14px; background: #fff; }
-  .gate .gid { font-size: 11px; color: #555; letter-spacing: 1px; }
-  .gate .gid b { color: #000080; }
+  .gate { border: 2px groove var(--face-light); margin: 0 0 8px; padding: 8px 10px 10px;
+          font-family: Arial; font-size: 14px; background: var(--window); }
+  .gate .gid { font-size: 11px; color: var(--ink-4); letter-spacing: 1px; }
+  .gate .gid b { color: var(--select); }
   .gate .gq { font-weight: bold; margin: 4px 0 8px; font-size: 15px; }
-  .gate .side { margin: 0 0 6px; padding: 5px 8px; background: #f0f0f0;
-                box-shadow: inset -1px -1px #fff, inset 1px 1px #b0b0b0; }
-  .gate .side b { color: #000080; }
-  .gate .ev { font-size: 12px; color: #444; margin: 6px 0 8px; }
-  .gate .ev a { color: #000080; }
+  .gate .side { margin: 0 0 6px; padding: 5px 8px; background: var(--paper-dim2);
+                box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--paper-sh); }
+  .gate .side b { color: var(--select); }
+  .gate .ev { font-size: 12px; color: var(--ink-3); margin: 6px 0 8px; }
+  .gate .ev a { color: var(--select); }
   .gate .acts { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
   .gate .acts button { min-width: 62px; }
   .gate textarea { width: 100%; box-sizing: border-box; margin: 6px 0 0;
@@ -599,14 +642,14 @@
   #oracle-mast { margin: 0 6px; padding: 3px 8px; text-align: center;
                  font-family: Arial; font-size: 11px; font-weight: bold;
                  letter-spacing: 3px; color: #5a1030; background: #ece4d0;
-                 box-shadow: inset -1px -1px #fff, inset 1px 1px #808080; }
-  .oracle-item { padding: 4px 6px 10px; border-bottom: 2px groove #dfdfdf; }
+                 box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-sh); }
+  .oracle-item { padding: 4px 6px 10px; border-bottom: 2px groove var(--face-light); }
   .oracle-item.pending { padding: 10px 12px; font-family: Arial; font-size: 14px; }
   .oracle-item.pending b { color: #5a1030; }
-  .oracle-item .fine { color: #444; font-size: 12px; margin-top: 3px; font-style: italic; }
+  .oracle-item .fine { color: var(--ink-3); font-size: 12px; margin-top: 3px; font-style: italic; }
 
   /* Logon + dialogs */
-  #logon { position: fixed; inset: 0; background: #008080; z-index: 9999;
+  #logon { position: fixed; inset: 0; background: var(--desktop); z-index: 9999;
            display: flex; align-items: center; justify-content: center; }
   /* 92% not 92vw: `vw` resolves against the real viewport and ignores the root
      `zoom`, so above 100% the dialog computed wider than the screen it sits on —
@@ -615,12 +658,12 @@
   #logon .window { width: min(400px, 92%); }
   #logon .intro { display: flex; gap: 12px; align-items: flex-start; margin: 4px 0 10px; }
   #logon .intro img { width: 52px; height: 52px; image-rendering: pixelated; }
-  #logon .fine { font-size: 12px; color: #444; margin-top: 4px; }
+  #logon .fine { font-size: 12px; color: var(--ink-3); margin-top: 4px; }
   .hidden { display: none !important; }
   .toolbar { display: flex; gap: 4px; padding: 4px; align-items: center;
-             border-bottom: 1px solid #808080; box-shadow: 0 1px 0 #fff; }
+             border-bottom: 1px solid var(--face-sh); box-shadow: 0 1px 0 var(--face-hi); }
   .toolbar .spacer { flex: 1; }
-  .toolbar .note { font-size: 13px; color: #444; }
+  .toolbar .note { font-size: 13px; color: var(--ink-3); }
 
   ul.tree-view { font-size: 14px; line-height: 1.7; }
   .window-body textarea, .window-body input, #win-search input { font-size: 15px; }
@@ -647,6 +690,76 @@
                      top: 8px; bottom: 40px; left: 8px; right: 8px;
                      transform: none; justify-content: center; max-width: none; }
   }
+
+  /* ==== Appearance: 98.css override layer — generated from the vendored file, every
+     rule re-declared with role vars at its exact stock value, so "Windows Standard"
+     is pixel-identical by construction and a scheme swap reaches the whole chrome.
+     Glyph data-URIs are handled at runtime by SCHEME (dark schemes re-tint). ==== */
+  body { color: var(--body-text); }
+  u { border-bottom: .5px solid #222; }
+  button,input[type=reset],input[type=submit] { box-shadow: inset -1px -1px var(--face-dk),inset 1px 1px var(--face-hi),inset -2px -2px var(--title-inactive-1),inset 2px 2px var(--face-light); text-shadow: 0 0 #222; }
+  button.default,input[type=reset].default,input[type=submit].default { box-shadow: inset -2px -2px var(--face-dk),inset 1px 1px var(--face-dk),inset 2px 2px var(--face-hi),inset -3px -3px var(--title-inactive-1),inset 3px 3px var(--face-light); }
+  .vertical-bar { box-shadow: inset -1px -1px var(--face-dk),inset 1px 1px var(--face-hi),inset -2px -2px var(--title-inactive-1),inset 2px 2px var(--face-light); }
+  button:not(:disabled):active,input[type=reset]:not(:disabled):active,input[type=submit]:not(:disabled):active { box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--face-dk),inset -2px -2px var(--face-light),inset 2px 2px var(--title-inactive-1); text-shadow: 1px 1px #222; }
+  button.default:not(:disabled):active,input[type=reset].default:not(:disabled):active,input[type=submit].default:not(:disabled):active { box-shadow: inset 2px 2px var(--face-dk),inset -1px -1px var(--face-dk),inset -2px -2px var(--face-hi),inset 3px 3px var(--title-inactive-1),inset -3px -3px var(--face-light); }
+  button:not(:disabled):hover,input[type=reset]:not(:disabled):hover,input[type=submit]:not(:disabled):hover { box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--face-dk),inset -2px -2px var(--face-light),inset 2px 2px var(--title-inactive-1); }
+  button:focus,input[type=reset]:focus,input[type=submit]:focus { outline: 1px dotted #000; }
+  :disabled,:disabled+label,input[readonly],input[readonly]+label { color: var(--title-inactive-1); }
+  :disabled+label,button:disabled,input[type=reset]:disabled,input[type=submit]:disabled { text-shadow: 1px 1px 0 #fff; }
+  .window { box-shadow: inset -1px -1px var(--face-dk),inset 1px 1px var(--face-light),inset -2px -2px var(--title-inactive-1),inset 2px 2px var(--face-hi); }
+  .title-bar { background: linear-gradient(90deg,var(--title-1),var(--title-2)); }
+  .title-bar.inactive { background: linear-gradient(90deg,var(--title-inactive-1),var(--title-inactive-2)); }
+  .title-bar-text { color: var(--title-text); }
+  .status-bar-field { box-shadow: inset -1px -1px var(--face-light),inset 1px 1px var(--title-inactive-1); }
+  input[type=checkbox]:focus+label,input[type=radio]:focus+label { outline: 1px dotted #000; }
+  input[type=checkbox]+label:before { background: var(--window); box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--title-inactive-1),inset -2px -2px var(--face-light),inset 2px 2px var(--face-dk); }
+  input[type=email],input[type=number],input[type=password],input[type=search],input[type=tel],input[type=text],input[type=url],select { background-color: var(--window); box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--title-inactive-1),inset -2px -2px var(--face-light),inset 2px 2px var(--face-dk); }
+  textarea { background-color: var(--window); box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--title-inactive-1),inset -2px -2px var(--face-light),inset 2px 2px var(--face-dk); }
+  input[type=range]::-webkit-slider-runnable-track { background: var(--outline); border-bottom: 1px solid var(--title-inactive-1); border-right: 1px solid var(--title-inactive-1); box-shadow: 1px 0 0 var(--face-hi),1px 1px 0 var(--face-hi),0 1px 0 var(--face-hi),-1px 0 0 var(--disabled),-1px -1px 0 var(--disabled),0 -1px 0 var(--disabled),-1px 1px 0 var(--face-hi),1px -1px var(--disabled); }
+  input[type=range]::-moz-range-track { background: var(--outline); border-bottom: 1px solid var(--title-inactive-1); border-right: 1px solid var(--title-inactive-1); box-shadow: 1px 0 0 var(--face-hi),1px 1px 0 var(--face-hi),0 1px 0 var(--face-hi),-1px 0 0 var(--disabled),-1px -1px 0 var(--disabled),0 -1px 0 var(--disabled),-1px 1px 0 var(--face-hi),1px -1px var(--disabled); }
+  .is-vertical>input[type=range]::-webkit-slider-runnable-track { border-bottom: 1px solid var(--title-inactive-1); border-left: 1px solid var(--title-inactive-1); box-shadow: -1px 0 0 var(--face-hi),-1px 1px 0 var(--face-hi),0 1px 0 var(--face-hi),1px 0 0 var(--disabled),1px -1px 0 var(--disabled),0 -1px 0 var(--disabled),1px 1px 0 var(--face-hi),-1px -1px var(--disabled); }
+  .is-vertical>input[type=range]::-moz-range-track { border-bottom: 1px solid var(--title-inactive-1); border-left: 1px solid var(--title-inactive-1); box-shadow: -1px 0 0 var(--face-hi),-1px 1px 0 var(--face-hi),0 1px 0 var(--face-hi),1px 0 0 var(--disabled),1px -1px 0 var(--disabled),0 -1px 0 var(--disabled),1px 1px 0 var(--face-hi),-1px -1px var(--disabled); }
+  select:focus { background-color: var(--title-1); color: var(--title-text); }
+  select:focus option { background-color: var(--window); color: var(--window-text); }
+  a { color: var(--link98); }
+  a:focus { outline: 1px dotted #00f; }
+  ul.tree-view { background: var(--window); box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--title-inactive-1),inset -2px -2px var(--face-light),inset 2px 2px var(--face-dk); }
+  ul.tree-view a { color: var(--window-text); }
+  ul.tree-view a:focus { background-color: var(--title-1); color: var(--title-text); }
+  ul.tree-view ul { border-left: 1px dotted var(--title-inactive-1); }
+  ul.tree-view ul>li:before { border-bottom: 1px dotted var(--title-inactive-1); }
+  ul.tree-view ul>li:last-child:after { background: var(--window); }
+  ul.tree-view details>summary:before { background-color: var(--window); border: 1px solid var(--title-inactive-1); }
+  pre { background: var(--window); box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--title-inactive-1),inset -2px -2px var(--face-light),inset 2px 2px var(--face-dk); }
+  summary:focus { outline: 1px dotted #000; }
+  ::-webkit-scrollbar-corner { background: var(--face-light); }
+  ::-webkit-scrollbar-thumb { background-color: var(--face-light); box-shadow: inset -1px -1px var(--face-dk),inset 1px 1px var(--face-hi),inset -2px -2px var(--title-inactive-1),inset 2px 2px var(--face-light); }
+  menu[role=tablist]>li { box-shadow: inset -1px 0 var(--face-dk),inset 1px 1px var(--face-light),inset -2px 0 var(--title-inactive-1),inset 2px 2px var(--face-hi); }
+  menu[role=tablist]>li>a { color: var(--body-text); }
+  menu[role=tablist]>li>a:focus { outline: 1px dotted #222; }
+  .sunken-panel,table { background-color: var(--window); }
+  table>thead>tr>* { box-shadow: inset -1px -1px var(--face-dk),inset 1px 1px var(--face-hi),inset -2px -2px var(--title-inactive-1),inset 2px 2px var(--face-light); }
+  table>tbody>tr.highlighted { background-color: var(--title-1); color: var(--title-text); }
+  .progress-indicator { box-shadow: inset -2px -2px var(--face-light),inset 2px 2px var(--title-inactive-1); }
+  .progress-indicator>.progress-indicator-bar { background-color: var(--title-1); }
+  .progress-indicator.segmented>.progress-indicator-bar { background-image: linear-gradient(90deg,var(--title-1) 16px,transparent 0 2px); }
+  .field-border { background: var(--window); }
+  .field-border,.field-border-disabled { box-shadow: inset -1px -1px var(--face-hi),inset 1px 1px var(--title-inactive-1),inset -2px -2px var(--face-light),inset 2px 2px var(--face-dk); }
+  .status-field-border { box-shadow: inset -1px -1px var(--face-light),inset 1px 1px var(--title-inactive-1); }
+
+  /* ==== Appearance schemes — Display Properties → Appearance. Each block is one
+     saved set of role values, exactly like Win98's named Colors schemes. Official
+     palettes: Catppuccin (palette.json) and folke/tokyonight. Selection and title
+     text flip dark-on-pastel on the dark flavors — white fails contrast there.
+     Wallpaper, pixel icons, and chart palettes stay scheme-independent (ruled
+     2026-08-08, docs/apps-v3.md). ==== */
+  html[data-scheme="catppuccin-frappe"] { --face:#414559; --face-light:#51576d; --face-hi:#626880; --face-sh:#292c3c; --face-dk:#232634; --window:#303446; --window-text:#c6d0f5; --outline:#232634; --body-text:#c6d0f5; --gray-text:#737994; --disabled:#737994; --ink-1:#b5bfe2; --ink-2:#a5adce; --ink-3:#a5adce; --ink-4:#949cbb; --ink-5:#838ba7; --paper-line:#414559; --paper-line-soft:#414559; --paper-dim:#292c3c; --paper-dim2:#414559; --paper-sh:#737994; --paper-border:#737994; --select:#8caaee; --select-text:#232634; --select-tint:#292c3c; --select-bevel-hi:#aec4f3; --select-bevel-dk:#4d5e83; --title-1:#ca9ee6; --title-2:#babbf1; --title-text:#232634; --title-inactive-1:#51576d; --title-inactive-2:#626880; --title-inactive-text:#a5adce; --desktop:#292c3c; --info-bg:#5f5d63; --info-border:#e5c890; --warn-text:#e5c890; --error:#e78284; --retired:#838ba7; --link98:#8caaee; --phosphor:#a6d189; --phosphor-rgb:166,209,137; }
+  html[data-scheme="catppuccin-macchiato"] { --face:#363a4f; --face-light:#494d64; --face-hi:#5b6078; --face-sh:#1e2030; --face-dk:#181926; --window:#24273a; --window-text:#cad3f5; --outline:#181926; --body-text:#cad3f5; --gray-text:#6e738d; --disabled:#6e738d; --ink-1:#b8c0e0; --ink-2:#a5adcb; --ink-3:#a5adcb; --ink-4:#939ab7; --ink-5:#8087a2; --paper-line:#363a4f; --paper-line-soft:#363a4f; --paper-dim:#1e2030; --paper-dim2:#363a4f; --paper-sh:#6e738d; --paper-border:#6e738d; --select:#8aadf4; --select-text:#181926; --select-tint:#1e2030; --select-bevel-hi:#adc6f7; --select-bevel-dk:#4c5f86; --title-1:#c6a0f6; --title-2:#b7bdf8; --title-text:#181926; --title-inactive-1:#494d64; --title-inactive-2:#5b6078; --title-inactive-text:#a5adcb; --desktop:#1e2030; --info-bg:#57565d; --info-border:#eed49f; --warn-text:#eed49f; --error:#ed8796; --retired:#8087a2; --link98:#8aadf4; --phosphor:#a6da95; --phosphor-rgb:166,218,149; }
+  html[data-scheme="catppuccin-mocha"] { --face:#313244; --face-light:#45475a; --face-hi:#585b70; --face-sh:#181825; --face-dk:#11111b; --window:#1e1e2e; --window-text:#cdd6f4; --outline:#11111b; --body-text:#cdd6f4; --gray-text:#6c7086; --disabled:#6c7086; --ink-1:#bac2de; --ink-2:#a6adc8; --ink-3:#a6adc8; --ink-4:#9399b2; --ink-5:#7f849c; --paper-line:#313244; --paper-line-soft:#313244; --paper-dim:#181825; --paper-dim2:#313244; --paper-sh:#6c7086; --paper-border:#6c7086; --select:#89b4fa; --select-text:#11111b; --select-tint:#181825; --select-bevel-hi:#accafc; --select-bevel-dk:#4b638a; --title-1:#cba6f7; --title-2:#b4befe; --title-text:#11111b; --title-inactive-1:#45475a; --title-inactive-2:#585b70; --title-inactive-text:#a6adc8; --desktop:#181825; --info-bg:#555257; --info-border:#f9e2af; --warn-text:#f9e2af; --error:#f38ba8; --retired:#7f849c; --link98:#89b4fa; --phosphor:#a6e3a1; --phosphor-rgb:166,227,161; }
+  html[data-scheme="catppuccin-latte"] { --face:#bcc0cc; --face-light:#ccd0da; --face-hi:#eff1f5; --face-sh:#9ca0b0; --face-dk:#4c4f69; --window:#eff1f5; --window-text:#4c4f69; --outline:#4c4f69; --body-text:#4c4f69; --gray-text:#9ca0b0; --disabled:#9ca0b0; --ink-1:#4c4f69; --ink-2:#5c5f77; --ink-3:#5c5f77; --ink-4:#6c6f85; --ink-5:#7c7f93; --paper-line:#ccd0da; --paper-line-soft:#e6e9ef; --paper-dim:#e6e9ef; --paper-dim2:#e6e9ef; --paper-sh:#9ca0b0; --paper-border:#9ca0b0; --select:#1e66f5; --select-text:#fff; --select-tint:#dce0e8; --select-bevel-hi:#6d9cf8; --select-bevel-dk:#103887; --title-1:#8839ef; --title-2:#7287fd; --title-text:#fff; --title-inactive-1:#acb0be; --title-inactive-2:#bcc0cc; --title-inactive-text:#6c6f85; --desktop:#179299; --info-bg:#ebdbc5; --info-border:#df8e1d; --warn-text:#915c13; --error:#d20f39; --retired:#8c8fa1; --link98:#1e66f5; --phosphor:#40a02b; --phosphor-rgb:64,160,43; }
+  html[data-scheme="tokyo-night"] { --face:#292e42; --face-light:#414868; --face-hi:#737aa2; --face-sh:#16161e; --face-dk:#0c0e14; --window:#1a1b26; --window-text:#c0caf5; --outline:#0c0e14; --body-text:#c0caf5; --gray-text:#565f89; --disabled:#565f89; --ink-1:#a9b1d6; --ink-2:#a9b1d6; --ink-3:#a9b1d6; --ink-4:#737aa2; --ink-5:#565f89; --paper-line:#292e42; --paper-line-soft:#292e42; --paper-dim:#16161e; --paper-dim2:#292e42; --paper-sh:#737aa2; --paper-border:#545c7e; --select:#7aa2f7; --select-text:#16161e; --select-tint:#3b4261; --select-bevel-hi:#a2bef9; --select-bevel-dk:#435988; --title-1:#3d59a1; --title-2:#7aa2f7; --title-text:#16161e; --title-inactive-1:#3b4261; --title-inactive-2:#414868; --title-inactive-text:#565f89; --desktop:#0c0e14; --info-bg:#444148; --info-border:#e0af68; --warn-text:#e0af68; --error:#db4b4b; --retired:#545c7e; --link98:#7aa2f7; --phosphor:#9ece6a; --phosphor-rgb:158,206,106; }
+  html[data-scheme="tokyo-night-storm"] { --face:#292e42; --face-light:#414868; --face-hi:#737aa2; --face-sh:#1f2335; --face-dk:#1b1e2d; --window:#24283b; --window-text:#c0caf5; --outline:#1b1e2d; --body-text:#c0caf5; --gray-text:#565f89; --disabled:#565f89; --ink-1:#a9b1d6; --ink-2:#a9b1d6; --ink-3:#a9b1d6; --ink-4:#737aa2; --ink-5:#565f89; --paper-line:#292e42; --paper-line-soft:#292e42; --paper-dim:#1f2335; --paper-dim2:#292e42; --paper-sh:#737aa2; --paper-border:#545c7e; --select:#7aa2f7; --select-text:#1f2335; --select-tint:#3b4261; --select-bevel-hi:#a2bef9; --select-bevel-dk:#435988; --title-1:#3d59a1; --title-2:#7aa2f7; --title-text:#1f2335; --title-inactive-1:#3b4261; --title-inactive-2:#414868; --title-inactive-text:#565f89; --desktop:#1b1e2d; --info-bg:#444148; --info-border:#e0af68; --warn-text:#e0af68; --error:#db4b4b; --retired:#545c7e; --link98:#7aa2f7; --phosphor:#9ece6a; --phosphor-rgb:158,206,106; }
+  html[data-scheme="tokyo-night-moon"] { --face:#2f334d; --face-light:#444a73; --face-hi:#737aa2; --face-sh:#1e2030; --face-dk:#191b29; --window:#222436; --window-text:#c8d3f5; --outline:#191b29; --body-text:#c8d3f5; --gray-text:#636da6; --disabled:#636da6; --ink-1:#828bb8; --ink-2:#828bb8; --ink-3:#828bb8; --ink-4:#737aa2; --ink-5:#636da6; --paper-line:#2f334d; --paper-line-soft:#2f334d; --paper-dim:#1e2030; --paper-dim2:#2f334d; --paper-sh:#737aa2; --paper-border:#545c7e; --select:#82aaff; --select-text:#1e2030; --select-tint:#3b4261; --select-bevel-hi:#a8c4ff; --select-bevel-dk:#485e8c; --title-1:#3e68d7; --title-2:#82aaff; --title-text:#1e2030; --title-inactive-1:#3b4261; --title-inactive-2:#444a73; --title-inactive-text:#636da6; --desktop:#191b29; --info-bg:#4e4953; --info-border:#ffc777; --warn-text:#ffc777; --error:#c53b53; --retired:#545c7e; --link98:#82aaff; --phosphor:#c3e88d; --phosphor-rgb:195,232,141; }
 </style>
 </head>
 <body>
@@ -727,6 +840,50 @@ function setZoom(v) {
   refreshIcons();
   if (typeof WALL !== "undefined") WALL.resize(); // WALL is a top-level const, never a window property
 }
+/* ==== Appearance schemes (docs/apps-v3.md slice 1). A scheme is a [data-scheme]
+   var block in the stylesheet; this module just moves the attribute, persists the
+   pick, and — on dark schemes — re-tints the 26 black SVG glyphs the vendored
+   98.css bakes into data-URIs (checks, radio dots, arrows), which would otherwise
+   vanish on a dark face. Applied before any window is built, so no flash. ==== */
+const SCHEME = (() => {
+  const KEY = "pfc_scheme";
+  const NAMES = { standard: "Windows Standard",
+    "catppuccin-latte": "Catppuccin Latte", "catppuccin-frappe": "Catppuccin Frappé",
+    "catppuccin-macchiato": "Catppuccin Macchiato", "catppuccin-mocha": "Catppuccin Mocha",
+    "tokyo-night": "Tokyo Night", "tokyo-night-storm": "Tokyo Night Storm",
+    "tokyo-night-moon": "Tokyo Night Moon" };
+  const DARK = new Set(["catppuccin-frappe", "catppuccin-macchiato", "catppuccin-mocha",
+                        "tokyo-night", "tokyo-night-storm", "tokyo-night-moon"]);
+  let cssText = null;
+  async function glyphs(name) {
+    let el = document.getElementById("scheme-glyphs");
+    if (!DARK.has(name)) { if (el) el.remove(); return; }
+    try {
+      if (cssText === null) cssText = await (await fetch("assets/98.css")).text();
+      const ink = getComputedStyle(document.documentElement)
+        .getPropertyValue("--window-text").trim().replace("#", "%23");
+      const rules = [...cssText.matchAll(/([^{}@]+)\{([^{}]*data:image[^{}]*)\}/g)]
+        .map(m => m[1].trim() + "{" + m[2].replaceAll("%23000", ink) + "}");
+      if (!el) { el = document.createElement("style"); el.id = "scheme-glyphs";
+                 document.head.appendChild(el); }
+      el.textContent = rules.join("\n");
+    } catch (e) { /* black glyphs degrade on a dark face but nothing breaks; the
+                     next apply() retries — never fatal, never silent-cached */ cssText = null; }
+  }
+  function apply(name, persist = true) {
+    if (!NAMES[name]) name = "standard";
+    if (name === "standard") document.documentElement.removeAttribute("data-scheme");
+    else document.documentElement.setAttribute("data-scheme", name);
+    if (persist) { try { localStorage.setItem(KEY, name); } catch (e) {} }
+    glyphs(name);
+    return name;
+  }
+  const current = () => document.documentElement.getAttribute("data-scheme") || "standard";
+  let saved = "standard";
+  try { saved = localStorage.getItem(KEY) || "standard"; } catch (e) {}
+  apply(saved, false);
+  return { apply, current, NAMES, DARK };
+})();
 const DEMO = location.search.includes("demo") || location.hash === "#demo";
 const LS_KEY = "pfc_token";
 if (location.search.includes("sim")) document.documentElement.classList.add("sim");
@@ -1397,6 +1554,8 @@ const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
    a browser — which means the parsers have to be reachable from outside their IIFEs.
    Read-only handles; nothing here mutates state. verify/integration.mjs is the caller. */
 const PFCT = (window.__pfc = window.__pfc || {});
+Object.assign(PFCT, { schemeApply: SCHEME.apply, schemeCurrent: SCHEME.current,
+                      schemeNames: SCHEME.NAMES });
 
 /* ---------------- Markdown helpers ---------------- */
 function slugify(s) { return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
@@ -1481,9 +1640,15 @@ function renderMd(md, el) {
   let html = (typeof marked !== "undefined")
     ? marked.parse(body, { mangle: false, headerIds: false })
     : miniMd(body);
-  // Linkify [[wikilinks]] — but never inside code/pre, where they are literal syntax
+  // Linkify [[wikilinks]] — but never inside code/pre, where they are literal syntax.
+  // Same pass quiets the leading date parenthetical on dated bullets (reading pass,
+  // apps-v3 slice 2): plain "(2026-…)" openers only — a bolded date is a headline
+  // and keeps its weight.
   html = html.split(/(<pre[\s\S]*?<\/pre>|<code[\s\S]*?<\/code>)/g).map((seg, i) =>
-    i % 2 === 1 ? seg : seg.replace(/\[\[([^\]|]+)\]\]/g, (_, name) => wikiAnchor(name, escHtml))
+    i % 2 === 1 ? seg : seg
+      .replace(/\[\[([^\]|]+)\]\]/g, (_, name) => wikiAnchor(name, escHtml))
+      .replace(/(<li>(?:<p>)?)\((\d{4}-\d{2}[^)<]{0,60}?)\)/g,
+               '$1<span class="dt">($2)</span>')
   ).join("");
   let chips = "";
   ["type", "created", "updated", "tags"].forEach(k => {
@@ -1503,7 +1668,55 @@ function renderMd(md, el) {
       ? (WM.show("explorer"), Explorer.openPath(a.dataset.path))
       : Explorer.openPage(a.dataset.page)));
   el.querySelectorAll("a[href^='http']").forEach(a => a.target = "_blank");
+  LinkTip.wire(el);
 }
+
+/* Wikilink hover previews (reading pass, apps-v3 slice 2). Desktop pointers only;
+   350ms intent delay; content built with textContent so nothing is injected; and
+   hidden pages get no preview — hover is more casual than a click, and hidden is
+   shoulder-surfing cover (BRAIN.md). Reads through the same getFile cache the
+   click would hit, so a warm hover costs nothing. */
+const LinkTip = (() => {
+  let tip = null, timer = 0;
+  const drop = () => { clearTimeout(timer); if (tip) { tip.remove(); tip = null; } };
+  async function show(a) {
+    /* warm anchors carry data-path; cold-cache ones only data-page — same target */
+    const path = a.dataset.path ||
+                 (a.dataset.page ? "wiki/" + a.dataset.page + ".md" : null);
+    if (!path || !/^wiki\//.test(path)) return;
+    const slug = path.slice(5, -3);
+    try {
+      const hidden = cache.hidden || await getHidden();
+      if (hidden && hidden.has(slug)) return;
+      const { meta, body } = splitFrontmatter(await getFile(path));
+      const para = (body.split(/\n{2,}/).find(b => b.trim() && !/^[#\-*>|]/.test(b.trim())) || "")
+        .replace(/\[\[([^\]|]+)\]\]/g, "$1").replace(/[*_`]/g, "").replace(/\s+/g, " ").trim();
+      if (!para) return;
+      drop();
+      tip = document.createElement("div");
+      tip.className = "link-tip";
+      const b = document.createElement("b");
+      b.textContent = meta.title || slug;
+      tip.appendChild(b);
+      tip.appendChild(document.createTextNode(
+        para.length > 260 ? para.slice(0, 260) + "…" : para));
+      document.body.appendChild(tip);
+      const r = a.getBoundingClientRect(), w = document.documentElement.clientWidth;
+      tip.style.left = Math.max(4, Math.min(r.left, w - tip.offsetWidth - 8)) + "px";
+      tip.style.top = (r.bottom + 4) + "px";
+    } catch (e) { /* an unreadable target simply gets no tip */ }
+  }
+  function wire(el) {
+    if (!matchMedia("(hover: hover)").matches) return;
+    el.querySelectorAll("a.wikilink:not(.missing):not(.retired)").forEach(a => {
+      a.addEventListener("mouseenter", () => { clearTimeout(timer);
+        timer = setTimeout(() => show(a), 350); });
+      a.addEventListener("mouseleave", drop);
+      a.addEventListener("click", drop);
+    });
+  }
+  return { wire };
+})();
 
 /* ---------------- Window manager ---------------- */
 /* ---------------- Wallpaper: procedural, Active-Desktop energy ----------------
@@ -3267,6 +3480,30 @@ const Explorer = (() => {
     return { hits, missed: missed.length };
   }
 
+  /* The TOC rail (reading pass, apps-v3 slice 2): wiki pages with 3+ headings get
+     a sticky panel of their own sections, floated into the measure's right margin.
+     Desktop only (the CSS hides it on phones). Built from the rendered headings,
+     so it can never disagree with the page. */
+  function addToc(view) {
+    const heads = [...view.querySelectorAll(".md h2, .md h3")];
+    if (heads.length < 3) return;
+    const toc = document.createElement("nav");
+    toc.className = "md-toc";
+    const cap = document.createElement("b");
+    cap.textContent = "On this page";
+    toc.appendChild(cap);
+    heads.forEach(h => {
+      const a = document.createElement("a");
+      a.textContent = h.textContent;
+      a.title = h.textContent;
+      if (h.tagName === "H3") a.className = "h3";
+      a.onclick = () => h.scrollIntoView({ block: "start" });
+      toc.appendChild(a);
+    });
+    const md = view.querySelector(".md");
+    md.insertBefore(toc, md.firstChild);
+  }
+
   async function openPath(path) {
     pending = path;
     await ensureLayout();
@@ -3297,6 +3534,7 @@ const Explorer = (() => {
     }
     view.scrollTop = 0;
     if (/^wiki\//.test(path)) {
+      addToc(view);
       const slug = path.slice(5, -3);
       const bar = document.createElement("div");
       bar.style.cssText = "padding:8px 14px 2px; display:flex;";
@@ -3383,7 +3621,7 @@ const Explorer = (() => {
       WM.status("explorer", "Filing the flag\u2026");
       try {
         await putCapture(text, "flag", { type: "flag", page: path });
-        box.innerHTML = `<p style="margin:0; font-family:Arial; font-size:13px; color:#000080">
+        box.innerHTML = `<p style="margin:0; font-family:Arial; font-size:13px; color:var(--select)">
           <b>\u2691 Flagged.</b> The next beat corrects it and reports what changed
           \u2014 pending flags are listed in Inquest.exe.</p>`;
         WM.status("explorer", "Flag filed \u2014 the brain fixes it next beat");
@@ -3409,6 +3647,7 @@ const Explorer = (() => {
        last, overwrote it. The first Explorer open of every session showed the wrong page. */
     if (!current && !pending) openPath("wiki/postfrontal-cortex.md").catch(err);
   };
+  Object.assign(PFCT, { exAddToc: addToc });
   return { openPage, openPath, hiddenOpen: () => HIDDEN_OPEN, refreshTree: renderTree };
 })();
 
@@ -4987,7 +5226,7 @@ const Search = (() => {
               { type: "ruling", gate: g.id, ruling: btn.dataset.r });
             el.classList.add("ruled");
             el.querySelector(".acts").innerHTML =
-              `<span style="color:#000080"><b>✓ ruled ${btn.dataset.r}</b> — the next pulse applies it, within the hour</span>`;
+              `<span style="color:var(--select)"><b>✓ ruled ${btn.dataset.r}</b> — the next pulse applies it, within the hour</span>`;
             el.querySelector("textarea").remove();
             WM.status("inquest", `${g.id} ruled ${btn.dataset.r} · the pulse applies it within the hour`);
           } catch (e) {
@@ -5430,10 +5669,14 @@ const Search = (() => {
         <fieldset style="margin:0 0 10px">
           <legend>Appearance</legend>
           <div class="field-row">
+            <label for="set-scheme">Scheme</label>
+            <select id="set-scheme" style="flex:1; font-size:15px;"></select>
+          </div>
+          <div class="field-row" style="margin-top:4px">
             <label for="set-zoom">Text size</label>
             <select id="set-zoom" style="flex:1; font-size:15px;"></select>
           </div>
-          <p style="margin:6px 0 0; font-size:12px; color:#444">Applies right away — this control moved here from the tray.</p>
+          <p style="margin:6px 0 0; font-size:12px; color:var(--ink-3)">Applies right away — wallpaper keeps its own colors by design.</p>
         </fieldset>
         <section class="field-row" style="justify-content:flex-end; gap:6px;">
           <button id="set-ok" class="default">OK</button>
@@ -5451,9 +5694,19 @@ const Search = (() => {
         o.value = v; o.textContent = Math.round(v * 100) + "%";
         zoomSel.appendChild(o);
       });
+      const schemeSel = body.querySelector("#set-scheme");
+      Object.entries(SCHEME.NAMES).forEach(([k, name]) => {
+        const o = document.createElement("option");
+        o.value = k; o.textContent = name;
+        schemeSel.appendChild(o);
+      });
       const prev = body.querySelector("#set-prev");
       wallSel.onchange = () => WALL.renderTo(prev, wallSel.value);
       zoomSel.onchange = () => setZoom(parseFloat(zoomSel.value));
+      schemeSel.onchange = () => {
+        SCHEME.apply(schemeSel.value);
+        WM.status("settings", "Scheme — " + SCHEME.NAMES[SCHEME.current()]);
+      };
       const apply = () => {
         WALL.set(wallSel.value);
         WM.status("settings", "Applied — " + WALL.SCENES[wallSel.value]);
@@ -5463,6 +5716,7 @@ const Search = (() => {
     }
     body.querySelector("#set-wall").value = WALL.scene();
     body.querySelector("#set-zoom").value = String(Z);
+    body.querySelector("#set-scheme").value = SCHEME.current();
     WALL.renderTo(body.querySelector("#set-prev"), WALL.scene());
     WM.status("settings", "Display Properties");
   };
