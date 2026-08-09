@@ -129,7 +129,39 @@
   .window.app .window-body { flex: 1; overflow: auto; margin: 3px;
                              background: var(--face); }
   .window.app .window-body.white { background: var(--window); }
-  .title-bar { cursor: default; touch-action: none; }
+  .title-bar { cursor: default; touch-action: none; user-select: none; -webkit-user-select: none; }
+  /* The caption sits under the corner zones; the controls must not — a resize
+     zone painted over the X is a Close button that intermittently does nothing. */
+  .title-bar-controls { position: relative; z-index: 45; }
+  /* Desktop resize: eight invisible edge/corner zones riding the 98.css bevel,
+     plus the classic ridged grip over the status bar's corner. Hidden while
+     maximized and on mobile, where windows are fixed full-screen anyway.
+     Every zone reaches exactly 4px inside the frame — the 3px bevel plus a
+     pixel — so nothing interactive is shadowed. The corners are 17px LONG but
+     clipped to that same depth (an L hugging the frame, which is how Win98's
+     sizing border behaved): a square corner would bury the Close button and
+     the left end of the title bar under an invisible resize target. clip-path
+     clips hit-testing too, which is the whole point here. */
+  .wm-rs { position: absolute; z-index: 40; touch-action: none; }
+  .wm-rs[data-d="n"]  { top: -3px; left: 14px; right: 14px; height: 7px; cursor: ns-resize; }
+  .wm-rs[data-d="s"]  { bottom: -3px; left: 14px; right: 14px; height: 7px; cursor: ns-resize; }
+  .wm-rs[data-d="e"]  { right: -3px; top: 14px; bottom: 14px; width: 7px; cursor: ew-resize; }
+  .wm-rs[data-d="w"]  { left: -3px; top: 14px; bottom: 14px; width: 7px; cursor: ew-resize; }
+  .wm-rs[data-d="nw"] { top: -3px; left: -3px; width: 17px; height: 17px; cursor: nwse-resize;
+                        clip-path: polygon(0 0, 17px 0, 17px 7px, 7px 7px, 7px 17px, 0 17px); }
+  .wm-rs[data-d="ne"] { top: -3px; right: -3px; width: 17px; height: 17px; cursor: nesw-resize;
+                        clip-path: polygon(0 0, 17px 0, 17px 17px, 10px 17px, 10px 7px, 0 7px); }
+  .wm-rs[data-d="sw"] { bottom: -3px; left: -3px; width: 17px; height: 17px; cursor: nesw-resize;
+                        clip-path: polygon(0 0, 7px 0, 7px 10px, 17px 10px, 17px 17px, 0 17px); }
+  .wm-rs[data-d="se"] { bottom: -3px; right: -3px; width: 17px; height: 17px; cursor: nwse-resize;
+                        clip-path: polygon(17px 0, 17px 17px, 0 17px, 0 10px, 10px 10px, 10px 0); }
+  .wm-grip { position: absolute; right: 3px; bottom: 3px; width: 13px; height: 13px;
+             z-index: 41; cursor: nwse-resize; touch-action: none;
+             background: repeating-linear-gradient(135deg,
+               transparent 0 4px, var(--face-hi) 4px 6px, var(--face-sh) 6px 8px);
+             clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+  .window.app[data-max] .wm-rs, .window.app[data-max] .wm-grip { display: none; }
+  @media (max-width: 700px) { .wm-rs, .wm-grip { display: none; } }
   .desktop-icon img, #start-menu img, #start-btn img { image-rendering: pixelated; }
 
   /* Taskbar */
@@ -2393,6 +2425,7 @@ const WM = (() => {
     btnMax.addEventListener("click", () => maximize(el));
     el.addEventListener("pointerdown", () => focus(id));
     drag(el);
+    resize(el);
     return el;
   }
 
@@ -2411,6 +2444,83 @@ const WM = (() => {
       el.style.top = Math.max(0, oy + (e.clientY - sy) / Z) + "px";
     });
     bar.addEventListener("pointerup", () => dragging = false);
+    bar.addEventListener("dblclick", e => {
+      if (e.target.tagName === "BUTTON" || isMobile()) return;
+      maximize(el);
+    });
+  }
+
+  /* Desktop resize — four edges, four corners, and the status-bar grip. Sizes
+     come from el.style (98.css .window is content-box, so offsetWidth carries
+     6px of padding that would compound), deltas divide by Z like drag() (the
+     page is scaled with `zoom`, so client pixels arrive pre-multiplied), and
+     the n-edge clamps like drag()'s top guard so a window can't leave the
+     screen upward. Capture is best-effort: the unit suite's synthetic pointers
+     have no active id to capture, and without capture the events still bubble. */
+  const MIN_W = 260, MIN_H = 160, OFF = 40;   // OFF: drag()'s own off-screen-left guard
+  /* Whatever changed a window's size — a drag, the grip, maximize — tell the app
+     inside, whose layout may depend on the width it was last given. */
+  function sized(el) {
+    const app = APPS[el.id.slice(4)];
+    if (app && app.onResize) app.onResize();
+  }
+  function resize(el) {
+    "n s e w ne nw se sw".split(" ").forEach(d => {
+      const z = document.createElement("div");
+      z.className = "wm-rs"; z.dataset.d = d;
+      el.appendChild(z);
+    });
+    const grip = document.createElement("div");
+    grip.className = "wm-grip"; grip.dataset.d = "se";
+    el.appendChild(grip);
+    /* Read style before layout: el.style carries the fractional truth (dividing
+       by Z makes fractions routine), while offsetLeft/offsetTop are rounded to
+       integers and would nudge the very edge this gesture must hold still. */
+    const px = (v, fb) => { const n = parseFloat(v); return Number.isFinite(n) ? n : fb; };
+    let st = null;
+    el.addEventListener("pointerdown", e => {
+      const t = e.target;
+      if (!(t.classList.contains("wm-rs") || t.classList.contains("wm-grip"))) return;
+      if (st || isMobile() || el.dataset.max) return;
+      st = { d: t.dataset.d, id: e.pointerId, sx: e.clientX, sy: e.clientY,
+             w: px(el.style.width, el.offsetWidth), h: px(el.style.height, el.offsetHeight),
+             x: px(el.style.left, el.offsetLeft), y: px(el.style.top, el.offsetTop) };
+      try { t.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ }
+      e.preventDefault();
+    });
+    /* One gesture belongs to one pointer: a second finger landing anywhere on the
+       window would otherwise be measured against the first finger's start point
+       and snap the window by the distance between them. */
+    el.addEventListener("pointermove", e => {
+      if (!st || e.pointerId !== st.id) return;
+      const dx = (e.clientX - st.sx) / Z, dy = (e.clientY - st.sy) / Z, d = st.d;
+      if (d.includes("e")) el.style.width = Math.max(MIN_W, st.w + dx) + "px";
+      if (d.includes("s")) el.style.height = Math.max(MIN_H, st.h + dy) + "px";
+      /* The w and n edges move the window as they size it, so the far edge stays
+         put. Clamp the moving edge like drag() does and re-derive the size from
+         it — clamping the size first would let a window already shorter than
+         MIN_H throw its own title bar above the desktop, where nothing can
+         reach it: drag(), maximize and every control would be off-screen. */
+      if (d.includes("w")) {
+        let w = Math.max(MIN_W, st.w - dx), left = st.x + st.w - w;
+        if (left < -OFF) { left = -OFF; w = st.x + st.w + OFF; }
+        el.style.width = w + "px";
+        el.style.left = left + "px";
+      }
+      if (d.includes("n")) {
+        let h = Math.max(MIN_H, st.h - dy), top = st.y + st.h - h;
+        if (top < 0) { top = 0; h = st.y + st.h; }
+        el.style.height = h + "px";
+        el.style.top = top + "px";
+      }
+    });
+    const done = e => {
+      if (!st || e.pointerId !== st.id) return;
+      st = null;
+      sized(el);
+    };
+    el.addEventListener("pointerup", done);
+    el.addEventListener("pointercancel", done);
   }
 
   function maximize(el) {
@@ -2423,6 +2533,10 @@ const WM = (() => {
       el.style.cssText = "left:0;top:0;width:100%;height:calc(100% - 0px);";
       btn.setAttribute("aria-label", "Restore");
     }
+    /* Maximize changes the width by more than any drag can, and while maximized
+       the handles are hidden — so an app that never heard about this would be
+       stuck with the layout it chose at the old size until the next navigation. */
+    sized(el);
   }
 
   function focus(id) {
@@ -3388,6 +3502,12 @@ const Surface = (() => {
 const Explorer = (() => {
   let current = null;
   let pending = null;   // a path openPath was asked for but has not finished loading
+  /* `current` is CLAIMED before the fetch (so a superseded open can bail), which
+     makes it a statement of intent, not of fact — after a failed load it names a
+     page that is not on screen. `shown` is only ever set once markdown has landed
+     in the view, so anything reasoning about what the reader is looking at (the
+     TOC rail's re-judge) asks this instead. */
+  let shown = null;
   const body = () => document.querySelector("#win-explorer .window-body");
 
   async function ensureLayout() {
@@ -3558,6 +3678,7 @@ const Explorer = (() => {
     } else {
       renderMd(md, view);
     }
+    shown = path;                       // on screen now, not merely asked for
     view.scrollTop = 0;
     if (/^wiki\//.test(path)) {
       addToc(view);
@@ -3672,6 +3793,13 @@ const Explorer = (() => {
        awaits onOpen, so the default used to be issued after the target and, resolving
        last, overwrote it. The first Explorer open of every session showed the wrong page. */
     if (!current && !pending) openPath("wiki/postfrontal-cortex.md").catch(err);
+  };
+  /* The TOC rail's 660px guard was judged at render time only — a window resized
+     narrower kept its overlay, resized wider never earned one. Re-judge on every
+     WM resize; addToc clears before it builds, so this is idempotent. */
+  APPS.explorer.onResize = () => {
+    const view = document.getElementById("explorer-view");
+    if (view && /^wiki\//.test(shown || "")) addToc(view);
   };
   Object.assign(PFCT, { exAddToc: addToc });
   return { openPage, openPath, hiddenOpen: () => HIDDEN_OPEN, refreshTree: renderTree };
