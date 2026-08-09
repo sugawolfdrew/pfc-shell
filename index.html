@@ -52,7 +52,14 @@
     --icon-label-bg:var(--select); --icon-label-text:var(--select-text);
     --desktop:#008080; --info-bg:#ffffe1; --info-border:#b8b060; --warn-text:#7a5c00;
     --error:#800000; --retired:#505050; --link98:#00f;
-    --phosphor:#00ff00; --phosphor-rgb:0,255,0; }
+    --phosphor:#00ff00; --phosphor-rgb:0,255,0;
+    /* The PFC98 wallpaper's grid (2026-08-09, at Andrew's direction — this
+       narrows the slice-1 ruling that wallpaper stays scheme-independent: the
+       grid follows the scheme now, the pixel art and the wordmark still do not).
+       `--wall-grid` is the line colour at the viewer's feet and `--wall-haze` the
+       colour at the horizon; the grid is drawn as a ramp between them, so the two
+       together are the gradient. Standard's are the exact literals it drew before. */
+    --wall-grid:#00a090; --wall-haze:#00e8d8; --wall-ground:#001414; }
   @media (max-width: 700px) {
     :root { --safe: max(env(safe-area-inset-bottom, 0px), 36px); }
   }
@@ -868,13 +875,13 @@
      text flip dark-on-pastel on the dark flavors — white fails contrast there.
      Wallpaper, pixel icons, and chart palettes stay scheme-independent (ruled
      2026-08-08, docs/apps-v3.md). ==== */
-  html[data-scheme="catppuccin-frappe"] { --accent-on-face:var(--select-bevel-hi); --ink-on-face:var(--window-text); --disabled-text:#838ba7; --face:#414559; --face-light:#51576d; --face-hi:#626880; --face-sh:#292c3c; --face-dk:#232634; --window:#303446; --window-text:#c6d0f5; --outline:#232634; --body-text:#c6d0f5; --gray-text:#737994; --disabled:#737994; --ink-1:#b5bfe2; --ink-2:#a5adce; --ink-3:#a5adce; --ink-4:#949cbb; --ink-5:#838ba7; --paper-line:#414559; --paper-line-soft:#414559; --paper-dim:#292c3c; --paper-dim2:#414559; --paper-sh:#737994; --paper-border:#737994; --select:#8caaee; --select-text:#232634; --select-tint:#292c3c; --select-bevel-hi:#aec4f3; --select-bevel-dk:#4d5e83; --title-1:#ca9ee6; --title-2:#babbf1; --title-text:#232634; --title-inactive-1:#51576d; --title-inactive-2:#626880; --title-inactive-text:var(--window-text); --icon-label-bg:var(--window); --icon-label-text:var(--window-text); --desktop:#292c3c; --info-bg:#57555b; --info-border:#e5c890; --warn-text:#e5c890; --error:#e78284; --retired:#838ba7; --link98:#8caaee; --phosphor:#a6d189; --phosphor-rgb:166,209,137; }
-  html[data-scheme="catppuccin-macchiato"] { --accent-on-face:var(--select-bevel-hi); --ink-on-face:var(--window-text); --disabled-text:#8087a2; --face:#363a4f; --face-light:#494d64; --face-hi:#5b6078; --face-sh:#1e2030; --face-dk:#181926; --window:#24273a; --window-text:#cad3f5; --outline:#181926; --body-text:#cad3f5; --gray-text:#6e738d; --disabled:#6e738d; --ink-1:#b8c0e0; --ink-2:#a5adcb; --ink-3:#a5adcb; --ink-4:#939ab7; --ink-5:#8087a2; --paper-line:#363a4f; --paper-line-soft:#363a4f; --paper-dim:#1e2030; --paper-dim2:#363a4f; --paper-sh:#6e738d; --paper-border:#6e738d; --select:#8aadf4; --select-text:#181926; --select-tint:#1e2030; --select-bevel-hi:#adc6f7; --select-bevel-dk:#4c5f86; --title-1:#c6a0f6; --title-2:#b7bdf8; --title-text:#181926; --title-inactive-1:#494d64; --title-inactive-2:#5b6078; --title-inactive-text:var(--window-text); --icon-label-bg:var(--window); --icon-label-text:var(--window-text); --desktop:#1e2030; --info-bg:#57565d; --info-border:#eed49f; --warn-text:#eed49f; --error:#ed8796; --retired:#8087a2; --link98:#8aadf4; --phosphor:#a6da95; --phosphor-rgb:166,218,149; }
-  html[data-scheme="catppuccin-mocha"] { --accent-on-face:var(--select-bevel-hi); --ink-on-face:var(--window-text); --disabled-text:#7f849c; --face:#313244; --face-light:#45475a; --face-hi:#585b70; --face-sh:#181825; --face-dk:#11111b; --window:#1e1e2e; --window-text:#cdd6f4; --outline:#11111b; --body-text:#cdd6f4; --gray-text:#6c7086; --disabled:#6c7086; --ink-1:#bac2de; --ink-2:#a6adc8; --ink-3:#a6adc8; --ink-4:#9399b2; --ink-5:#7f849c; --paper-line:#313244; --paper-line-soft:#313244; --paper-dim:#181825; --paper-dim2:#313244; --paper-sh:#6c7086; --paper-border:#6c7086; --select:#89b4fa; --select-text:#11111b; --select-tint:#181825; --select-bevel-hi:#accafc; --select-bevel-dk:#4b638a; --title-1:#cba6f7; --title-2:#b4befe; --title-text:#11111b; --title-inactive-1:#45475a; --title-inactive-2:#585b70; --title-inactive-text:var(--window-text); --icon-label-bg:var(--window); --icon-label-text:var(--window-text); --desktop:#181825; --info-bg:#555257; --info-border:#f9e2af; --warn-text:#f9e2af; --error:#f38ba8; --retired:#7f849c; --link98:#89b4fa; --phosphor:#a6e3a1; --phosphor-rgb:166,227,161; }
-  html[data-scheme="catppuccin-latte"] { --disabled-text:#8c8fa1; --face:#bcc0cc; --face-light:#ccd0da; --face-hi:#eff1f5; --face-sh:#9ca0b0; --face-dk:#4c4f69; --window:#eff1f5; --window-text:#4c4f69; --outline:#4c4f69; --body-text:#4c4f69; --gray-text:#9ca0b0; --disabled:#9ca0b0; --ink-1:#4c4f69; --ink-2:#5c5f77; --ink-3:#5c5f77; --ink-4:#6c6f85; --ink-5:#7c7f93; --paper-line:#ccd0da; --paper-line-soft:#e6e9ef; --paper-dim:#e6e9ef; --paper-dim2:#e6e9ef; --paper-sh:#9ca0b0; --paper-border:#9ca0b0; --select:#1e66f5; --select-text:#fff; --select-tint:#dce0e8; --select-bevel-hi:#6d9cf8; --select-bevel-dk:#103887; --title-1:#8839ef; --title-2:#7287fd; --title-text:#fff; --title-inactive-1:#acb0be; --title-inactive-2:#bcc0cc; --title-inactive-text:#6c6f85; --desktop:#179299; --info-bg:#ebdbc5; --info-border:#df8e1d; --warn-text:#915c13; --error:#d20f39; --retired:#8c8fa1; --link98:#1e66f5; --phosphor:#40a02b; --phosphor-rgb:64,160,43; }
-  html[data-scheme="tokyo-night"] { --accent-on-face:var(--select-bevel-hi); --ink-on-face:var(--window-text); --disabled-text:#565f89; --face:#292e42; --face-light:#414868; --face-hi:#737aa2; --face-sh:#16161e; --face-dk:#0c0e14; --window:#1a1b26; --window-text:#c0caf5; --outline:#0c0e14; --body-text:#c0caf5; --gray-text:#565f89; --disabled:#565f89; --ink-1:#a9b1d6; --ink-2:#a9b1d6; --ink-3:#a9b1d6; --ink-4:#8891bc; --ink-5:#565f89; --paper-line:#292e42; --paper-line-soft:#292e42; --paper-dim:#16161e; --paper-dim2:#292e42; --paper-sh:#737aa2; --paper-border:#545c7e; --select:#7aa2f7; --select-text:#16161e; --select-tint:#3b4261; --select-bevel-hi:#a2bef9; --select-bevel-dk:#435988; --title-1:#7aa2f7; --title-2:#89ddff; --title-text:#16161e; --title-inactive-1:#3b4261; --title-inactive-2:#414868; --title-inactive-text:var(--window-text); --icon-label-bg:var(--window); --icon-label-text:var(--window-text); --desktop:#0c0e14; --info-bg:#444148; --info-border:#e0af68; --warn-text:#e0af68; --error:#db4b4b; --retired:#545c7e; --link98:#7aa2f7; --phosphor:#9ece6a; --phosphor-rgb:158,206,106; }
-  html[data-scheme="tokyo-night-storm"] { --accent-on-face:var(--select-bevel-hi); --ink-on-face:var(--window-text); --disabled-text:#565f89; --face:#292e42; --face-light:#414868; --face-hi:#737aa2; --face-sh:#1f2335; --face-dk:#1b1e2d; --window:#24283b; --window-text:#c0caf5; --outline:#1b1e2d; --body-text:#c0caf5; --gray-text:#565f89; --disabled:#565f89; --ink-1:#a9b1d6; --ink-2:#a9b1d6; --ink-3:#a9b1d6; --ink-4:#8891bc; --ink-5:#565f89; --paper-line:#292e42; --paper-line-soft:#292e42; --paper-dim:#1f2335; --paper-dim2:#292e42; --paper-sh:#737aa2; --paper-border:#545c7e; --select:#7aa2f7; --select-text:#1f2335; --select-tint:#3b4261; --select-bevel-hi:#a2bef9; --select-bevel-dk:#435988; --title-1:#7aa2f7; --title-2:#89ddff; --title-text:#1f2335; --title-inactive-1:#3b4261; --title-inactive-2:#414868; --title-inactive-text:var(--window-text); --icon-label-bg:var(--window); --icon-label-text:var(--window-text); --desktop:#1b1e2d; --info-bg:#444148; --info-border:#e0af68; --warn-text:#e0af68; --error:#db4b4b; --retired:#545c7e; --link98:#7aa2f7; --phosphor:#9ece6a; --phosphor-rgb:158,206,106; }
-  html[data-scheme="tokyo-night-moon"] { --accent-on-face:var(--select-bevel-hi); --ink-on-face:var(--window-text); --disabled-text:#636da6; --face:#2f334d; --face-light:#444a73; --face-hi:#737aa2; --face-sh:#1e2030; --face-dk:#191b29; --window:#222436; --window-text:#c8d3f5; --outline:#191b29; --body-text:#c8d3f5; --gray-text:#636da6; --disabled:#636da6; --ink-1:#828bb8; --ink-2:#828bb8; --ink-3:#828bb8; --ink-4:#8891bc; --ink-5:#636da6; --paper-line:#2f334d; --paper-line-soft:#2f334d; --paper-dim:#1e2030; --paper-dim2:#2f334d; --paper-sh:#737aa2; --paper-border:#545c7e; --select:#82aaff; --select-text:#1e2030; --select-tint:#3b4261; --select-bevel-hi:#a8c4ff; --select-bevel-dk:#485e8c; --title-1:#82aaff; --title-2:#86e1fc; --title-text:#1e2030; --title-inactive-1:#3b4261; --title-inactive-2:#444a73; --title-inactive-text:var(--window-text); --icon-label-bg:var(--window); --icon-label-text:var(--window-text); --desktop:#191b29; --info-bg:#4e4953; --info-border:#ffc777; --warn-text:#ffc777; --error:#ff757f; --retired:#545c7e; --link98:#82aaff; --phosphor:#c3e88d; --phosphor-rgb:195,232,141; }
+  html[data-scheme="catppuccin-frappe"] { --wall-grid:#8caaee; --wall-haze:#99d1db; --wall-ground:#10141f; --accent-on-face:var(--select-bevel-hi); --ink-on-face:var(--window-text); --disabled-text:#838ba7; --face:#414559; --face-light:#51576d; --face-hi:#626880; --face-sh:#292c3c; --face-dk:#232634; --window:#303446; --window-text:#c6d0f5; --outline:#232634; --body-text:#c6d0f5; --gray-text:#737994; --disabled:#737994; --ink-1:#b5bfe2; --ink-2:#a5adce; --ink-3:#a5adce; --ink-4:#949cbb; --ink-5:#838ba7; --paper-line:#414559; --paper-line-soft:#414559; --paper-dim:#292c3c; --paper-dim2:#414559; --paper-sh:#737994; --paper-border:#737994; --select:#8caaee; --select-text:#232634; --select-tint:#292c3c; --select-bevel-hi:#aec4f3; --select-bevel-dk:#4d5e83; --title-1:#ca9ee6; --title-2:#babbf1; --title-text:#232634; --title-inactive-1:#51576d; --title-inactive-2:#626880; --title-inactive-text:var(--window-text); --icon-label-bg:var(--window); --icon-label-text:var(--window-text); --desktop:#292c3c; --info-bg:#57555b; --info-border:#e5c890; --warn-text:#e5c890; --error:#e78284; --retired:#838ba7; --link98:#8caaee; --phosphor:#8caaee; --phosphor-rgb:140,170,238; }
+  html[data-scheme="catppuccin-macchiato"] { --wall-grid:#8aadf4; --wall-haze:#91d7e3; --wall-ground:#0d1120; --accent-on-face:var(--select-bevel-hi); --ink-on-face:var(--window-text); --disabled-text:#8087a2; --face:#363a4f; --face-light:#494d64; --face-hi:#5b6078; --face-sh:#1e2030; --face-dk:#181926; --window:#24273a; --window-text:#cad3f5; --outline:#181926; --body-text:#cad3f5; --gray-text:#6e738d; --disabled:#6e738d; --ink-1:#b8c0e0; --ink-2:#a5adcb; --ink-3:#a5adcb; --ink-4:#939ab7; --ink-5:#8087a2; --paper-line:#363a4f; --paper-line-soft:#363a4f; --paper-dim:#1e2030; --paper-dim2:#363a4f; --paper-sh:#6e738d; --paper-border:#6e738d; --select:#8aadf4; --select-text:#181926; --select-tint:#1e2030; --select-bevel-hi:#adc6f7; --select-bevel-dk:#4c5f86; --title-1:#c6a0f6; --title-2:#b7bdf8; --title-text:#181926; --title-inactive-1:#494d64; --title-inactive-2:#5b6078; --title-inactive-text:var(--window-text); --icon-label-bg:var(--window); --icon-label-text:var(--window-text); --desktop:#1e2030; --info-bg:#57565d; --info-border:#eed49f; --warn-text:#eed49f; --error:#ed8796; --retired:#8087a2; --link98:#8aadf4; --phosphor:#8aadf4; --phosphor-rgb:138,173,244; }
+  html[data-scheme="catppuccin-mocha"] { --wall-grid:#89b4fa; --wall-haze:#89dceb; --wall-ground:#0a0d1a; --accent-on-face:var(--select-bevel-hi); --ink-on-face:var(--window-text); --disabled-text:#7f849c; --face:#313244; --face-light:#45475a; --face-hi:#585b70; --face-sh:#181825; --face-dk:#11111b; --window:#1e1e2e; --window-text:#cdd6f4; --outline:#11111b; --body-text:#cdd6f4; --gray-text:#6c7086; --disabled:#6c7086; --ink-1:#bac2de; --ink-2:#a6adc8; --ink-3:#a6adc8; --ink-4:#9399b2; --ink-5:#7f849c; --paper-line:#313244; --paper-line-soft:#313244; --paper-dim:#181825; --paper-dim2:#313244; --paper-sh:#6c7086; --paper-border:#6c7086; --select:#89b4fa; --select-text:#11111b; --select-tint:#181825; --select-bevel-hi:#accafc; --select-bevel-dk:#4b638a; --title-1:#cba6f7; --title-2:#b4befe; --title-text:#11111b; --title-inactive-1:#45475a; --title-inactive-2:#585b70; --title-inactive-text:var(--window-text); --icon-label-bg:var(--window); --icon-label-text:var(--window-text); --desktop:#181825; --info-bg:#555257; --info-border:#f9e2af; --warn-text:#f9e2af; --error:#f38ba8; --retired:#7f849c; --link98:#89b4fa; --phosphor:#89b4fa; --phosphor-rgb:137,180,250; }
+  html[data-scheme="catppuccin-latte"] { --wall-grid:#1e66f5; --wall-haze:#04a5e5; --wall-ground:#0b1a2a; --disabled-text:#8c8fa1; --face:#bcc0cc; --face-light:#ccd0da; --face-hi:#eff1f5; --face-sh:#9ca0b0; --face-dk:#4c4f69; --window:#eff1f5; --window-text:#4c4f69; --outline:#4c4f69; --body-text:#4c4f69; --gray-text:#9ca0b0; --disabled:#9ca0b0; --ink-1:#4c4f69; --ink-2:#5c5f77; --ink-3:#5c5f77; --ink-4:#6c6f85; --ink-5:#7c7f93; --paper-line:#ccd0da; --paper-line-soft:#e6e9ef; --paper-dim:#e6e9ef; --paper-dim2:#e6e9ef; --paper-sh:#9ca0b0; --paper-border:#9ca0b0; --select:#1e66f5; --select-text:#fff; --select-tint:#dce0e8; --select-bevel-hi:#6d9cf8; --select-bevel-dk:#103887; --title-1:#8839ef; --title-2:#7287fd; --title-text:#fff; --title-inactive-1:#acb0be; --title-inactive-2:#bcc0cc; --title-inactive-text:#6c6f85; --desktop:#179299; --info-bg:#ebdbc5; --info-border:#df8e1d; --warn-text:#915c13; --error:#d20f39; --retired:#8c8fa1; --link98:#1e66f5; --phosphor:#04a5e5; --phosphor-rgb:4,165,229; }
+  html[data-scheme="tokyo-night"] { --wall-grid:#7aa2f7; --wall-haze:#2ac3de; --wall-ground:#070a14; --accent-on-face:var(--select-bevel-hi); --ink-on-face:var(--window-text); --disabled-text:#565f89; --face:#292e42; --face-light:#414868; --face-hi:#737aa2; --face-sh:#16161e; --face-dk:#0c0e14; --window:#1a1b26; --window-text:#c0caf5; --outline:#0c0e14; --body-text:#c0caf5; --gray-text:#565f89; --disabled:#565f89; --ink-1:#a9b1d6; --ink-2:#a9b1d6; --ink-3:#a9b1d6; --ink-4:#8891bc; --ink-5:#565f89; --paper-line:#292e42; --paper-line-soft:#292e42; --paper-dim:#16161e; --paper-dim2:#292e42; --paper-sh:#737aa2; --paper-border:#545c7e; --select:#7aa2f7; --select-text:#16161e; --select-tint:#3b4261; --select-bevel-hi:#a2bef9; --select-bevel-dk:#435988; --title-1:#7aa2f7; --title-2:#89ddff; --title-text:#16161e; --title-inactive-1:#3b4261; --title-inactive-2:#414868; --title-inactive-text:var(--window-text); --icon-label-bg:var(--window); --icon-label-text:var(--window-text); --desktop:#0c0e14; --info-bg:#444148; --info-border:#e0af68; --warn-text:#e0af68; --error:#db4b4b; --retired:#545c7e; --link98:#7aa2f7; --phosphor:#7aa2f7; --phosphor-rgb:122,162,247; }
+  html[data-scheme="tokyo-night-storm"] { --wall-grid:#7aa2f7; --wall-haze:#2ac3de; --wall-ground:#0a0e1c; --accent-on-face:var(--select-bevel-hi); --ink-on-face:var(--window-text); --disabled-text:#565f89; --face:#292e42; --face-light:#414868; --face-hi:#737aa2; --face-sh:#1f2335; --face-dk:#1b1e2d; --window:#24283b; --window-text:#c0caf5; --outline:#1b1e2d; --body-text:#c0caf5; --gray-text:#565f89; --disabled:#565f89; --ink-1:#a9b1d6; --ink-2:#a9b1d6; --ink-3:#a9b1d6; --ink-4:#8891bc; --ink-5:#565f89; --paper-line:#292e42; --paper-line-soft:#292e42; --paper-dim:#1f2335; --paper-dim2:#292e42; --paper-sh:#737aa2; --paper-border:#545c7e; --select:#7aa2f7; --select-text:#1f2335; --select-tint:#3b4261; --select-bevel-hi:#a2bef9; --select-bevel-dk:#435988; --title-1:#7aa2f7; --title-2:#89ddff; --title-text:#1f2335; --title-inactive-1:#3b4261; --title-inactive-2:#414868; --title-inactive-text:var(--window-text); --icon-label-bg:var(--window); --icon-label-text:var(--window-text); --desktop:#1b1e2d; --info-bg:#444148; --info-border:#e0af68; --warn-text:#e0af68; --error:#db4b4b; --retired:#545c7e; --link98:#7aa2f7; --phosphor:#7aa2f7; --phosphor-rgb:122,162,247; }
+  html[data-scheme="tokyo-night-moon"] { --wall-grid:#82aaff; --wall-haze:#86e1fc; --wall-ground:#0b0f1f; --accent-on-face:var(--select-bevel-hi); --ink-on-face:var(--window-text); --disabled-text:#636da6; --face:#2f334d; --face-light:#444a73; --face-hi:#737aa2; --face-sh:#1e2030; --face-dk:#191b29; --window:#222436; --window-text:#c8d3f5; --outline:#191b29; --body-text:#c8d3f5; --gray-text:#636da6; --disabled:#636da6; --ink-1:#828bb8; --ink-2:#828bb8; --ink-3:#828bb8; --ink-4:#8891bc; --ink-5:#636da6; --paper-line:#2f334d; --paper-line-soft:#2f334d; --paper-dim:#1e2030; --paper-dim2:#2f334d; --paper-sh:#737aa2; --paper-border:#545c7e; --select:#82aaff; --select-text:#1e2030; --select-tint:#3b4261; --select-bevel-hi:#a8c4ff; --select-bevel-dk:#485e8c; --title-1:#82aaff; --title-2:#86e1fc; --title-text:#1e2030; --title-inactive-1:#3b4261; --title-inactive-2:#444a73; --title-inactive-text:var(--window-text); --icon-label-bg:var(--window); --icon-label-text:var(--window-text); --desktop:#191b29; --info-bg:#4e4953; --info-border:#ffc777; --warn-text:#ffc777; --error:#ff757f; --retired:#545c7e; --link98:#82aaff; --phosphor:#82aaff; --phosphor-rgb:130,170,255; }
 </style>
 </head>
 <body>
@@ -971,9 +978,14 @@ const SCHEME = (() => {
   const DARK = new Set(["catppuccin-frappe", "catppuccin-macchiato", "catppuccin-mocha",
                         "tokyo-night", "tokyo-night-storm", "tokyo-night-moon"]);
   let cssText = null;
+  const layer = () => document.getElementById("scheme-glyphs");
   async function glyphs(name) {
-    let el = document.getElementById("scheme-glyphs");
-    if (!DARK.has(name)) { if (el) el.remove(); return; }
+    /* Look the layer up on BOTH sides of the await, never once at the top: two
+       applies racing the first fetch would each capture `el === null`, each
+       append a style node with this id, and leave two — after which switching
+       back to a light scheme removed only the one getElementById returned and
+       the other kept re-tinting a silver face. */
+    if (!DARK.has(name)) { const old = layer(); if (old) old.remove(); return; }
     try {
       if (cssText === null) {
         cssText = await (await fetch("assets/98.css")).text();
@@ -1000,6 +1012,7 @@ const SCHEME = (() => {
       const rules = [...cssText.matchAll(/([^{}@]+)\{([^{}]*data:image[^{}]*)\}/g)]
         .map(m => m[1].trim() + "{" +
           m[2].replace(TOKEN, t => MAP[t.toLowerCase()] || t) + "}");
+      let el = layer();
       if (!el) { el = document.createElement("style"); el.id = "scheme-glyphs";
                  document.head.appendChild(el); }
       el.textContent = rules.join("\n");
@@ -1012,6 +1025,13 @@ const SCHEME = (() => {
     else document.documentElement.setAttribute("data-scheme", name);
     if (persist) { try { localStorage.setItem(KEY, name); } catch (e) {} }
     glyphs(name);
+    /* The wallpaper's grid reads its colours from these same roles, but WALL is a
+       top-level const declared BELOW this module and this module calls apply()
+       during its own init — `typeof WALL` throws in that window rather than
+       answering "undefined", so a direct call crashes the boot. Announce it
+       instead and let WALL subscribe; the boot event simply has no listener yet,
+       which is fine because WALL reads the palette fresh on its first frame. */
+    document.dispatchEvent(new CustomEvent("pfc:scheme", { detail: { name } }));
     return name;
   }
   const current = () => document.documentElement.getAttribute("data-scheme") || "standard";
@@ -2390,25 +2410,52 @@ const WALL = (() => {
     q.putImageData(img, 0, 0);
     return c;
   }
+  /* Read once per scheme, not once per frame: this scene repaints every 150ms and
+     getComputedStyle is a layout read. SCHEME.apply() clears it via retint(). */
+  let gridPal = null;
+  function gridPalette() {
+    if (gridPal) return gridPal;
+    const cs = getComputedStyle(document.documentElement);
+    const rgb = n => { const h = cs.getPropertyValue(n).trim();
+      const v = parseInt(h.slice(1), 16);
+      return [v >> 16 & 255, v >> 8 & 255, v & 255]; };
+    gridPal = { grid: rgb("--wall-grid"), haze: rgb("--wall-haze"),
+                ground: cs.getPropertyValue("--wall-ground").trim() };
+    return gridPal;
+  }
   function drawP98Scene(m, ph) {
     const light = ph === "day" || ph === "dawn";
     const hor = (H * 0.62) | 0;
     if (skyKey !== "m" + light + W) { skyC = bakeMatter(light); skyKey = "m" + light + W; }
     g.drawImage(skyC, 0, 0);
     // ground: the scrolling grid
-    g.fillStyle = "#001414"; g.fillRect(0, hor, W, H - hor);
+    const P = gridPalette();
+    g.fillStyle = P.ground; g.fillRect(0, hor, W, H - hor);
     const cx = W / 2;
-    g.fillStyle = light ? "#00a898" : "#008878";
+    /* Depth is two cues at once, which is why the grid is a ramp and not the two
+       flat steps it used to be: the hue slides from the horizon haze up to the
+       grid's own colour, and brightness climbs toward the viewer. Daylight is the
+       same ramp gained up — the scene has always been brighter by day. */
+    const gain = light ? 1.25 : 1;
+    const at = k => {
+      const m = (0.5 + 0.5 * k) * gain;
+      const c = [0, 1, 2].map(i =>
+        Math.min(255, Math.round((P.haze[i] + (P.grid[i] - P.haze[i]) * k) * m)));
+      return `rgb(${c[0]},${c[1]},${c[2]})`;
+    };
+    g.fillStyle = at(0.5);                        // the rays read as mid-depth
     for (let i = -9; i <= 9; i++)
       line(cx + i * (W / 42), hor + 1, cx + i * (W / 7.2), H - 1);
     const off = (t * 0.012) % (1 / 11);
     for (let j = 0; j < 11; j++) {
       const k = j / 11 + off;
       const y = (hor + (H - hor - 1) * Math.pow(k, 2.1)) | 0;
-      g.fillStyle = k > 0.5 ? (light ? "#00c8b8" : "#00a090") : (light ? "#008878" : "#006058");
+      g.fillStyle = at(k);
       g.fillRect(0, y, W, 1);
     }
-    g.fillStyle = "#00e8d8"; g.fillRect(0, hor, W, 1); // horizon glow
+    // the horizon seam is the haze at full strength, day or night
+    g.fillStyle = `rgb(${P.haze[0]},${P.haze[1]},${P.haze[2]})`;
+    g.fillRect(0, hor, W, 1);
   }
 
   /* ---- plumbing ---- */
@@ -2478,9 +2525,12 @@ const WALL = (() => {
     let rz = null;
     addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(resize, 200); });
     document.addEventListener("visibilitychange", frame);
+    document.addEventListener("pfc:scheme", retint);
     iv = setInterval(frame, CALM ? 60000 : 150);
   }
-  return { init, set, resize, renderTo, scene: () => scene, SCENES };
+  /* The scheme moved, so the grid's colours did too — drop the cache and repaint. */
+  function retint() { gridPal = null; frame(); }
+  return { init, set, resize, renderTo, retint, scene: () => scene, SCENES };
 })();
 
 const WM = (() => {
