@@ -311,10 +311,10 @@
      depth as the old ones. Spec: docs/art/notepad-v2/spec.md. */
   #win-note .window-body { display:flex; flex-direction:column; padding:0; margin:3px;
       overflow:hidden; background:var(--face); }
-  #np-write, #np-book { flex:1; min-height:0; display:flex; flex-direction:column; }
-  #np-write { position:relative; }        /* the [[ popup anchors inside this box */
-  .np-tabs { padding:3px 4px 0; flex:none; }
-  .np-tabs menu[role=tablist] { margin:0 0 -2px; }
+  /* v3: the capture block PINS (flex:none) and the feed owns the rest of the
+     window — the notepad presents as your notebook that happens to capture. */
+  #np-write { flex:none; display:flex; flex-direction:column; position:relative; }
+  #np-book { flex:1; min-height:0; display:flex; flex-direction:column; }
 
   /* -- kind bar: toolbar of latching toggle buttons (MS UX Guide, "toolbar button
         to support actions or set state"). Note is pre-pressed: zero added steps.
@@ -333,10 +333,12 @@
   .np-sep { width:2px; align-self:stretch; margin:1px 3px;
       box-shadow: inset 1px 0 var(--face-sh), inset -1px 0 var(--face-hi); }
 
-  /* -- the white well: paper. The only well in the window. -- */
-  #np-text { flex:1; min-height:0; margin:5px 5px 0; resize:none;
+  /* -- the capture paper: pinned compact, grows while you're writing in it.
+        A height change on focus is a period-honest jump — no transition. -- */
+  #np-text { flex:none; height:66px; margin:5px 5px 0; resize:none;
       font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:1.45;
       padding:5px 6px; }
+  #np-text:focus { height:132px; }
   #np-text::placeholder { color:var(--face-sh); }
   #np-text::selection { background:var(--select); color:var(--select-text); }
 
@@ -377,59 +379,41 @@
   .np-ac li[aria-selected=true] .sl { color:var(--select-tint); }
   .np-ac .ft { font-size:11px; color:var(--ink-3); padding:2px 4px 1px; }
 
-  /* -- Notebook: the capture ledger. Forty rows in register, each carrying its marks at
-        the same four x-positions, is the argument that nothing here gets lost. -- */
+  /* -- The feed: your notes, whole, newest first. Each card carries its state
+        strip and its Became line — the ledger's proof, folded inline (v3). -- */
   .np-ptools { flex:none; display:flex; align-items:center; gap:4px; padding:4px 5px;
-      box-shadow: inset 0 -1px 0 var(--face-sh), inset 0 -2px 0 var(--face-hi); font-size:12px; }
+      box-shadow: inset 0 -1px 0 var(--face-sh), inset 0 -2px 0 var(--face-hi); font-size:12px;
+      flex-wrap:wrap; }
   .np-ptools .sp { flex:1; }
-  /* The detail pane grew a body, so the list can no longer claim a fixed share — it
-     yields, and the detail scrolls rather than being clipped off the bottom. */
-  .np-list { flex:1 1 auto; min-height:76px; overflow:auto; background:var(--window); margin:5px 5px 0;
+  #np-q { flex:1; min-width:120px; font-size:12px; height:22px; box-sizing:border-box; }
+  .np-feed { flex:1; min-height:76px; overflow:auto; background:var(--window); margin:5px 5px 0;
       box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-sh),
                   inset -2px -2px var(--face-light), inset 2px 2px var(--face-dk); }
+  .np-day { position:sticky; top:0; z-index:2; padding:3px 8px; font-size:10px;
+      font-family:Arial, sans-serif; letter-spacing:1.2px; text-transform:uppercase;
+      color:var(--ink-2); background:var(--face-light);
+      box-shadow: inset -1px -1px var(--face-sh), inset 1px 1px var(--face-hi); }
+  .np-card { padding:7px 9px 8px; border-bottom:1px solid var(--paper-line);
+      font-family:Arial, Helvetica, sans-serif; }
+  .np-card.np-sub { padding-left:26px; }
+  .np-chd { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--ink-3);
+      margin:0 0 4px; }
+  .np-chd .g { flex:none; display:flex; gap:1px; width:30px; padding:1px;
+      box-shadow: inset -1px -1px var(--face-light), inset 1px 1px var(--face-sh); }
+  .np-chd .g i { flex:1; height:8px; box-shadow: inset 1px 1px var(--face-sh), inset -1px -1px var(--face-light); }
+  .np-chd .g i.on { background:var(--select); box-shadow:none; }
+  .np-chd .g i.skip { box-shadow:none;
+      background: repeating-conic-gradient(var(--select) 0 25%, transparent 0 50%) 0 0/2px 2px; }
+  .np-chd b { color:var(--window-text); text-transform:capitalize; }
+  .np-chd .st { text-transform:uppercase; letter-spacing:.5px; font-size:10px; }
+  .np-chd .sp { flex:1; }
+  .np-card-body { font-size:13px; line-height:1.5; white-space:pre-wrap;
+      overflow-wrap:break-word; color:var(--window-text); }
+  .np-card .np-became { margin:5px 0 0; }
+  .np-card .np-acts { margin-top:6px; }
+  .np-card .np-acts button { min-height:22px; font-size:12px; }
   .np-empty { font-family:Arial, Helvetica, sans-serif; font-size:13px; color:var(--ink-5);
       padding:10px 8px; }
-  .np-row { display:flex; align-items:center; gap:6px; padding:5px 7px;
-      font-family:Arial, Helvetica, sans-serif; font-size:13px;
-      border-bottom:1px solid var(--face-light); cursor:pointer; }
-  .np-row .g { flex:none; display:flex; gap:1px; width:30px; padding:1px;
-      box-shadow: inset -1px -1px var(--face-light), inset 1px 1px var(--face-sh); }
-  /* fill and void, never hue: an empty stage is an empty socket, so all four cells
-     stay countable at a glance */
-  .np-row .g i { flex:1; height:8px; box-shadow: inset 1px 1px var(--face-sh), inset -1px -1px var(--face-light); }
-  .np-row .g i.on { background:var(--select); box-shadow:none; }
-  .np-row .g i.skip { box-shadow:none;
-      background: repeating-conic-gradient(var(--select) 0 25%, transparent 0 50%) 0 0/2px 2px; }
-  .np-row[aria-selected=true] .g { box-shadow: inset -1px -1px var(--select-bevel-hi), inset 1px 1px var(--select-bevel-dk); }
-  .np-row[aria-selected=true] .g i { box-shadow: inset 1px 1px var(--select-bevel-dk), inset -1px -1px var(--select-bevel-hi); }
-  .np-row[aria-selected=true] .g i.on { background:var(--window); box-shadow:none; }
-  .np-row[aria-selected=true] .g i.skip { box-shadow:none;
-      background: repeating-conic-gradient(var(--select-text) 0 25%, transparent 0 50%) 0 0/2px 2px; }
-  .np-row .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .np-row .st { flex:none; font-size:11px; text-transform:uppercase; letter-spacing:.5px;
-      color:var(--ink-3); width:58px; text-align:right; }
-  .np-row .wh { flex:none; font-size:11px; color:var(--ink-5); width:44px; text-align:right;
-      font-family:"Courier New", monospace; }
-  .np-row[aria-selected=true] { background:var(--select); color:var(--select-text); }
-  .np-row[aria-selected=true] .st, .np-row[aria-selected=true] .wh { color:var(--select-text); }
-  .np-detail { flex:0 1 auto; max-height:62%; overflow:auto; padding:6px 7px 7px; margin:5px 5px 0;
-      background:var(--face); box-shadow: inset 0 1px 0 var(--face-sh), inset 0 2px 0 var(--face-hi); }
-  .np-detail .hd { font-family:Arial, Helvetica, sans-serif; font-size:13px;
-      font-weight:bold; margin:2px 0 6px; white-space:nowrap; overflow:hidden;
-      text-overflow:ellipsis; }
-  /* the row's micro-strip at 3x — same four cells, same order, same fill/void
-     grammar, so learning one teaches the other */
-  .np-jt { display:flex; gap:2px; padding:3px; box-shadow: inset -2px -2px var(--face-light), inset 2px 2px var(--face-sh); }
-  .np-jt span { flex:1; height:12px; box-shadow: inset 1px 1px var(--face-sh), inset -1px -1px var(--face-light); }
-  .np-jt span.on { background:var(--select); box-shadow:none; }
-  .np-jt span.skip { background: repeating-conic-gradient(var(--select) 0 25%, var(--face) 0 50%) 0 0/2px 2px;
-      box-shadow:none; }
-  .np-jlab { display:flex; gap:2px; margin-top:3px; }
-  .np-jlab div { flex:1; text-align:center; font-size:10px; color:var(--ink-3);
-      text-transform:uppercase; letter-spacing:.5px; }
-  .np-jlab div b { display:block; font-weight:normal; color:var(--ink-5);
-      font-family:"Courier New", monospace; font-size:10px; letter-spacing:0; }
-  .np-jlab div.on { color:var(--window-text); }
   .np-became { font-family:Arial, Helvetica, sans-serif; font-size:12px; margin:7px 0 0;
       color:var(--ink-1); }
   .np-became code { font-family:"Courier New", monospace; font-size:11px; }
@@ -449,22 +433,11 @@
       text-overflow:ellipsis; border-bottom:1px dashed var(--select); }
   /* -- the notebook: reading your own text, and threads -- */
   .np-ptools select { font-size:12px; max-width:150px; }
-  .np-body { max-height:132px; overflow:auto; margin:0 0 7px; padding:6px 7px;
-      background:var(--window); white-space:pre-wrap; overflow-wrap:break-word;
-      font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:1.45;
-      box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-sh),
-                  inset -2px -2px var(--face-light), inset 2px 2px var(--face-dk); }
   .np-dim { color:var(--ink-5); }
   .np-parent { font-family:Arial, Helvetica, sans-serif; font-size:11px; color:var(--ink-3);
       margin:0 0 5px; }
   .np-parent a { color:var(--select); text-decoration:none; cursor:pointer;
       border-bottom:1px dashed var(--select); }
-  /* an addendum is indented under the note it extends, with a + in the gutter — the
-     thread reads as one thing without pretending to BE one file */
-  .np-row.np-sub .n { padding-left:12px; }
-  .np-row .np-plus { font-style:normal; font-weight:bold; color:var(--select);
-      margin-right:5px; font-family:"Courier New", monospace; }
-  .np-row[aria-selected=true] .np-plus { color:var(--select-text); }
 
   /* -- mobile deltas -- */
   @media (max-width: 700px) {
@@ -500,10 +473,7 @@
     .np-ac { position:static; width:auto; margin:0 5px; }
     .np-ac ul { max-height:160px; }
     .np-ac li { height:40px; padding:2px 8px; font-size:15px; }
-    .np-row { padding:10px 8px; font-size:14px; }
     .np-acts button { min-height:44px; }
-    .np-detail .np-became { font-size:14px; }
-    .np-list { flex:1 1 52%; }
   }
 
   /* Markdown rendering */
@@ -623,6 +593,49 @@
   @keyframes why-decode {
     from { clip-path: inset(0 0 100% 0); }
     to   { clip-path: inset(0 0 0 0); }
+  }
+
+  /* ==== why.exe Library (parallel lane, 2026-08-08; region: why.exe only) ====
+     Grid of chunky thumbs in a sunken well. A masked photo renders as a coarse
+     canvas mosaic upscaled with image-rendering:pixelated — period-honest
+     shoulder-surfing cover (hidden.md's philosophy), deliberately NOT a CSS
+     blur. OUT tag = photo kept out of the wall rotation but still shown here. */
+  .why-photo.why-masked { image-rendering: pixelated; }
+  #why-library { margin: 6px; padding: 8px; background: var(--window);
+                 box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-sh);
+                 -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .why-lib-head { font: 13px Arial; color: var(--ink-3); margin: 0 0 8px;
+                  display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .why-lib-grid { display: grid; gap: 8px;
+                  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+  .why-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0;
+              position: relative; }
+  .why-thumb { display: block; width: 100%; aspect-ratio: 1 / 1; padding: 0;
+               min-height: 0; min-width: 0; position: relative; border-radius: 0;
+               border: 1px solid var(--face-sh); box-shadow: none;
+               background-color: var(--face); background-size: cover;
+               background-position: 50% 30%; background-repeat: no-repeat; }
+  .why-thumb.why-masked, .why-big-img.why-masked { image-rendering: pixelated; }
+  .why-thumb.why-thumb-broken::after { content: "unreadable"; position: absolute;
+               inset: auto 0 0 0; font: 11px Arial; color: var(--ink-4);
+               background: var(--face); padding: 2px 0; }
+  .why-cell.why-out .why-thumb { opacity: .45; }
+  .why-cell.why-out::before { content: "OUT"; position: absolute; top: 2px; right: 2px;
+               z-index: 1; pointer-events: none; font: bold 10px Arial; letter-spacing: 1px;
+               color: var(--window-text); background: var(--face);
+               border: 1px solid var(--face-dk); padding: 1px 4px; }
+  .why-cell-acts { display: flex; gap: 2px; }
+  .why-cell-acts button { flex: 1; min-width: 0; min-height: 22px;
+                          font-size: 12px; padding: 0 2px; }
+  .why-big { display: flex; flex-direction: column; gap: 8px; }
+  .why-big-img { display: block; margin: 0 auto; max-width: 100%; max-height: 52vh;
+                 background: var(--face); border: 1px solid var(--face-sh); }
+  .why-big-bar { display: flex; gap: 4px; align-items: center; flex-wrap: wrap;
+                 font: 13px Arial; color: var(--ink-1); }
+  @media (max-width: 700px) {
+    .why-lib-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
+    .why-cell-acts button { min-height: 44px; }
+    .why-big-bar button { min-height: 44px; }
   }
 
   /* Inquest.exe — the docket */
@@ -4030,7 +4043,7 @@ const Explorer = (() => {
     }
     flushing = false;
     paintOutbox();
-    if (sent) { Search.invalidate(); if (mode === "notebook") await renderBook(true); }
+    if (sent) { Search.invalidate(); await renderBook(true); }  // the feed is always on
     if (sent && !kept) say(sent === 1 ? "Sent — 1 capture is in the inbox." : `Sent — ${sent} captures are in the inbox.`);
     else if (kept) say(`Offline — ${outbox().length} capture${outbox().length === 1 ? "" : "s"} held here. Nothing is lost.`);
     return sent;
@@ -4038,7 +4051,8 @@ const Explorer = (() => {
 
   /* ================================================================ the window */
   let editing = null;            // {path, sha, front} when re-opening a pending note
-  let kind = "note", dest = "inbox", destPage = null, mode = "write";
+  let kind = "note", dest = "inbox", destPage = null;
+  let kindFilter = "all", feedQuery = "";       // the v3 feed's two filters
   let undoBefore = null;         // the exact pre-Tidy string, byte for byte
   let heard = null;              // what was in the box before Tidy touched it (§13)
   let counts = { marks: 0, capitals: 0, pages: 0 };
@@ -4063,8 +4077,6 @@ const Explorer = (() => {
     const n = outbox().length;
     f.textContent = `Outbox: ${n}`;
     f.style.fontWeight = n ? "bold" : "normal";
-    const ob = $("#np-b-outbox");
-    if (ob) ob.querySelector(".lb").textContent = `Outbox (${n})`;
   }
 
   /* --- the four writers of ta.value. Nothing on a timer is among them (§3.3). --- */
@@ -4183,8 +4195,10 @@ const Explorer = (() => {
                      bookRender: renderBook, bookRows: () => rows, bookVisible: visible,
                      bookThread: thread, bookAct: act, bookMonths: () => months,
                      bookAppendTo: () => appendTo,
-                     bookScope: m => { scopeMonth = m; scopeTouched = true;
-                                       paintRows(); paintDetail(); } });
+                     bookScope: m => { scopeMonth = m; scopeTouched = true; paintFeed(); },
+                     noteParseQuery: parseQuery,
+                     noteSetQuery: q => { feedQuery = q; paintFeed(); },
+                     noteSetKindFilter: k => { kindFilter = k; paintFeed(); } });
   function acOpen(q, start) {
     if (!PAGES || composing) return acClose();
     const t = q.toLowerCase();
@@ -4285,13 +4299,14 @@ const Explorer = (() => {
   }
 
   /* ============================================================== Notebook (§8) */
-  let rows = [], selRow = -1, bookFilter = "all", gists = new Map(), bodies = new Map();
+  let rows = [], gists = new Map(), bodies = new Map();
   let scopeMonth = null, scopeTouched = false, months = [];   // "YYYY-MM", or null for all
   const KINDS = { note: "note", oracle: "oracle", flag: "flag", gate: "gate", web: "note" };
   function stampOf(p) {
     const m = /(\d{4})-(\d{2})-(\d{2})-(\d{2})(\d{2})(\d{2})?-([a-z0-9]+)\.md$/.exec(p);
-    if (!m) return { when: "", kind: "note", d: null, month: "" };
+    if (!m) return { when: "", kind: "note", d: null, month: "", ymd: "" };
     return { when: `${m[4]}:${m[5]}`, kind: KINDS[m[7]] || m[7], month: `${m[1]}-${m[2]}`,
+      ymd: `${m[1]}-${m[2]}-${m[3]}`,
       d: new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)) };
   }
   const gistOf = t => {
@@ -4308,12 +4323,13 @@ const Explorer = (() => {
      top of the script is the one definition; this window just asks it. */
 
   async function renderBook(force) {
-    const list = $("#np-blist");
+    const list = $("#np-feed");
     if (!list) return;
-    const q = outbox().map(it => ({
-      id: it.id, kind: it.kind, path: it.path, stage: "queued", stem: stemOf(it.path),
-      name: gistOf(it.body) || "(no text)", ts: it.ts, when: hhmm(new Date(it.ts)),
-      month: stampOf(it.path).month, item: it }));
+    const q = outbox().map(it => {
+      const st = stampOf(it.path);
+      return { id: it.id, kind: it.kind, path: it.path, stage: "queued", stem: stemOf(it.path),
+        name: gistOf(it.body) || "(no text)", ts: it.ts, when: hhmm(new Date(it.ts)),
+        month: st.month, ymd: st.ymd, item: it }; });
     let tree = [];
     if (!list.dataset.loaded || force) list.innerHTML =
       `<div class="np-empty">Reading the ledger…</div>`;
@@ -4325,7 +4341,7 @@ const Explorer = (() => {
       const st = stampOf(p);
       const known = bodies.has(p) ? captureMeta(bodies.get(p)) : null;
       return { id: p, kind: st.kind, path: p, stage, ts: st.d ? st.d.getTime() : 0,
-        stem: stemOf(p), month: st.month, when: st.when, name: gists.get(p) || "",
+        stem: stemOf(p), month: st.month, ymd: st.ymd, when: st.when, name: gists.get(p) || "",
         queued: log[p] && log[p].queued || null,
         became: known ? known.became : undefined,
         filed: known && known.filed ? hhmm(new Date(known.filed)) : "",
@@ -4346,8 +4362,7 @@ const Explorer = (() => {
     rows = q.concat(pushed, filed).sort((a, b) => b.ts - a.ts);
     list.dataset.loaded = "1";
     paintScope();
-    paintRows();
-    if (selRow < 0 && visible().length) select(rows.indexOf(visible()[0]));
+    paintFeed();
     fetchBodies();
   }
 
@@ -4356,9 +4371,14 @@ const Explorer = (() => {
      be the notebook lying about what is waiting. */
   const inScope = r => r.stage !== "filed" || !scopeMonth || r.month === scopeMonth;
   function visible() {
-    const base = rows.filter(r => bookFilter === "all" ? inScope(r)
-      : bookFilter === "outbox" ? r.stage === "queued"
-      : r.stage === "filed" && inScope(r));
+    const preds = parseQuery(feedQuery);
+    const base = rows.filter(r => {
+      if (kindFilter !== "all" && r.kind !== kindFilter) return false;
+      if (!inScope(r)) return false;
+      if (!preds.length) return true;
+      const bt = feedBodyOf(r);
+      return preds.every(p => p(r, bt));
+    });
     return thread(base);
   }
   /* Addenda sit under the note they extend, oldest first, so a thread reads in the
@@ -4393,42 +4413,123 @@ const Explorer = (() => {
         `${esc(monthLabel(m))}</option>`).join("");
     sel.value = scopeMonth || "";
   }
-  function paintRows() {
-    const list = $("#np-blist"); if (!list) return;
+  /* ---- the filter engine (v3): one kind chip + one query box, AND-composed.
+     Grammar: bare words match the note text (case-insensitive); `type:ask`
+     (or kind:), `is:queued|pushed|filed`, `became:slug-fragment`,
+     `before:2026-08` / `after:2026-08-05` (prefix dates, string-compared),
+     and a leading `-` negates any term. Pure functions, exported for tests. ---- */
+  function parseQuery(q) {
+    const preds = [];
+    for (const tok of String(q || "").trim().split(/\s+/).filter(Boolean)) {
+      const neg = tok[0] === "-", t = (neg ? tok.slice(1) : tok).toLowerCase();
+      if (neg && !t) continue;
+      let m, p;
+      if ((m = /^(?:type|kind):(\w+)$/.exec(t))) {
+        const k = m[1] === "ask" ? "oracle" : m[1];
+        p = r => r.kind === k;
+      } else if ((m = /^is:(queued|pushed|filed)$/.exec(t))) {
+        p = r => r.stage === m[1];
+      } else if ((m = /^became:(.+)$/.exec(t))) {
+        p = r => (r.became || []).some(s => s.includes(m[1]));
+      } else if ((m = /^before:(\d{4}(?:-\d{2}){0,2})$/.exec(t))) {
+        p = r => !!r.ymd && r.ymd < m[1];
+      } else if ((m = /^after:(\d{4}(?:-\d{2}){0,2})$/.exec(t))) {
+        p = r => !!r.ymd && r.ymd >= m[1];
+      } else {
+        p = (r, bodyText) => (bodyText != null ? bodyText : (r.name || ""))
+          .toLowerCase().includes(t);
+      }
+      preds.push(neg ? (r, b) => !p(r, b) : p);
+    }
+    return preds;
+  }
+  const feedBodyOf = r => r.stage === "queued" ? bodyOf(r.item.body)
+    : bodies.has(r.path) ? bodyOf(bodies.get(r.path)) : null;
+
+  function paintFeed() {
+    const list = $("#np-feed"); if (!list) return;
     const vis = visible();
     if (!vis.length) {
-      list.innerHTML = `<div class="np-empty">${bookFilter === "outbox"
-        ? "Outbox empty — everything you wrote is at the origin."
+      list.innerHTML = `<div class="np-empty">${feedQuery.trim()
+        ? "Nothing matches that filter."
+        : kindFilter !== "all" ? "No notes of that kind here."
         : scopeMonth ? `Nothing kept in ${esc(monthLabel(scopeMonth))}.`
-        : "Nothing here yet."}</div>`;
+        : "Nothing here yet — the box above is listening."}</div>`;
       say(scoped(0));
       return;
     }
+    let lastDay = "";
     list.innerHTML = vis.map(r => {
       const c = (r.queued ? ["on", "on", "on", r.stage === "filed" ? "on" : ""] : CELLS[r.stage]);
-      return `<div class="np-row${r.nested ? " np-sub" : ""}" data-id="${esc(r.id)}"
-        aria-selected="${r.id === (rows[selRow] || {}).id}">
-        <span class="g">${c.map(x => `<i class="${x}"></i>`).join("")}</span>
-        <span class="n">${r.nested ? `<i class="np-plus">+</i>` : ""}${esc(r.kind)} — ${esc(r.name || "…")}</span>
-        <span class="st">${r.stage}</span><span class="wh">${esc(r.when)}</span></div>`;
+      const day = r.ymd || "";
+      const sep = day && day !== lastDay && !r.nested
+        ? `<div class="np-day">${esc(dayLabel(day))}</div>` : "";
+      lastDay = day || lastDay;
+      const raw = feedBodyOf(r);
+      const text = raw === null ? `<i class="np-dim">Reading…</i>`
+        : raw ? esc(raw).replace(/\[\[([^\]|]+)\]\]/g, (_, name) => wikiAnchor(name, s => s))
+        : `<i class="np-dim">Could not read this capture.</i>`;
+      const parent = r.addendumTo
+        ? `<div class="np-parent">Addendum to <a data-jump="${esc(r.addendumTo)}">${esc(r.addendumTo)}</a></div>` : "";
+      const became = (r.became || []).length
+        ? `<p class="np-became">Became ${r.became.map(s =>
+            `<a class="wikilink" data-page="${esc(s)}">${esc(PAGES && PAGES.title.get(s) || s)}</a>`).join(" · ")}</p>`
+        : "";
+      const acts = r.stage === "queued"
+        ? `<button data-a="send">Send now</button><button data-a="edit">Edit</button><button data-a="discard">Discard</button>`
+        : r.stage === "pushed"
+        ? `<button data-a="edit">Edit</button><button data-a="open">Open</button>`
+        : `<button data-a="append">Add to this</button><button data-a="open">View</button>`;
+      return `${sep}<article class="np-card${r.nested ? " np-sub" : ""}" data-id="${esc(r.id)}" data-stem="${esc(r.stem)}">
+        <div class="np-chd"><span class="g">${c.map(x => `<i class="${x}"></i>`).join("")}</span>
+          <b>${esc(r.kind === "oracle" ? "ask" : r.kind)}</b> · <span>${esc(r.when)}</span>
+          <span class="sp"></span><span class="st">${r.stage}</span></div>
+        ${parent}<div class="np-card-body">${text}</div>${became}
+        <div class="np-acts">${acts}</div></article>`;
     }).join("");
-    list.querySelectorAll(".np-row").forEach(el => el.addEventListener("click", () =>
-      select(rows.findIndex(r => r.id === el.dataset.id))));
+    list.querySelectorAll(".np-card").forEach(card => {
+      const r = rows.find(x => x.id === card.dataset.id);
+      if (!r) return;
+      card.querySelectorAll("[data-a]").forEach(b =>
+        b.addEventListener("click", () => act(b.dataset.a, r)));
+      card.querySelectorAll("a.wikilink").forEach(a => a.addEventListener("click", () => {
+        WM.show("explorer");
+        a.dataset.page ? Explorer.openPage(a.dataset.page) : Explorer.openPath(a.dataset.path);
+      }));
+      card.querySelectorAll("[data-jump]").forEach(a =>
+        a.addEventListener("click", () => jumpToCard(a.dataset.jump)));
+    });
     say(scoped(vis.length));
+  }
+  function jumpToCard(stem) {
+    const el = $("#np-feed").querySelector(`.np-card[data-stem="${CSS.escape(stem)}"]`);
+    if (el) el.scrollIntoView({ block: "center" });
+    else say("That note is outside the current scope.");
+  }
+  const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  function dayLabel(ymd) {
+    const d = new Date(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 10));
+    return `${DAYS[d.getDay()]} ${d.getDate()} ${MON_LONG[d.getMonth()]} ${d.getFullYear()}`;
   }
   /* The status line names the scope it is counting, so a number can never imply the
      whole notebook when it is describing one month. */
   function scoped(n) {
     const pend = rows.filter(r => r.stage !== "filed").length;
-    const where = bookFilter === "outbox" ? "Outbox"
-      : scopeMonth ? monthLabel(scopeMonth) : "Everything";
+    const where = (feedQuery.trim() ? "Filtered" : null)
+      || (scopeMonth ? monthLabel(scopeMonth) : "Everything");
     return `${where} · ${plural(n, "note")}` + (pend ? ` · ${pend} pending` : "");
   }
   /* Bodies, not gists. The old fetch downloaded the whole file to make a 72-character
      summary and threw the rest away, which is why you had to leave Notepad+++ to read
      something you wrote in it. */
   async function fetchBodies() {
-    const want = visible().filter(r => r.stage !== "queued" && !bodies.has(r.path)).slice(0, 24);
+    /* The feed shows full text, and the query filters on it — so when a query or
+       kind filter is live, load bodies for everything the cheap fields let
+       through, not just the first screen. In-month scope bounds the worst case. */
+    const pool = feedQuery.trim() || kindFilter !== "all"
+      ? rows.filter(r => inScope(r) && r.stage !== "queued" && !bodies.has(r.path))
+      : visible().filter(r => r.stage !== "queued" && !bodies.has(r.path));
+    const want = pool.slice(0, 48);
     for (let i = 0; i < want.length; i += 4) {
       await Promise.all(want.slice(i, i + 4).map(async r => {
         try {
@@ -4442,73 +4543,17 @@ const Explorer = (() => {
             filed: m.filed ? hhmm(new Date(m.filed)) : "" });
         } catch (e) {
           gists.set(r.path, stemOf(r.path));
-          bodies.set(r.path, "");           // read once, fail once; the row says so
+          bodies.set(r.path, "");           // read once, fail once; the card says so
         }
       }));
-      if (mode === "notebook") { paintRows(); paintDetail(); }
+      paintFeed();
     }
-  }
-  function select(i) {
-    if (i < 0 || i >= rows.length) return;
-    selRow = i; paintRows(); paintDetail();
-  }
-  function jt(cells) {
-    return `<div class="np-jt">${cells.map(c => `<span class="${c[0]}"></span>`).join("")}</div>
-      <div class="np-jlab">${["Written", "Queued", "Pushed", "Filed"].map((l, i) =>
-      `<div class="${cells[i][0] ? "on" : ""}">${l}<b>${cells[i][1] || "—"}</b></div>`).join("")}</div>`;
-  }
-  async function paintDetail() {
-    const d = $("#np-bdetail"); if (!d) return;
-    const r = rows[selRow];
-    if (!r) { d.innerHTML = ""; return; }
-    const c = (r.queued ? ["on", "on", "on", r.stage === "filed" ? "on" : ""] : CELLS[r.stage]);
-    const t = r.when;
-    const times = [t, r.stage === "queued" || r.queued ? t : "",
-      r.stage !== "queued" ? t : "", r.filed || ""];
-    let prose, acts;
-    if (r.stage === "queued") {
-      prose = "Waiting for a connection. Held in this browser — nothing is lost.";
-      acts = `<button data-a="send">Send now</button><button data-a="edit">Edit</button>
-              <button data-a="discard">Discard</button>`;
-    } else if (r.stage === "pushed") {
-      prose = "In <code>inbox/</code>. The next beat reads it.";
-      /* Editable precisely while nobody has read it. Append is for after that. */
-      acts = `<button data-a="open">Open</button><button data-a="edit">Edit</button>`;
-    } else {
-      const became = r.became || [];
-      prose = became.length
-        ? `Became ${became.map(s => `<a class="wikilink" data-page="${esc(s)}">${esc(PAGES && PAGES.title.get(s) || s)}</a>`).join(" · ")} — filed by the beat.`
-        : r.became === undefined ? "Filed by the beat — reading what it became…"
-        : "Filed by the beat — it is part of the wiki now.";
-      acts = `<button data-a="append" class="default">Add to this</button>
-              <button data-a="open">View capture</button>`;
-    }
-    /* The text, in the window you wrote it in. */
-    const raw = r.stage === "queued" ? bodyOf(r.item.body)
-      : bodies.has(r.path) ? bodyOf(bodies.get(r.path)) : null;
-    const text = raw === null ? `<i class="np-dim">Reading…</i>`
-      : raw ? esc(raw) : `<i class="np-dim">Could not read this capture.</i>`;
-    const parent = r.addendumTo
-      ? `<div class="np-parent">Addendum to <a data-jump="${esc(r.addendumTo)}">${esc(r.addendumTo)}</a></div>`
-      : "";
-    d.innerHTML = `<div class="hd">${esc(r.stem)}</div>
-      ${parent}<div class="np-body">${text}</div>
-      ${jt(c.map((x, i) => [x, times[i]]))}
-      <p class="np-became">${prose}</p><div class="np-acts">${acts}</div>`;
-    d.querySelectorAll("a.wikilink").forEach(a => a.addEventListener("click", () => {
-      WM.show("explorer"); Explorer.openPage(a.dataset.page);
-    }));
-    d.querySelectorAll("[data-jump]").forEach(a => a.addEventListener("click", () => {
-      const i = rows.findIndex(x => x.stem === a.dataset.jump);
-      if (i >= 0) select(i); else say("That note is outside the current scope.");
-    }));
-    d.querySelectorAll("[data-a]").forEach(b => b.addEventListener("click", () => act(b.dataset.a, r)));
   }
   async function act(a, r) {
     if (a === "send") { say("Sending…"); await flush(true); renderBook(); return; }
     if (a === "discard") {
       setOutbox(outbox().filter(x => x.id !== r.id));
-      paintOutbox(); selRow = -1; renderBook(); say("Discarded."); return;
+      paintOutbox(); renderBook(); say("Discarded."); return;
     }
     if (a === "open") { WM.show("explorer"); Explorer.openPath(r.path); return; }
     if (a === "append") {
@@ -4516,7 +4561,7 @@ const Explorer = (() => {
          would make thread reconstruction recursive and give one thought two shapes. */
       const root = r.addendumTo || r.stem;
       setAppendTo({ stem: root, gist: (rows.find(x => x.stem === root) || r).name || root });
-      setMode("write"); ta.focus(); recount(); scheduleSave();
+      ta.focus(); recount(); scheduleSave();
       say(`Adding to ${root} — the beat files this as an addendum.`);
       return;
     }
@@ -4527,7 +4572,7 @@ const Explorer = (() => {
         paintOutbox();
         setKind(r.kind);
         writeField(b.trim());
-        setMode("write"); recount(); scheduleSave();
+        ta.focus(); recount(); scheduleSave();
         say("Pulled back out of the outbox — Save puts it back in.");
         return;
       }
@@ -4537,7 +4582,7 @@ const Explorer = (() => {
         const m = text.match(/^(---\n[\s\S]*?\n---\n?)([\s\S]*)$/);
         writeField((m ? m[2] : text).trim());
         setEditing({ path: r.path, sha, front: m ? m[1] : "" });
-        setMode("write");
+        ta.focus();
         recount(); scheduleSave();
       } catch (e) { say("Could not open — " + e.message); }
     }
@@ -4573,25 +4618,13 @@ const Explorer = (() => {
     const x = bar.querySelector("#np-append-x");
     if (x) x.onclick = () => { setAppendTo(null); say("New note."); };
     const j = bar.querySelector("[data-jump]");
-    if (j) j.onclick = () => {
-      const i = rows.findIndex(x => x.stem === a.stem);
-      setMode("notebook"); if (i >= 0) select(i);
-    };
+    if (j) j.onclick = () => jumpToCard(a.stem);
     paintSave();
   }
   function setKind(k) {
     kind = k;
     body().querySelectorAll("[data-kind]").forEach(b =>
       b.setAttribute("aria-pressed", b.dataset.kind === k));
-  }
-  function setMode(tab) {
-    mode = tab;
-    body().querySelectorAll("[role=tab]").forEach(li =>
-      li.setAttribute("aria-selected", li.dataset.tab === tab));
-    $("#np-write").style.display = tab === "write" ? "flex" : "none";
-    $("#np-book").style.display = tab === "notebook" ? "flex" : "none";
-    if (tab === "notebook") { renderBook(); const l = $("#np-blist"); if (l) l.focus(); }
-    else { ta.focus(); paintTidy(); }
   }
 
   async function doSave() {
@@ -4633,7 +4666,7 @@ const Explorer = (() => {
       }
     } catch (e) {
       if (editing && /409|422|GitHub 4/.test(e.message)) {
-        say("Changed upstream — the brain likely filed it. Check the Notebook for its new home.");
+        say("Changed upstream — the brain likely filed it. Check the feed for its new home.");
         setEditing(null);
       } else say(
         e.message === "auth" ? "Token was refused (401)." :
@@ -4689,13 +4722,11 @@ const Explorer = (() => {
     b.dataset.ready = 1;
     b.classList.remove("white");
     ensureGlyph();
+    /* v3 (apps-v3 slice 3, Andrew's reframe): the feed IS the app. No tabs — the
+       capture block pins on top with the cursor ready, and your notes scroll whole
+       beneath it. The old Notebook/Prior ledger folds in: every card carries its
+       own state strip and Became line. */
     b.innerHTML = `
-      <div class="np-tabs">
-        <menu role="tablist">
-          <li role="tab" data-tab="write" aria-selected="true"><a href="#w">Write</a></li>
-          <li role="tab" data-tab="notebook" aria-selected="false"><a href="#p">Notebook</a></li>
-        </menu>
-      </div>
       <div id="np-write">
         <div class="np-bar">
           ${KINDBAR.map(([k, label, icon]) => `<button class="np-tb" data-kind="${k}"
@@ -4706,7 +4737,7 @@ const Explorer = (() => {
             <img data-icon="tidy" data-sz="16" alt=""><span class="lb">Tidy</span></button>
         </div>
         <div class="np-append" id="np-append" hidden></div>
-        <textarea id="np-text" rows="8" lang="en" spellcheck="true"
+        <textarea id="np-text" rows="3" lang="en" spellcheck="true"
           autocapitalize="sentences" autocorrect="on" autocomplete="off"
           inputmode="text" enterkeyhint="enter"
           placeholder="A thought, a link, a place…"></textarea>
@@ -4723,17 +4754,19 @@ const Explorer = (() => {
           <button class="np-save default" id="np-save" disabled>Save to inbox</button>
         </div>
       </div>
-      <div id="np-book" style="display:none">
+      <div id="np-book">
         <div class="np-ptools">
-          <button class="np-tb" data-pf="all" aria-pressed="true"><span class="lb">All</span></button>
-          <button class="np-tb" id="np-b-outbox" data-pf="outbox" aria-pressed="false"><span class="lb">Outbox (0)</span></button>
-          <button class="np-tb" data-pf="filed" aria-pressed="false"><span class="lb">Filed</span></button>
+          <button class="np-tb" data-kf="all" aria-pressed="true"><span class="lb">All</span></button>
+          <button class="np-tb" data-kf="note" aria-pressed="false"><span class="lb">Note</span></button>
+          <button class="np-tb" data-kf="oracle" aria-pressed="false"><span class="lb">Ask</span></button>
+          <button class="np-tb" data-kf="flag" aria-pressed="false"><span class="lb">Flag</span></button>
+          <button class="np-tb" data-kf="gate" aria-pressed="false"><span class="lb">Gate</span></button>
+          <input id="np-q" type="search" spellcheck="false" autocomplete="off"
+                 placeholder="text · type:ask · is:queued · became:page · before:2026-08">
           <select id="np-month" title="Which month of the notebook to show"></select>
-          <span class="sp"></span>
           <button class="np-tb" id="np-refresh"><span class="lb">Refresh</span></button>
         </div>
-        <div class="np-list" id="np-blist" tabindex="0"></div>
-        <div class="np-detail" id="np-bdetail"></div>
+        <div class="np-feed" id="np-feed" tabindex="0"></div>
       </div>`;
     const sb = document.querySelector("#win-note .status-bar");
     sb.innerHTML =
@@ -4756,23 +4789,27 @@ const Explorer = (() => {
       if (bar) bar.classList.toggle("tight", bar.clientWidth < 260 && isMobile());
     }).observe(b.querySelector(".np-bar"));
 
-    b.querySelectorAll("[role=tab]").forEach(li => li.addEventListener("click", e => {
-      e.preventDefault(); setMode(li.dataset.tab);
-    }));
     b.querySelectorAll("[data-kind]").forEach(btn => btn.addEventListener("click", () => {
       setKind(btn.dataset.kind); ta.focus(); scheduleSave();
     }));
     b.querySelector("#np-month").addEventListener("change", e => {
       scopeMonth = e.target.value || null;
       scopeTouched = true;              // an explicit "Everything" must survive a re-render
-      selRow = -1; paintRows(); paintDetail(); fetchBodies();
+      paintFeed(); fetchBodies();
     });
-    b.querySelectorAll("[data-pf]").forEach(btn => btn.addEventListener("click", () => {
-      bookFilter = btn.dataset.pf;
-      b.querySelectorAll("[data-pf]").forEach(x =>
-        x.setAttribute("aria-pressed", x.dataset.pf === bookFilter));
-      paintRows(); paintDetail();
+    b.querySelectorAll("[data-kf]").forEach(btn => btn.addEventListener("click", () => {
+      kindFilter = btn.dataset.kf;
+      b.querySelectorAll("[data-kf]").forEach(x =>
+        x.setAttribute("aria-pressed", x.dataset.kf === kindFilter));
+      paintFeed(); fetchBodies();
     }));
+    /* the query box filters as you type — a 200ms debounce keeps a fast typist
+       from paying a repaint per keystroke */
+    let qTimer = 0;
+    b.querySelector("#np-q").addEventListener("input", e => {
+      clearTimeout(qTimer);
+      qTimer = setTimeout(() => { feedQuery = e.target.value; paintFeed(); fetchBodies(); }, 200);
+    });
     b.querySelector("#np-refresh").addEventListener("click", () => renderBook(true));
     tidyBtn.addEventListener("click", doTidy);
     clearBtn.addEventListener("click", () => {
@@ -4810,17 +4847,6 @@ const Explorer = (() => {
         e.preventDefault(); if (!saveBtn.disabled) doSave();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "t") {
         e.preventDefault(); if (!tidyBtn.disabled) doTidy();
-      } else if (e.ctrlKey && e.key === "Tab") {
-        e.preventDefault(); setMode(mode === "write" ? "notebook" : "write");
-      } else if (mode === "notebook" && /^Arrow(Up|Down)$/.test(e.key)) {
-        const vis = visible(); if (!vis.length) return;
-        e.preventDefault();
-        const at = vis.findIndex(r => r.id === (rows[selRow] || {}).id);
-        const nxt = vis[Math.max(0, Math.min(vis.length - 1, at + (e.key === "ArrowDown" ? 1 : -1)))];
-        select(rows.findIndex(r => r.id === nxt.id));
-      } else if (mode === "notebook" && e.key === "Enter") {
-        const r = rows[selRow];
-        if (r) { e.preventDefault(); act(r.stage === "queued" ? "edit" : "open", r); }
       }
     });
 
@@ -4890,6 +4916,7 @@ const Explorer = (() => {
 
   APPS.note.onOpen = () => {
     build();
+    renderBook();                     // the feed is the app — load it on open
     const d = restoreDraft();
     ta.focus();                       // synchronous, inside the gesture — iOS will not
     paintDraft(); paintOutbox();      // raise the keyboard for a focus after an await
@@ -5318,7 +5345,135 @@ const Search = (() => {
   const slotAspect = s => (s.w / s.h) * FRAME_AR;
   let pool = [], assigned = [];
   let resetZoom = () => {};
+  let setView = () => {};              // real one binds once the body is built
+  let wallMaskDirty = false, wallPoolDirty = false; // library toggles owed to the wall
   const photoCache = new Map();
+
+  /* ---- Library state (why/library.md). Mask + rotation live IN-REPO so every
+     device agrees and the brain can honor them — not localStorage. Masking is
+     shoulder-surfing cover in the spirit of hidden.md (protocol/BRAIN.md,
+     "Hidden pages"), NOT access control: a masked photo renders as a coarse
+     mosaic wherever it appears, and press-and-hold in the Library peeks. ---- */
+  const LIB_PATH = "why/library.md";
+  const lib = { masked: new Set(), unpooled: new Set(), unread: false, dirty: false };
+  const keyOf = p => p.name || String(p.path).split("/").pop();
+  const isMasked = p => lib.unread || lib.masked.has(keyOf(p)); // unread fails CLOSED
+  /* Pure parser: frontmatter between the first two `---` lines; `masked:` and
+     `unpooled:` each carry `- basename` items. Everything else is prose. */
+  function parseLibrary(text) {
+    const masked = new Set(), unpooled = new Set();
+    let inFront = false, seenFront = false, cur = null;
+    for (const raw of String(text || "").split("\n")) {
+      const line = raw.replace(/\s+$/, "");
+      if (/^---\s*$/.test(line)) { if (seenFront) break; inFront = seenFront = true; continue; }
+      if (!inFront) { if (line.trim()) break; continue; }   // prose first = no frontmatter
+      const key = /^(masked|unpooled):\s*$/.exec(line.trim());
+      if (key) { cur = key[1]; continue; }
+      const item = /^\s*-\s*(\S+)\s*$/.exec(line);
+      if (item && cur) (cur === "masked" ? masked : unpooled).add(item[1]);
+      else if (line.trim()) cur = null;                     // unknown key: skip its items
+    }
+    return { masked, unpooled };
+  }
+  function renderLibraryMd(masked, unpooled) {
+    const list = s => [...s].sort().map(n => `  - ${n}`).join("\n");
+    return "---\n"
+      + "masked:\n" + (masked.size ? list(masked) + "\n" : "")
+      + "unpooled:\n" + (unpooled.size ? list(unpooled) + "\n" : "")
+      + "---\n\n# why.exe library\n\n"
+      + "Per-photo settings for why.exe, in-repo so every device agrees and the brain\n"
+      + "can honor them. `masked` photos render as a coarse mosaic wherever they appear\n"
+      + "— shoulder-surfing cover in the spirit of hidden.md, not access control\n"
+      + "(press-and-hold in the Library peeks). `unpooled` photos stay in the Library\n"
+      + "but are never picked for the wall. Names are basenames under why/photos/.\n"
+      + "Toggled from why.exe → Library. Law: protocol/BRAIN.md §Hidden pages.\n";
+  }
+  async function loadLibrary(force) {
+    if (DEMO) { lib.unread = false; return; }   // demo: in-memory only, nothing saved
+    /* Unsaved toggles outrank a re-read — applying the older manifest over them
+       would lose a toggle silently. They are owed to the repo: push them instead. */
+    if (lib.dirty) { lib.unread = false; scheduleSave(); return; }
+    /* The manifest is absent until the first save. The tree is already cached —
+       ask it before fetching, so a missing file is a fact, not a console 404. */
+    try {
+      const tree = await getTree();
+      if (!tree.some(e => e.path === LIB_PATH)) {
+        lib.masked = new Set(); lib.unpooled = new Set(); lib.unread = false;
+        return;                                 // defaults: none masked, all pooled
+      }
+    } catch (e) { lib.unread = true; return; }  // no tree, no verdict — fail closed
+    const r = await readOr(LIB_PATH, "", force);
+    if (!r.ok) { lib.unread = true; return; }   // keep last known sets; render "unread"
+    const p = parseLibrary(r.v);
+    lib.masked = p.masked; lib.unpooled = p.unpooled; lib.unread = false;
+  }
+  let saveT = 0, saving = false, saveAgain = false;
+  function scheduleSave() {                     // toggle-storms coalesce into one write
+    lib.dirty = true;
+    clearTimeout(saveT);
+    saveT = setTimeout(saveLibrary, 900);
+  }
+  async function saveLibrary() {
+    if (!lib.dirty) return;
+    if (DEMO) { WM.status("why", "Demo — mask and rotation changes stay in this window only."); return; }
+    if (lib.unread) { WM.status("why", "Library unread — not rewriting it. Retry from the Library view."); return; }
+    if (saving) { saveAgain = true; return; }
+    saving = true;
+    WM.status("why", "Saving the library…");
+    try {
+      /* Fresh sha every attempt: a mismatch (the brain edited the manifest
+         mid-session) throws into the retry path instead of silently clobbering.
+         Entries naming photos no longer in the tree are kept as-is — dropping
+         them is the brain's call, not a side effect of a toggle. */
+      const inTree = (await getTree(true)).some(e => e.path === LIB_PATH);
+      const { sha } = inTree
+        ? await getFileFull(LIB_PATH)
+        : { sha: null };                        // first save creates the manifest
+      await putFileSha(LIB_PATH, renderLibraryMd(lib.masked, lib.unpooled),
+                       "why: library update", sha);
+      lib.dirty = false;
+      WM.status("why", `Library saved · ${lib.masked.size} masked · ${lib.unpooled.size} out of rotation`);
+    } catch (e) {
+      WM.status("why", "Library NOT saved — " + e.message + " · changes kept; retrying on the next toggle");
+    } finally {
+      saving = false;
+      if (saveAgain) { saveAgain = false; scheduleSave(); }
+    }
+  }
+  const maskCache = new Map(), thumbCache = new Map();
+  async function decodedImg(src) {
+    const img = new Image(); img.src = src;
+    try { await img.decode(); } catch (e) {
+      await new Promise(r => { if (img.complete) r(); else img.onload = img.onerror = r; });
+    }
+    return img;
+  }
+  /* The obscuring treatment: draw to a ~12px canvas and let image-rendering:
+     pixelated upscale it — a period-honest mosaic, deliberately NOT a CSS blur. */
+  async function maskedSrc(path) {
+    if (maskCache.has(path)) return maskCache.get(path);
+    const img = await decodedImg(await photoSrc(path));
+    const ar = (img.naturalWidth / img.naturalHeight) || 1;
+    const w = ar >= 1 ? 12 : Math.max(4, Math.round(12 * ar));
+    const h = ar >= 1 ? Math.max(4, Math.round(12 / ar)) : 12;
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    c.getContext("2d").drawImage(img, 0, 0, w, h);   // broken image throws -> caller
+    const url = c.toDataURL("image/png");
+    maskCache.set(path, url);
+    return url;
+  }
+  async function thumbSrc(path) {                // 128px long side, cached per session
+    if (thumbCache.has(path)) return thumbCache.get(path);
+    const img = await decodedImg(await photoSrc(path));
+    const sc = Math.min(1, 128 / Math.max(img.naturalWidth, img.naturalHeight, 1));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(img.naturalWidth * sc));
+    c.height = Math.max(1, Math.round(img.naturalHeight * sc));
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    const url = c.toDataURL("image/jpeg", 0.78);
+    thumbCache.set(path, url);
+    return url;
+  }
 
   function demoPlaceholders() {
     return [0, 1, 2].map(i => {
@@ -5327,7 +5482,8 @@ const Search = (() => {
       g.fillStyle = ["#ffd9e8", "#d9e8ff", "#e0ffd9"][i]; g.fillRect(0, 0, 300, 300);
       g.fillStyle = "#00000022"; g.font = "bold 44px Arial"; g.textAlign = "center";
       g.fillText("DEMO", 150, 162);
-      return { path: c.toDataURL("image/jpeg", 0.8), L: 82 - i * 3, A: 100 };
+      // name: stable key for the Library's demo toggles (a data: URL has no basename)
+      return { path: c.toDataURL("image/jpeg", 0.8), L: 82 - i * 3, A: 100, name: `demo-${i + 1}.jpg` };
     });
   }
   async function loadPool() {
@@ -5355,20 +5511,32 @@ const Search = (() => {
      that is about how kindly a photo crops, not about which photos are allowed in. */
   Object.assign(PFCT, { whyAssign: assign, whySlots: () => SLOTS,
                         whySetPool: p => { pool = p; },
-                        whyAssigned: () => assigned, whyLightSlots: () => LIGHT_SLOTS });
+                        whyAssigned: () => assigned, whyLightSlots: () => LIGHT_SLOTS,
+                        // Library hooks: parser/serializer are pure; setLibrary injects
+                        // state so assign()'s pool exclusion is testable without I/O.
+                        whyParseLibrary: parseLibrary, whyRenderLibrary: renderLibraryMd,
+                        whyKeyOf: keyOf, whyLibrary: () => lib,
+                        whySetLibrary: (masked, unpooled, unread) => {
+                          lib.masked = new Set(masked || []);
+                          lib.unpooled = new Set(unpooled || []);
+                          lib.unread = !!unread; } });
   const LIGHT_SLOTS = new Set([4, 5]);
   const LIGHT_MIN = 55;
   function assign() {
     const shuffle = a => a.sort(() => Math.random() - 0.5);   // random tie-breaks below
-    const bright = pool.filter(p => p.L >= LIGHT_MIN);
+    /* The rotation excludes unpooled photos (why/library.md) — they still show in
+       the Library view. An all-unpooled corpus assigns nothing: the wall renders
+       its honest empty state (the bare frame) and paint() says so; no crash. */
+    const active = pool.filter(p => !lib.unpooled.has(keyOf(p)));
+    const bright = active.filter(p => p.L >= LIGHT_MIN);
     /* If the corpus is mostly dark, fall back to the brightest few rather than leaving
        the small slots empty — but only ever for those two slots. */
     const lightPool = bright.length >= LIGHT_SLOTS.size * 2 ? bright
-      : [...pool].sort((a, b) => b.L - a.L).slice(0, Math.min(LIGHT_SLOTS.size * 3, pool.length));
+      : [...active].sort((a, b) => b.L - a.L).slice(0, Math.min(LIGHT_SLOTS.size * 3, active.length));
     const taken = new Set();
     assigned = [];
     for (const si of shuffle([...SLOTS.keys()])) {
-      const src = shuffle((LIGHT_SLOTS.has(si) ? lightPool : pool)
+      const src = shuffle((LIGHT_SLOTS.has(si) ? lightPool : active)
         .filter(p => !taken.has(p.path)));
       if (!src.length) continue;
       const target = slotAspect(SLOTS[si]);
@@ -5384,7 +5552,8 @@ const Search = (() => {
     let order = 0;
     for (const { si, p } of assigned) {
       const s = SLOTS[si];
-      let src; try { src = await photoSrc(p.path); } catch (e) { continue; }
+      const covered = isMasked(p);   // masked photos are the mosaic on the wall too
+      let src; try { src = covered ? await maskedSrc(p.path) : await photoSrc(p.path); } catch (e) { continue; }
       // Decode fully BEFORE painting. iOS WebKit rasterizes the masked layer
       // at insert and the fill-mode:both animation freezes it — a half-decoded
       // JPEG stays half-painted forever (the white bands on Andrew's phone,
@@ -5394,7 +5563,7 @@ const Search = (() => {
         await new Promise(r => { if (pre.complete) r(); else pre.onload = pre.onerror = r; });
       }
       const ph = document.createElement("div");
-      ph.className = "why-photo";
+      ph.className = "why-photo" + (covered ? " why-masked" : "");
       const pos = (p.A / 100) < slotAspect(s) ? "50% 25%" : "50% 50%"; // vertical crop -> bias to faces
       ph.style.cssText = `left:${s.l}%; top:${s.t}%; width:${s.w}%; height:${s.h}%;
         background-image:url("${src}"); background-position:${pos};
@@ -5407,8 +5576,18 @@ const Search = (() => {
       order++;
     }
     const hint = ("ontouchstart" in window) ? " \u00b7 pinch to zoom" : "";
+    /* Honesty: an unread manifest says so (and the wall above is fully masked to
+       match \u2014 fail closed, hidden.md's direction); an all-unpooled corpus says the
+       wall is empty on purpose. "nothing masked" is only ever printed as counts
+       from a manifest that was actually read. */
+    const inRot = pool.filter(p => !lib.unpooled.has(keyOf(p))).length;
+    const nMask = lib.unread ? 0 : pool.filter(p => lib.masked.has(keyOf(p))).length;
+    const extras = (lib.unread ? " \u00b7 library unread \u2014 everything shown masked" : "")
+      + (nMask ? ` \u00b7 ${nMask} masked` : "");
     WM.status("why", DEMO ? "Demo pool — uploads land in the private repo when logged on"
-      : `${pool.length} photo${pool.length === 1 ? "" : "s"} in the pool \u00b7 ${SLOTS.length} spaces \u00b7 shuffled fresh each open${hint}`);
+      : pool.length && !inRot
+        ? `All ${plural(pool.length, "photo")} are out of the rotation \u00b7 the wall is empty on purpose \u00b7 Library puts them back${extras}`
+        : `${inRot === pool.length ? `${pool.length} photo${pool.length === 1 ? "" : "s"}` : `${inRot} of ${pool.length} photos`} in the pool \u00b7 ${SLOTS.length} spaces \u00b7 shuffled fresh each open${extras}${hint}`);
   }
   async function resizeToJpeg(file, max = 1000) {
     const url = URL.createObjectURL(file);
@@ -5437,6 +5616,7 @@ const Search = (() => {
         <div class="toolbar">
           <button id="why-add" class="default">Add photos</button>
           <button id="why-shuffle">Shuffle</button>
+          <button id="why-lib">Library</button>
           <input id="why-file" type="file" accept="image/*" multiple style="display:none">
           <div class="spacer"></div><span class="note">DO IT FOR HER</span>
         </div>
@@ -5446,10 +5626,207 @@ const Search = (() => {
             <img class="why-frame" src="assets/why-frame.png" alt="DO IT FOR HER"
                  style="position:absolute; inset:0; width:100%; height:100%; z-index:2;">
           </div>
-        </div>`;
+        </div>
+        <div id="why-library" style="display:none"></div>`;
       const fileIn = body.querySelector("#why-file");
       body.querySelector("#why-add").onclick = () => fileIn.click();
       body.querySelector("#why-shuffle").onclick = () => { resetZoom(); assign(); paint(); };
+      /* ---- Library view: every photo as a chunky grid; per-photo Mask (mosaic
+         everywhere, press-and-hold to peek — here only) and In/Out of the wall
+         rotation. State machinery (loadLibrary/saveLibrary) sits above. ---- */
+      {
+        const libEl = body.querySelector("#why-library");
+        const libBtn = body.querySelector("#why-lib");
+        const shBtn = body.querySelector("#why-shuffle");
+        const viewEl = body.querySelector("#why-viewport");
+        let libGen = 0;                              // bumping aborts thumb loops
+        const photoFor = el => {
+          const cell = el.closest(".why-cell");
+          const k = el.dataset.k || (cell ? cell.dataset.k : "");
+          return pool.find(x => keyOf(x) === k) || null;
+        };
+        setView = v => {
+          viewEl.style.display = v === "lib" ? "none" : "";
+          libEl.style.display = v === "lib" ? "" : "none";
+          libBtn.textContent = v === "lib" ? "Wall" : "Library";
+          shBtn.disabled = v === "lib";              // Shuffle is a wall act
+          if (v === "lib") renderLibrary();
+          else {
+            libGen++;
+            /* Pool toggles reshuffle (an unpooled photo must leave the wall NOW,
+               not on the next open); mask-only toggles repaint in place. */
+            if (wallPoolDirty) { resetZoom(); assign(); paint(); }
+            else if (wallMaskDirty) paint();
+            wallPoolDirty = wallMaskDirty = false;
+          }
+        };
+        libBtn.onclick = () => setView(libEl.style.display === "none" ? "lib" : "wall");
+        async function renderLibrary() {
+          const gen = ++libGen;
+          if (!pool.length) {
+            libEl.innerHTML = `<div class="why-lib-head">Nothing in the library — the pool is empty. Add photos from the toolbar.</div>`;
+            WM.status("why", "Library — empty");
+            return;
+          }
+          const head = lib.unread ? `<div class="why-lib-head"><b>library unread</b> — masks and rotation are unknown, so everything is shown masked and the toggles are off. <button id="why-lib-retry">Retry</button></div>` : "";
+          libEl.innerHTML = head + `<div class="why-lib-grid">` + pool.map(p => {
+            const k = keyOf(p);
+            return `<div class="why-cell${lib.unpooled.has(k) ? " why-out" : ""}" data-k="${escHtml(k)}">
+              <button class="why-thumb${isMasked(p) ? " why-masked" : ""}" title="${escHtml(k)}" aria-label="${escHtml(k)} — open"></button>
+              <div class="why-cell-acts">
+                <button class="why-act-mask"${lib.unread ? " disabled" : ""}>${lib.masked.has(k) ? "Unmask" : "Mask"}</button>
+                <button class="why-act-pool"${lib.unread ? " disabled" : ""}>${lib.unpooled.has(k) ? "In" : "Out"}</button>
+              </div>
+            </div>`; }).join("") + `</div>`;
+          const retry = libEl.querySelector("#why-lib-retry");
+          if (retry) retry.onclick = async () => {
+            WM.status("why", "Re-reading the library…");
+            await loadLibrary(true);
+            if (lib.unread) WM.status("why", "Still unreadable — masks and rotation stay unknown.");
+            wallMaskDirty = true;                    // wall unmasks on return if it loaded
+            renderLibrary();
+          };
+          /* Thumbs arrive with bounded concurrency; cells[i] pairs with pool[i]
+             because the grid was built from pool in order. */
+          const cells = [...libEl.querySelectorAll(".why-cell")];
+          let i = 0, done = 0, failed = 0;
+          const worker = async () => {
+            while (i < cells.length && gen === libGen) {
+              const idx = i++;
+              const cell = cells[idx], p = pool[idx];
+              try {
+                const src = isMasked(p) ? await maskedSrc(p.path) : await thumbSrc(p.path);
+                if (gen !== libGen) return;
+                cell.querySelector(".why-thumb").style.backgroundImage = `url("${src}")`;
+              } catch (e) { failed++; cell.querySelector(".why-thumb").classList.add("why-thumb-broken"); }
+              done++;
+              if (done < cells.length && gen === libGen) WM.status("why", `Library — loading ${done}/${cells.length}…`);
+            }
+          };
+          await Promise.all(Array.from({ length: Math.min(4, cells.length) }, worker));
+          if (gen !== libGen) return;
+          const nMask = pool.filter(p => lib.masked.has(keyOf(p))).length;
+          const nOut = pool.filter(p => lib.unpooled.has(keyOf(p))).length;
+          WM.status("why", `Library — ${plural(pool.length, "photo")}`
+            + (lib.unread ? " · library unread — everything masked"
+                          : ` · ${nMask} masked · ${nOut} out of rotation`)
+            + (failed ? ` · ${plural(failed, "thumb")} failed to load` : "")
+            + ((nMask || lib.unread) ? " · hold a masked photo to peek" : ""));
+        }
+        async function toggleMask(p, cell) {
+          if (lib.unread) return;
+          const k = keyOf(p);
+          const on = !lib.masked.has(k);
+          on ? lib.masked.add(k) : lib.masked.delete(k);
+          wallMaskDirty = true; scheduleSave();
+          const btn = cell.querySelector(".why-act-mask");
+          if (btn) btn.textContent = on ? "Unmask" : "Mask";
+          const th = cell.querySelector(".why-thumb");
+          if (!th) return;
+          th.classList.toggle("why-masked", on);
+          /* If the cover itself cannot be produced, show NOTHING rather than the
+             photo a just-masked thumb is supposed to hide. */
+          try { th.style.backgroundImage = `url("${on ? await maskedSrc(p.path) : await thumbSrc(p.path)}")`; }
+          catch (e) { th.style.backgroundImage = "none"; }
+        }
+        function togglePool(p, cell) {
+          if (lib.unread) return;
+          const k = keyOf(p);
+          const out = !lib.unpooled.has(k);
+          out ? lib.unpooled.add(k) : lib.unpooled.delete(k);
+          wallPoolDirty = true; scheduleSave();
+          cell.classList.toggle("why-out", out);
+          const btn = cell.querySelector(".why-act-pool");
+          if (btn) btn.textContent = out ? "In" : "Out";
+        }
+        async function openBig(p) {
+          libGen++;                                  // stop the grid's thumb loop
+          const k = keyOf(p);
+          libEl.innerHTML = `<div class="why-big">
+              <img class="why-big-img${isMasked(p) ? " why-masked" : ""}" data-k="${escHtml(k)}" alt="${escHtml(k)}">
+              <div class="why-big-bar">
+                <button class="why-big-back">Back</button>
+                <button class="why-act-mask"${lib.unread ? " disabled" : ""}>${lib.masked.has(k) ? "Unmask" : "Mask"}</button>
+                <button class="why-act-pool"${lib.unread ? " disabled" : ""}>${lib.unpooled.has(k) ? "In" : "Out"}</button>
+                <span class="note">${escHtml(k)}</span>
+              </div>
+            </div>`;
+          const img = libEl.querySelector(".why-big-img");
+          libEl.querySelector(".why-big-back").onclick = () => renderLibrary();
+          libEl.querySelector(".why-big .why-act-mask").onclick = async () => {
+            if (lib.unread) return;
+            const on = !lib.masked.has(k);
+            on ? lib.masked.add(k) : lib.masked.delete(k);
+            wallMaskDirty = true; scheduleSave();
+            libEl.querySelector(".why-big .why-act-mask").textContent = on ? "Unmask" : "Mask";
+            img.classList.toggle("why-masked", on);
+            try { img.src = on ? await maskedSrc(p.path) : await photoSrc(p.path); }
+            catch (e) { img.removeAttribute("src"); }   // no cover -> show nothing
+          };
+          libEl.querySelector(".why-big .why-act-pool").onclick = () => {
+            if (lib.unread) return;
+            const out = !lib.unpooled.has(k);
+            out ? lib.unpooled.add(k) : lib.unpooled.delete(k);
+            wallPoolDirty = true; scheduleSave();
+            libEl.querySelector(".why-big .why-act-pool").textContent = out ? "In" : "Out";
+          };
+          try { img.src = isMasked(p) ? await maskedSrc(p.path) : await photoSrc(p.path); }
+          catch (e) { WM.status("why", "Could not load " + k + " — " + ((e && e.message) || "error")); return; }
+          if (isMasked(p) && !lib.unread) WM.status("why", k + " — masked · press and hold to peek");
+        }
+        /* Peek: press-and-hold (350ms) on a masked thumb or the big view reveals
+           the real photo while held — the Library only; the wall never peeks. */
+        let peek = null;   // { el, timer, was? } — `was` set only once revealed
+        const startPeek = (el, p) => {
+          endPeek();
+          const timer = setTimeout(async () => {
+            let real;
+            try { real = el.tagName === "IMG" ? await photoSrc(p.path) : await thumbSrc(p.path); }
+            catch (e) { return; }
+            if (!peek || peek.el !== el) return;
+            el.dataset.peeked = "1";                 // swallows the click on release
+            if (el.tagName === "IMG") { peek.was = el.src; el.src = real; }
+            else { peek.was = el.style.backgroundImage; el.style.backgroundImage = `url("${real}")`; }
+            el.classList.remove("why-masked");
+          }, 350);
+          peek = { el, timer };
+          el.addEventListener("pointerleave", endPeek, { once: true });
+        };
+        function endPeek() {
+          if (!peek) return;
+          clearTimeout(peek.timer);
+          const { el, was } = peek; peek = null;
+          if (was === undefined) return;             // held too briefly: nothing shown
+          if (el.tagName === "IMG") el.src = was; else el.style.backgroundImage = was;
+          el.classList.add("why-masked");
+          setTimeout(() => { delete el.dataset.peeked; }, 400);
+        }
+        libEl.addEventListener("pointerdown", e => {
+          const el = e.target.closest(".why-thumb.why-masked, .why-big-img.why-masked");
+          if (!el) return;
+          const p = photoFor(el);
+          if (p) startPeek(el, p);
+        });
+        libEl.addEventListener("pointerup", endPeek);
+        libEl.addEventListener("pointercancel", endPeek);
+        libEl.addEventListener("contextmenu", e => {  // long-press must peek, not menu
+          if (e.target.closest(".why-thumb, .why-big-img")) e.preventDefault();
+        });
+        libEl.addEventListener("click", e => {
+          if (e.target.closest("#why-lib-retry, .why-big-back, .why-big-bar")) return; // direct handlers
+          const cell = e.target.closest(".why-cell");
+          if (!cell) return;
+          const p = photoFor(cell);
+          if (!p) return;
+          if (e.target.closest(".why-act-mask")) { toggleMask(p, cell); return; }
+          if (e.target.closest(".why-act-pool")) { togglePool(p, cell); return; }
+          const th = e.target.closest(".why-thumb");
+          if (th) {
+            if (th.dataset.peeked) { delete th.dataset.peeked; return; }
+            openBig(p);
+          }
+        });
+      }
       // Pinch-zoom the wall. The global viewport is locked (Andrew's request),
       // so why.exe zooms itself: two fingers scale about the midpoint, one
       // finger pans while zoomed, double-tap toggles 2.5x / home, releasing
@@ -5605,6 +5982,7 @@ const Search = (() => {
             }
           }
           cache.tree = null;
+          setView("wall");   // adding photos is a wall act — show the result
           await loadPool(); assign(); await paint();
           WM.status("why", `${fresh.length} added${skipped ? ` \u00b7 ${skipped} already up` : ""} \u00b7 pool now ${pool.length}`);
         } catch (e) {
@@ -5614,7 +5992,14 @@ const Search = (() => {
     }
     WM.status("why", "Loading the pool\u2026");
     resetZoom();
-    try { await loadPool(); assign(); await paint(); } catch (e) { err(e); }
+    wallMaskDirty = wallPoolDirty = false;  // fresh open repaints below anyway
+    setView("wall");
+    /* Library stays disabled until the pool is actually read — otherwise clicking
+       it during a slow load would claim "the pool is empty" about an unread pool. */
+    const libB = body.querySelector("#why-lib");
+    libB.disabled = true;
+    try { await loadLibrary(true); await loadPool(); assign(); await paint(); libB.disabled = false; }
+    catch (e) { err(e); }
   };
 })();
 
