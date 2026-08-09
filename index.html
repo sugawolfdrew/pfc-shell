@@ -2122,6 +2122,15 @@ const WALL = (() => {
     const P = HILL_PAL[ph], D = Math.max(24, H - hor);
     const master = P.ramp.map(hex), NR = master.length, haze = hex(P.haze);
     seed = 777;
+    /* One screenful of landscape, in art pixels. Every horizontal wavelength below
+       is measured against this instead of against W, so the camera keeps a fixed
+       field of view: a narrow canvas sees LESS landscape rather than the same
+       landscape crushed into it. Phone portrait is 112 art px wide against a 384px
+       screenful, and before this the front plane carried its full 4.6 crests in
+       that strip — the hills stopped rolling and started crumpling (Andrew,
+       2026-08-09). span follows H, which is what makes the Settings preview and
+       the clamped ultrawide canvas keep the same composition as the wallpaper. */
+    const span = H * (16 / 9);
 
     const mix3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
     const along = u => { const s = Math.max(0, Math.min(1, u)) * (NR - 1), i = s | 0;
@@ -2158,10 +2167,10 @@ const WALL = (() => {
     ];
     const AW = [1, 0.34, 0.11];
     for (const L of LS) {
-      const p = [rnd() * 6.283, rnd() * 6.283, rnd() * 6.283], bend = n1(W * 0.17);
+      const p = [rnd() * 6.283, rnd() * 6.283, rnd() * 6.283], bend = n1(span * 0.17);
       L.sm = new Float32Array(W); L.sl = new Float32Array(W); L.top = new Int16Array(W);
       for (let x = 0; x < W; x++) {
-        const u = x / W;
+        const u = x / span;
         let h = 0;
         for (let j = 0; j < 3; j++) h += Math.sin(u * L.k[j] + p[j]) * AW[j];
         L.sm[x] = L.y - (h / 1.45 + bend(x) * 0.5) * L.a;
@@ -2171,6 +2180,13 @@ const WALL = (() => {
         L.sl[x] = (L.sm[Math.min(W - 1, x + 2)] - L.sm[Math.max(0, x - 2)]) / 4;
         if (Math.abs(L.sl[x]) > mx) mx = Math.abs(L.sl[x]);
       }
+      /* mx is the steepest slope *in view*, so the relief shading is normalised to
+         the crop rather than to the landscape — the one width dependence left after
+         the span change. Deliberately kept: the rescale is multiplicative, so gentle
+         ground stays gentle, and at real phone width the steepest column moves 0.42
+         ramp steps, inside the ±0.5 the Bayer dither already swings. Measured before
+         holding it: 5.7% of pixels move by about one ramp step at 112 px wide, and
+         nothing at all at a screenful. (2026-08-09 review lane; refuted.) */
       for (let x = 0; x < W; x++) L.sl[x] /= mx;
       // crest tufts: clustered risers so the skyline is grass, not a drawn curve
       const tf = new Int16Array(W);
@@ -2189,7 +2205,7 @@ const WALL = (() => {
 
     const img = q.createImageData(W, H), dat = img.data;
     const lvl = new Uint8Array(W * H), lay = new Uint8Array(W * H);
-    const drift = n2(W * 0.2, D * 0.45), fine = n2(W * 0.07, D * 0.15);
+    const drift = n2(span * 0.2, D * 0.45), fine = n2(span * 0.07, D * 0.15);
     const bandPx = Math.max(3, D * 0.065);
     const put = (x, y, col) => { const o = (y * W + x) << 2;
       dat[o] = col[0]; dat[o + 1] = col[1]; dat[o + 2] = col[2]; dat[o + 3] = 255; };
@@ -5999,6 +6015,7 @@ const Search = (() => {
   let resetZoom = () => {};
   let setView = () => {};              // real one binds once the body is built
   let wallMaskDirty = false, wallPoolDirty = false; // library toggles owed to the wall
+  let paintGen = 0;                    // bumping abandons a paint still in flight
   const photoCache = new Map();
 
   /* ---- Library state (why/library.md). Mask + rotation live IN-REPO so every
@@ -6171,9 +6188,41 @@ const Search = (() => {
                         whySetLibrary: (masked, unpooled, unread) => {
                           lib.masked = new Set(masked || []);
                           lib.unpooled = new Set(unpooled || []);
-                          lib.unread = !!unread; } });
+                          lib.unread = !!unread; },
+                        // the rotation ledger, so a whole pass can be dealt in a test
+                        whyShown: () => [...shown], whyWaiting: () => waiting(),
+                        whyLedgerKey: () => LS_SHOWN,
+                        whySetShown: keys => { shown = new Set(keys || []); saveShown(); } });
   const LIGHT_SLOTS = new Set([4, 5]);
   const LIGHT_MIN = 55;
+  /* ---- the pass: every photo gets a turn before any photo comes back ----
+     Eleven spaces against a corpus in the hundreds meant a photo could go months
+     without being dealt, and two photos could land three opens running (Andrew,
+     2026-08-09). So the wall deals from a deck: assign() draws only from photos
+     with no turn yet this pass, and when the deck runs out it reshuffles. The
+     ledger is this browser's localStorage and NOT why/library.md, because what
+     you have already been shown is a fact about a device, not about the corpus —
+     the manifest carries mask and rotation because every device must agree on
+     those; a commit per shuffle would be neither. */
+  /* Namespaced by mode: `?demo=1` swaps the corpus for three canvases, and the
+     prune in assign() would read that as "every real photo is gone" and wipe the
+     pass. A look at the demo must not cost this device its place in the deck. */
+  const LS_SHOWN = "pfc_why_shown" + (DEMO ? "_demo" : "");
+  let shown = readShown();
+  function readShown() {
+    try {
+      const a = JSON.parse(localStorage.getItem(LS_SHOWN));
+      return new Set(Array.isArray(a) ? a.filter(x => typeof x === "string") : []);
+    } catch (e) { return new Set(); }        // unreadable ledger: the pass starts over
+  }
+  function saveShown() {
+    try { localStorage.setItem(LS_SHOWN, JSON.stringify([...shown])); } catch (e) {}
+  }
+  const waiting = () => pool.filter(p => !lib.unpooled.has(keyOf(p)) && !shown.has(keyOf(p))).length;
+  /* A turn is spent by being *seen*. assign() marks its picks so the deck advances
+     even if you close the window, but paint() hands a photo back when its bytes
+     never arrived — one 403 should not cost a photo a whole pass. */
+  const unshow = p => { if (shown.delete(keyOf(p))) saveShown(); };
   function assign() {
     const shuffle = a => a.sort(() => Math.random() - 0.5);   // random tie-breaks below
     /* The rotation excludes unpooled photos (why/library.md) — they still show in
@@ -6185,27 +6234,65 @@ const Search = (() => {
        the small slots empty — but only ever for those two slots. */
     const lightPool = bright.length >= LIGHT_SLOTS.size * 2 ? bright
       : [...active].sort((a, b) => b.L - a.L).slice(0, Math.min(LIGHT_SLOTS.size * 3, active.length));
+    /* A photo that left the rotation — deleted, or unpooled from the Library —
+       must not be able to hold the pass open from inside the ledger. */
+    const live = new Set(active.map(keyOf));
+    for (const k of [...shown]) if (!live.has(k)) shown.delete(k);
+    const prev = new Set(assigned.map(a => keyOf(a.p)));   // what is on the wall right now
+    let hold = null;               // set at a reshuffle: no photo repeats back-to-back
+    const fresh = p => !shown.has(keyOf(p)) && !(hold && hold.has(keyOf(p)));
     const taken = new Set();
     assigned = [];
     for (const si of shuffle([...SLOTS.keys()])) {
-      const src = shuffle((LIGHT_SLOTS.has(si) ? lightPool : active)
-        .filter(p => !taken.has(p.path)));
-      if (!src.length) continue;
+      const light = LIGHT_SLOTS.has(si);
+      const base = (light ? lightPool : active).filter(p => !taken.has(p.path));
+      if (!base.length) continue;
+      let src = base.filter(fresh);
+      if (!src.length) {
+        /* Nothing here has a turn left. For the two light slots that is routine —
+           bright frames are a scarce subset of the corpus — so they repeat rather
+           than cutting the whole pass short, preferring anything not already on
+           screen. Anywhere else it means the deck is spent: reshuffle, keeping
+           only this collage's own picks and (for this collage alone) the one it
+           replaces, so no photo comes back in the seam between passes. */
+        if (light) src = base.filter(p => !prev.has(keyOf(p)));
+        else {
+          shown = new Set(assigned.map(a => keyOf(a.p)));
+          hold = prev;
+          src = base.filter(fresh);
+          if (!src.length) { hold = null; src = base.filter(fresh); }   // deck < one collage
+        }
+        if (!src.length) src = base;
+      }
+      src = shuffle(src);
       const target = slotAspect(SLOTS[si]);
       src.sort((a, b) => Math.abs(Math.log((a.A / 100) / target)) - Math.abs(Math.log((b.A / 100) / target)));
       const p = src[Math.floor(Math.random() * Math.min(3, src.length))];
       taken.add(p.path);
       assigned.push({ si, p });
     }
+    for (const a of assigned) shown.add(keyOf(a.p));
+    saveShown();
   }
   async function paint() {
+    /* Two paints can be in flight at once — setView starts one without awaiting it
+       and Shuffle is a click away — and each one holds a for...of over whatever
+       `assigned` pointed at when it entered, so the loser used to go on appending
+       its dead collage over the winner's. Same generation guard the Library uses
+       for its thumbs (libGen); the newest deal wins and the older loop leaves. */
+    const gen = ++paintGen;
     const stage = document.querySelector("#why-stage");
     stage.querySelectorAll(".why-photo").forEach(el => el.remove());
-    let order = 0;
+    let order = 0, missed = 0;
     for (const { si, p } of assigned) {
       const s = SLOTS[si];
       const covered = isMasked(p);   // masked photos are the mosaic on the wall too
-      let src; try { src = covered ? await maskedSrc(p.path) : await photoSrc(p.path); } catch (e) { continue; }
+      let src;
+      /* A space left empty by a failed read must not read as a space with nothing
+         to put in it (verify/README.md). The photo keeps its turn and the status
+         bar counts the gap. */
+      try { src = covered ? await maskedSrc(p.path) : await photoSrc(p.path); }
+      catch (e) { unshow(p); missed++; continue; }
       // Decode fully BEFORE painting. iOS WebKit rasterizes the masked layer
       // at insert and the fill-mode:both animation freezes it — a half-decoded
       // JPEG stays half-painted forever (the white bands on Andrew's phone,
@@ -6214,6 +6301,7 @@ const Search = (() => {
       try { await pre.decode(); } catch (e) {
         await new Promise(r => { if (pre.complete) r(); else pre.onload = pre.onerror = r; });
       }
+      if (gen !== paintGen) return;      // a newer collage owns the stage now
       const ph = document.createElement("div");
       ph.className = "why-photo" + (covered ? " why-masked" : "");
       const pos = (p.A / 100) < slotAspect(s) ? "50% 25%" : "50% 50%"; // vertical crop -> bias to faces
@@ -6234,12 +6322,19 @@ const Search = (() => {
        from a manifest that was actually read. */
     const inRot = pool.filter(p => !lib.unpooled.has(keyOf(p))).length;
     const nMask = lib.unread ? 0 : pool.filter(p => lib.masked.has(keyOf(p))).length;
+    /* The deck, and what is left of it — but a corpus of nothing has no deck, and
+       "every photo has had a turn" over an empty frame would be a claim about
+       photos that do not exist. */
+    const left = waiting();
+    const turn = !inRot ? "" : left ? ` · ${left} still waiting a turn`
+      : " · every photo has had a turn — the next shuffle deals a fresh pass";
     const extras = (lib.unread ? " \u00b7 library unread \u2014 everything shown masked" : "")
-      + (nMask ? ` \u00b7 ${nMask} masked` : "");
+      + (nMask ? ` \u00b7 ${nMask} masked` : "")
+      + (missed ? ` \u00b7 ${plural(missed, "space")} left empty \u2014 those photos could not be read` : "");
     WM.status("why", DEMO ? "Demo pool — uploads land in the private repo when logged on"
       : pool.length && !inRot
         ? `All ${plural(pool.length, "photo")} are out of the rotation \u00b7 the wall is empty on purpose \u00b7 Library puts them back${extras}`
-        : `${inRot === pool.length ? `${pool.length} photo${pool.length === 1 ? "" : "s"}` : `${inRot} of ${pool.length} photos`} in the pool \u00b7 ${SLOTS.length} spaces \u00b7 shuffled fresh each open${extras}${hint}`);
+        : `${inRot === pool.length ? `${pool.length} photo${pool.length === 1 ? "" : "s"}` : `${inRot} of ${pool.length} photos`} in the pool \u00b7 ${SLOTS.length} spaces${turn}${extras}${hint}`);
   }
   async function resizeToJpeg(file, max = 1000) {
     const url = URL.createObjectURL(file);
@@ -6634,6 +6729,10 @@ const Search = (() => {
             }
           }
           cache.tree = null;
+          /* Clear the Library's owed repaint first: setView would otherwise deal a
+             whole collage — eleven turns off the deck — and start a paint nobody
+             waits for, both of them thrown away by the deal on the next line. */
+          wallMaskDirty = wallPoolDirty = false;
           setView("wall");   // adding photos is a wall act — show the result
           await loadPool(); assign(); await paint();
           WM.status("why", `${fresh.length} added${skipped ? ` \u00b7 ${skipped} already up` : ""} \u00b7 pool now ${pool.length}`);
