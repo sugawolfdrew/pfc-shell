@@ -537,10 +537,14 @@
   .md li { margin: 0 0 5px; }
   /* dated bullets: the scaffolding recedes, the content leads */
   .md .dt { color: var(--ink-4); font-size: .92em; }
-  /* the TOC rail: a sticky 98 panel for long pages (3+ headings), desktop only —
-     on a phone the tree is the navigator and the rail would eat the measure */
-  .md-toc { float: right; position: sticky; top: 6px; width: 168px;
-      margin: 8px 10px 10px 14px; padding: 6px 8px 8px; background: var(--face);
+  /* the TOC rail: a pinned 98 panel for long pages (3+ headings), desktop only —
+     on a phone the tree is the navigator and the rail would eat the measure.
+     Pinned means OUT of the scroll flow: it overlays the window body (which does
+     not scroll) rather than living inside #explorer-view (which does) — sticky
+     on a float was engine-flaky and rode along with the page (Andrew, 2026-08-08). */
+  .md-toc { position: absolute; top: 4px; right: 22px; width: 168px;
+      max-height: calc(100% - 14px); overflow: auto;
+      padding: 6px 8px 8px; background: var(--face);
       font-family: Arial, sans-serif; font-size: 11px; line-height: 1.5; z-index: 3;
       box-shadow: inset -1px -1px var(--face-sh), inset 1px 1px var(--face-hi); }
   .md-toc b { display: block; font-size: 10px; letter-spacing: 1px; color: var(--ink-2);
@@ -558,7 +562,8 @@
   .link-tip b { display: block; margin-bottom: 2px; }
 
   /* Explorer layout — deep 3D wells come from 98.css sunken-panel */
-  #win-explorer .window-body { display: flex; padding: 0; overflow: hidden; }
+  #win-explorer .window-body { display: flex; padding: 0; overflow: hidden;
+                               position: relative; /* anchors the pinned TOC rail */ }
   #explorer-left { display: flex; flex-direction: column; width: 190px; margin: 2px; flex: none; }
   #tree-bar { flex: none; padding: 5px 9px; font-size: 13px; cursor: pointer; user-select: none;
               -webkit-user-select: none; background: var(--face); margin-bottom: 2px;
@@ -3481,12 +3486,18 @@ const Explorer = (() => {
   }
 
   /* The TOC rail (reading pass, apps-v3 slice 2): wiki pages with 3+ headings get
-     a sticky panel of their own sections, floated into the measure's right margin.
-     Desktop only (the CSS hides it on phones). Built from the rendered headings,
-     so it can never disagree with the page. */
+     a pinned panel of their own sections, overlaying the top-right of the window
+     body — the body does not scroll, so the rail stays put while the page moves
+     (re-anchored 2026-08-08 after Andrew caught the sticky version riding along).
+     Desktop only (CSS hides it on phones), and skipped when the reading pane is
+     too narrow for an overlay to clear the prose. Built from the rendered
+     headings, so it can never disagree with the page; it lives outside the
+     view's innerHTML, so every navigation clears it explicitly. */
   function addToc(view) {
+    const host = view.parentElement || view;
+    host.querySelectorAll(".md-toc").forEach(n => n.remove());
     const heads = [...view.querySelectorAll(".md h2, .md h3")];
-    if (heads.length < 3) return;
+    if (heads.length < 3 || view.clientWidth < 660) return;
     const toc = document.createElement("nav");
     toc.className = "md-toc";
     const cap = document.createElement("b");
@@ -3500,8 +3511,7 @@ const Explorer = (() => {
       a.onclick = () => h.scrollIntoView({ block: "start" });
       toc.appendChild(a);
     });
-    const md = view.querySelector(".md");
-    md.insertBefore(toc, md.firstChild);
+    host.appendChild(toc);
   }
 
   async function openPath(path) {
@@ -3516,6 +3526,9 @@ const Explorer = (() => {
        one used to win by resolving last. `current` is claimed before the fetch, so a
        superseded open now bails instead of overwriting the page you actually asked for. */
     if (current !== path) return;
+    /* the pinned rail lives outside the view's innerHTML — clear it on EVERY
+       navigation (sessions and non-wiki pages must not inherit the last page's) */
+    (view.parentElement || view).querySelectorAll(".md-toc").forEach(n => n.remove());
     const PREVIEW = 3200; // ~500 words; sessions render a preview, expand on demand
     if (/^sessions\//.test(path) && md.length > PREVIEW + 800) {
       let cut = md.indexOf("\n**", PREVIEW);
