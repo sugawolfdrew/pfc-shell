@@ -1744,6 +1744,7 @@ const LOG_CLASS = {                       // verb -> what kind of work it was
   ingest: "took", correct: "took",
   surface: "conn", oracle: "conn", query: "conn", lint: "conn", gate: "conn", flag: "conn",
   build: "built", design: "built", plan: "built", admin: "built", heartbeat: "built",
+  dream: "built",   // the weekly motion reporting on itself; its work files as its own verbs
 };
 const LOG_RX = /^##\s*\[(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}(?::\d{2})?))?\]\s*([a-z][a-z-]*)\s*\|[ \t]*(.*)$/gm;
 const logWarned = new Set();
@@ -7559,7 +7560,7 @@ Every page, one line each. Sessions: keep this current (LINT check 3).
 
 ## Projects
 - [[the-tome]] — an AI tabletop engine, rebuilt nine times; one unresolved contradiction.
-- [[facebot]] — sibling constitution-governed protocol; ancestor of these invariants.
+- [[stoop]] — sibling constitution-governed protocol (Facebot until 2026-08-11); ancestor of these invariants.
 
 ## Concepts
 - [[simulism]] — generated-reality position that explicitly refuses the nihilist step.
@@ -7598,6 +7599,12 @@ Every page, one line each. Sessions: keep this current (LINT check 3).
 ## [2026-08-03] surface | First findings file under the revised protocol — two findings, no padding.
 ## [2026-08-03] ingest | Lemonade-tree capture filed -> gardening, index.
 ## [2026-08-03] lint | 65 pages, 0 broken links, 0 orphans.
+`,
+"retired.md": `# Retired pages
+
+Format, one line each — \`- <dead-slug> → <successor-slug> · <date> · <why>\`:
+
+- facebot → stoop · 2026-08-14 · renamed by gate G-2026-08-12-01: Andrew renamed the product Stoop on 2026-08-11.
 `,
 "hidden.md": `# Hidden pages
 
@@ -7681,10 +7688,10 @@ Measured behaviours of the platform the Brain runs on, kept because the architec
 - Delayed-message scheduling is best-effort and has been measured drifting from seconds to many hours; real recurring work uses a real scheduled task.
 
 ## Links
-[[postfrontal-cortex]] · [[facebot]]
+[[postfrontal-cortex]] · [[stoop]]
 `,
-"wiki/facebot.md": `---
-title: Facebot
+"wiki/stoop.md": `---
+title: Stoop
 type: project
 created: 2026-08-02
 updated: 2026-08-03
