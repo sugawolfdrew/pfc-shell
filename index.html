@@ -498,6 +498,51 @@
   /* ---- Wiki Web. The canvas fills the panel and is sized from its own rect, so
      it stays right under both the UI scale and a window drag. ---- */
   #win-web .window-body { display:flex; flex-direction:column; }
+
+  /* ----- MB Teaches ML — the classroom (docs/mb-teaches-ml.md §The register:
+     period edutainment chrome, deadpan; role variables only) ----- */
+  #win-mb .window-body { display:flex; flex-direction:column; padding:0; margin:3px; overflow:hidden; }
+  .mb-nav { display:flex; gap:4px; padding:4px 6px; flex-wrap:wrap; align-items:center;
+            border-bottom:1px solid var(--face-sh); }
+  .mb-nav button { min-height:30px; }
+  .mb-nav .on { box-shadow: inset 1px 1px var(--face-dk), inset -1px -1px var(--face-hi);
+                background: var(--window); }
+  .mb-main { flex:1; overflow:auto; }
+  .mb-hub { display:flex; gap:12px; padding:12px; flex-wrap:wrap; }
+  .mb-cover { width:200px; max-width:38%; flex:none; align-self:flex-start;
+              box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-dk);
+              padding:3px; background:var(--face); }
+  .mb-cover img, .mb-cover canvas { width:100%; display:block; image-rendering:auto; }
+  .mb-menu { flex:1; min-width:230px; display:flex; flex-direction:column; gap:8px; }
+  .mb-menu .mb-go { display:flex; align-items:center; gap:10px; min-height:52px;
+                    text-align:left; padding:6px 10px; font-size:15px; }
+  .mb-go b { font-size:16px; } .mb-go .sub { color:var(--ink-on-face); font-size:12px; }
+  .mb-say { margin:0 12px 10px; padding:8px 10px; background:var(--window);
+            box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-dk);
+            font-style:italic; }
+  .mb-read { max-width:70ch; margin:0 auto; padding:10px 16px 28px; }
+  .mb-shelf { display:flex; flex-direction:column; gap:6px; padding:10px 12px; }
+  .mb-shelf button { text-align:left; min-height:40px; padding:4px 10px; }
+  .mb-shelf .meta { font-size:11px; color:var(--ink-on-face); }
+  .mb-card { max-width:64ch; margin:14px auto; padding:0 14px; display:flex;
+             flex-direction:column; gap:12px; }
+  .mb-face { background:var(--window); padding:14px; min-height:110px; font-size:16px;
+             box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-dk); }
+  .mb-face .kind { font-size:10px; letter-spacing:1px; color:var(--accent-on-face);
+                   text-transform:uppercase; display:block; margin-bottom:6px; }
+  .mb-grade { display:flex; gap:8px; } .mb-grade button { flex:1; min-height:46px; font-size:15px; }
+  .mb-prog { max-width:64ch; margin:0 auto; padding:12px 14px; }
+  .mb-prog .row { margin:10px 0; }
+  .mb-bar { height:16px; background:var(--window);
+            box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-dk); }
+  .mb-bar i { display:block; height:100%; background:var(--select);
+              background:repeating-linear-gradient(90deg, var(--select) 0 8px, transparent 8px 10px); }
+  .mb-cert { margin-top:16px; padding:12px; text-align:center; border:1px solid var(--face-sh);
+             color:var(--disabled-text); }
+  @media (max-width: 700px) {
+    .mb-hub { padding:8px; gap:8px; } .mb-cover { max-width:34%; }
+    .mb-grade button { min-height:52px; }
+  }
   .web-tools { flex:none; display:flex; align-items:center; gap:4px; padding:4px 5px;
       flex-wrap:wrap; font-size:12px; }
   .web-tools .sp { flex:1; }
@@ -1156,6 +1201,7 @@ const PNG_ICONS = new Map(); // name -> HTMLImageElement | false (tried and abse
    spends a 404 on every load looking for a file that has never existed. */
 PNG_ICONS.set("logoff", false);
 PNG_ICONS.set("web", false);      // Wiki Web is hand-drawn too — see ART.web
+PNG_ICONS.set("mb", false);       // MB Teaches ML: the teacher's apple — see ART.mb
 function pngIcon(name) {
   if (PNG_ICONS.has(name)) return PNG_ICONS.get(name);
   const im = new Image();
@@ -1426,6 +1472,23 @@ const ART = {
     "..kBBk....kBBk..",
     "................",
     "................"],
+  mb: [
+    "................",
+    ".......gg.......",
+    "......g.........",
+    ".....rrkrr......",
+    "....rrrrrrr.....",
+    "....rrrrrrr.....",
+    "....wrrrrrr.....",
+    "....rrrrrrr.....",
+    ".....rrrrr......",
+    "..kkkkkkkkkkkk..",
+    ".kwwwwwkkwwwwk..",
+    ".kwwwwwkkwwwwwk.",
+    ".kwwwwwkkwwwwwk.",
+    ".kssssskksssssk.",
+    "..kkkkkkkkkkkk..",
+    "................"],
 };
 
 /* ---------------- GitHub data layer ---------------- */
@@ -1619,12 +1682,13 @@ async function getFileFull(path) { // fresh, uncached, with sha (for editing)
   return { text: b64decode(d.content), sha: d.sha };
 }
 async function putFileSha(path, content, message, sha) { // sha = edit watcher: mismatch throws
-  if (DEMO) { await new Promise(r => setTimeout(r, 300)); return; }
-  await gh(`/repos/${CFG.owner}/${CFG.repo}/contents/${encodeURIComponent(path).replace(/%2F/g, "/")}`, {
+  if (DEMO) { await new Promise(r => setTimeout(r, 300)); return null; }
+  const res = await gh(`/repos/${CFG.owner}/${CFG.repo}/contents/${encodeURIComponent(path).replace(/%2F/g, "/")}`, {
     method: "PUT",
     body: JSON.stringify({ message, content: b64encode(content), branch: CFG.branch, ...(sha ? { sha } : {}) })
   });
   cache.tree = null; cache.files.delete(path);
+  return res;   // res.content.sha spares a re-read when the caller tracks the sha
 }
 async function putCapture(text, kind = "web", meta = null) {
   const now = new Date();
@@ -1802,6 +1866,12 @@ const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
    a browser — which means the parsers have to be reachable from outside their IIFEs.
    Read-only handles; nothing here mutates state. verify/integration.mjs is the caller. */
 const PFCT = (window.__pfc = window.__pfc || {});
+
+/* The one capture door (docs/apps-v3.md slice 4): every capture the app makes goes
+   through Notepad+++'s queueCapture. Other windows reach it through this bridge —
+   bound inside the Notepad IIFE, used by MB Teaches ML for review results and
+   teach-back stubs — rather than growing second outboxes. */
+const Capture = { queue: null };   // set by Notepad+++ at build
 Object.assign(PFCT, { schemeApply: SCHEME.apply, schemeCurrent: SCHEME.current,
                       schemeNames: SCHEME.NAMES });
 
@@ -2855,6 +2925,7 @@ const APPS = {
   oracle: { title: "Oracle.exe" },
   inquest: { title: "Inquest.exe" },
   why: { title: "why.exe" },
+  mb: { title: "MB Teaches ML" },
   web: { title: "Wiki Web" },
   settings: { title: "Settings" },
   about: { title: "About PFC98" },
@@ -4552,6 +4623,7 @@ async function loadPages(force) {
   /* Every capture this app makes goes through here, whether it was typed at the
      composer or added to a note down in the feed — one place that decides what a
      capture IS, and one queue that makes it durable before the network is asked. */
+  Capture.queue = (text, kind, meta) => queueCapture(text, kind, meta);
   function queueCapture(text, kind, meta) {
     const now = new Date();
     /* capturePath resolves to the second, and flush PUTs with a null sha — the
@@ -5823,7 +5895,7 @@ const Search = (() => {
          `inbox/` was not — so the one thing Andrew actually types was the one thing he
          could not find again. */
       const paths = tree.filter(e => /\.md$/.test(e.path) &&
-        (/^(wiki|protocol|surface)\//.test(e.path) || /^(index|log)\.md$/.test(e.path)
+        (/^(wiki|protocol|surface|textbook)\//.test(e.path) || /^(index|log)\.md$/.test(e.path)
          || isInbox(e.path)))
         .map(e => e.path);
       const { docs, missed, fatal } = await readMany(paths);
@@ -7404,6 +7476,349 @@ const Search = (() => {
                         webLocal: () => localSet && [...localSet] });
 })();
 
+/* ----- MB Teaches ML: the classroom ----- */
+/* The textbook's own app (docs/mb-teaches-ml.md; content shipped as slice 1 the same
+   day). Design inspiration is the original Mavis Beacon line, played straight per
+   the register: a patient classroom hub, lessons, drills, a progress report — and
+   the one thing MBTT actually pioneered that this corpus independently reinvented,
+   lessons weighted to YOUR recorded error patterns (the misconception ledger).
+   Backend is the repo: chapters under textbook/, SRS state in textbook/decks/
+   library.md (why.exe's manifest pattern — parser/serializer pure, saves via
+   putFileSha, repo-side because a due date is a fact every device must agree on),
+   review results through the one capture door. */
+const MB = (() => {
+  const DECK_PATH = "textbook/decks/library.md";
+  const esc = t => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const MAVIS = [
+    "Every expert was once a beginner. Every beginner was once a keystroke.",
+    "Excellent progress. Your fingers remember what your doubts forget.",
+    "A missed card is a lesson scheduling itself.",
+    "Learning is not a race. It is a rhythm.",
+    "Version 11 believes in you. It has since Version 1.",
+    "The best time to review was yesterday. The second best time is now.",
+  ];
+  const say = m => WM.status("mb", m);
+  const mavis = () => MAVIS[(Math.random() * MAVIS.length) | 0];
+  const today = () => new Date().toISOString().slice(0, 10);
+
+  /* ---- pure: cards out of a chapter's "## Cards" section ----
+     `- \`c1-01\` [label] front → *back*` — multiline items; a card with no arrow
+     (teach-backs) has no canonical back and is graded by the person talking. */
+  function parseCards(md, chapter) {
+    const sec = /## Cards\n([\s\S]*?)(?=\n## |$)/.exec(md);
+    if (!sec) return [];
+    const out = [];
+    for (const m of sec[1].matchAll(/^- `([\w-]+)`([\s\S]*?)(?=\n- `|$(?![\s\S]))/gm)) {
+      const body = m[2].replace(/\n {2}/g, "\n").trim();
+      const kind = /Find the leak/.test(body) ? "leak"
+                 : /Teach-back/.test(body) ? "teach"
+                 : /boundary probe/i.test(body) ? "probe"
+                 : body.startsWith("⚗") ? "litmus" : "drill";
+      const i = body.indexOf("→");
+      const front = (i < 0 ? body : body.slice(0, i)).replace(/^⚗\s*/, "").trim();
+      let back = i < 0 ? null : body.slice(i + 1).trim();
+      if (back) back = back.replace(/^\*/, "").replace(/\*\s*(\(.*\))?$/, "$1").trim();
+      out.push({ id: m[1], chapter, kind, front, back });
+    }
+    return out;
+  }
+
+  /* ---- pure: the deck manifest (SRS state, repo-side) ---- */
+  function parseDeckState(text) {
+    const map = new Map();
+    const fm = /^---\n([\s\S]*?)\n---/.exec(String(text || ""));
+    if (!fm) return map;
+    for (const m of fm[1].matchAll(/^\s*-\s*([\w-]+) · reps (\d+) · int (\d+) · due (\d{4}-\d{2}-\d{2}) · lapses (\d+)\s*$/gm))
+      map.set(m[1], { reps: +m[2], int: +m[3], due: m[4], lapses: +m[5] });
+    return map;
+  }
+  function renderDeckState(map) {
+    const rows = [...map.entries()].sort(([a], [b]) => a < b ? -1 : 1)
+      .map(([id, s]) => `  - ${id} · reps ${s.reps} · int ${s.int} · due ${s.due} · lapses ${s.lapses}`);
+    return "---\ncards:\n" + rows.join("\n") + (rows.length ? "\n" : "") + "---\n\n" +
+      "# MB Teaches ML — deck state\n\n" +
+      "Spaced-repetition state for the textbook's cards (docs/mb-teaches-ml.md).\n" +
+      "Repo-side because a due date is a fact every device must agree on — the\n" +
+      "why.exe storage law, applied honestly. Written by MB.exe; a beat never edits\n" +
+      "it. Review *results* travel separately, as captures through the one door.\n";
+  }
+  /* SM-2-lite: two buttons, no ease factor to tune — Missed reschedules now and
+     counts a lapse; Got It walks 1 → 3 → ~×2.2 days. */
+  function srsNext(st, got, day) {
+    const s = st || { reps: 0, int: 0, due: day, lapses: 0 };
+    if (!got) return { reps: 0, int: 0, due: day, lapses: s.lapses + 1 };
+    const reps = s.reps + 1;
+    const int = reps === 1 ? 1 : reps === 2 ? 3 : Math.max(1, Math.round(s.int * 2.2));
+    const d = new Date(day + "T00:00:00");
+    d.setDate(d.getDate() + int);
+    return { reps, int, due: d.toISOString().slice(0, 10), lapses: s.lapses };
+  }
+  /* Deal order: due first (oldest debt first), then never-seen, then the rest by
+     due date. Quiz mode narrows to the ledger's spine — leaks, probes, and any
+     card that has ever lapsed — because a quiz that keeps probing exactly where
+     he reliably errs is worth more than one that samples evenly. */
+  function dealOrder(cards, state, day, quiz) {
+    const pool = quiz
+      ? cards.filter(c => c.kind === "leak" || c.kind === "probe" || (state.get(c.id) || {}).lapses > 0)
+      : cards.slice();
+    const rank = c => { const s = state.get(c.id);
+      return !s ? [1, c.id] : s.due <= day ? [0, s.due] : [2, s.due]; };
+    return pool.sort((a, b) => { const ra = rank(a), rb = rank(b);
+      return ra[0] - rb[0] || (ra[1] < rb[1] ? -1 : ra[1] > rb[1] ? 1 : 0); });
+  }
+  Object.assign(PFCT, { mbParseCards: parseCards, mbParseDeckState: parseDeckState,
+                        mbRenderDeckState: renderDeckState, mbSrsNext: srsNext,
+                        mbDealOrder: dealOrder });
+
+  /* ---- state ---- */
+  let chapters = [];            // {path, title, status, md}
+  let cards = [];               // parsed from published chapters
+  let deck = new Map();         // id -> srs state
+  let deckUnread = false, deckDirty = false, deckSha = undefined;
+  let saving = false, saveAgain = false, saveTimer = null;
+
+  async function loadAll(force) {
+    const tree = await getTree(force);
+    const files = tree.filter(e => /^textbook\/ch-.+\.md$/.test(e.path))
+                      .map(e => e.path).sort();
+    chapters = []; cards = [];
+    let missed = 0;
+    for (const path of files) {
+      const r = await readOr(path, "", force);
+      if (!r.ok) { missed++; chapters.push({ path, title: path.split("/").pop(), status: "unread", md: null }); continue; }
+      const { meta, body } = splitFrontmatter(r.v);
+      const title = (meta.title || path.split("/").pop()).replace(/^"|"$/g, "");
+      const status = meta.status || "draft";
+      chapters.push({ path, title, status, md: body });
+      if (status === "published") cards.push(...parseCards(body, title));
+    }
+    /* The deck manifest: absent is a fact (fresh deck); unreadable is NOT an
+       empty deck — grades still work this session but nothing is rescheduled
+       on a state we could not read, and the status bar says so. */
+    try {
+      const inTree = tree.some(e => e.path === DECK_PATH);
+      if (!inTree) { deck = new Map(); deckSha = null; deckUnread = false; }
+      else {
+        const f = await getFileFull(DECK_PATH);
+        deck = parseDeckState(f.text); deckSha = f.sha; deckUnread = false;
+      }
+    } catch (e) { deckUnread = true; }
+    return missed;
+  }
+
+  function scheduleSave() {
+    deckDirty = true;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveDeck, 1500);
+  }
+  async function saveDeck() {
+    if (!deckDirty || DEMO || deckUnread) return;
+    if (saving) { saveAgain = true; return; }
+    saving = true;
+    try {
+      const item = renderDeckState(deck);
+      const res = await putFileSha(DECK_PATH, item, "mb: deck state", deckSha ?? null);
+      deckDirty = false;
+      if (res && res.content && res.content.sha) deckSha = res.content.sha;
+    } catch (e) {
+      /* sha race (a save from the phone landed first): re-read, merge OUR newer
+         grades over it card-by-card, retry once via the again flag. */
+      try { const f = await getFileFull(DECK_PATH);
+            const theirs = parseDeckState(f.text);
+            for (const [id, st] of deck) theirs.set(id, st);
+            deck = theirs; deckSha = f.sha; saveAgain = true;
+      } catch (e2) { say("Deck state NOT saved — " + e2.message + " · retrying after your next grade"); }
+    } finally {
+      saving = false;
+      if (saveAgain) { saveAgain = false; saveDeck(); }
+    }
+  }
+
+  /* ---- views ---- */
+  let view = "hub", reading = null, sess = null;
+  const el = () => document.querySelector("#win-mb .window-body");
+
+  async function coverInto(box) {
+    if (DEMO) {
+      const c = document.createElement("canvas"); c.width = 268; c.height = 344;
+      const g = c.getContext("2d");
+      const grad = g.createLinearGradient(0, 0, 0, 344);
+      grad.addColorStop(0, "#b01020"); grad.addColorStop(.45, "#e8b020"); grad.addColorStop(1, "#e8b020");
+      g.fillStyle = grad; g.fillRect(0, 0, 268, 344);
+      g.fillStyle = "#fff"; g.font = "bold 26px Arial"; g.textAlign = "center";
+      g.fillText("MB", 134, 60); g.fillText("Teaches", 134, 92); g.fillText("Machine", 134, 124); g.fillText("Learning", 134, 156);
+      g.font = "bold 13px Arial"; g.fillStyle = "#102a80";
+      g.fillText("VERSION 11", 134, 200); g.fillText("Post Singularity", 134, 300); g.fillText("Updated Edition.", 134, 318);
+      box.appendChild(c); return;
+    }
+    try {
+      const d = await gh(`/repos/${CFG.owner}/${CFG.repo}/contents/textbook/assets/cover.jpg?ref=${CFG.branch}`);
+      const img = document.createElement("img");
+      img.alt = "Mavis Beacon Teaches Machine Learning, Version 11";
+      img.src = `data:image/jpeg;base64,${d.content.replace(/\s/g, "")}`;
+      box.appendChild(img);
+    } catch (e) { box.remove(); }   // no cover is a layout fact, not an error
+  }
+
+  function nav() {
+    const b = (id, lbl) => `<button data-v="${id}" class="${view === id ? "on" : ""}">${lbl}</button>`;
+    return `<div class="mb-nav">${b("hub", "Classroom")}${b("lessons", "Lessons")}` +
+           `${b("cards", "Flash Cards")}${b("quiz", "Quiz")}${b("prog", "Progress")}</div>`;
+  }
+
+  function counts() {
+    const day = today();
+    const due = cards.filter(c => { const s = deck.get(c.id); return s && s.due <= day; }).length;
+    const fresh = cards.filter(c => !deck.has(c.id)).length;
+    const mastered = cards.filter(c => (deck.get(c.id) || {}).int >= 3).length;
+    return { due, fresh, mastered, total: cards.length };
+  }
+
+  function paint() {
+    const body = el(); if (!body) return;
+    const main = body.querySelector(".mb-main");
+    body.querySelector(".mb-nav").outerHTML = nav();
+    bindNav();
+    if (view === "hub") {
+      const k = counts();
+      main.innerHTML = `<div class="mb-hub">
+          <div class="mb-cover"></div>
+          <div class="mb-menu">
+            <button class="mb-go" data-v="lessons"><span><b>Lessons</b><br>
+              <span class="sub">${chapters.filter(c => c.status === "published").length} published of ${chapters.length || 10} · the book, judged as prose</span></span></button>
+            <button class="mb-go" data-v="cards"><span><b>Flash Cards</b><br>
+              <span class="sub">${k.due} due · ${k.fresh} never dealt · ${k.total} in the deck</span></span></button>
+            <button class="mb-go" data-v="quiz"><span><b>Quiz</b><br>
+              <span class="sub">weighted to the ledger — the places you reliably err</span></span></button>
+            <button class="mb-go" data-v="prog"><span><b>Progress Report</b><br>
+              <span class="sub">${k.mastered} of ${k.total} concepts holding</span></span></button>
+          </div>
+        </div>
+        <p class="mb-say">“${mavis()}”</p>`;
+      coverInto(main.querySelector(".mb-cover"));
+      main.querySelectorAll(".mb-go").forEach(g => g.onclick = () => { view = g.dataset.v; paint(); });
+    } else if (view === "lessons") {
+      if (reading) {
+        const ch = reading;
+        main.innerHTML = `<div class="mb-read md"></div>`;
+        renderMd(ch.md, main.querySelector(".mb-read"));
+        say(`${ch.title} · ${ch.status}`);
+      } else {
+        main.innerHTML = `<div class="mb-shelf">` + (chapters.length ? chapters.map((c, i) =>
+          `<button data-i="${i}" ${c.md === null ? "disabled" : ""}><b>${esc(c.title)}</b><br>` +
+          `<span class="meta">${c.status === "unread" ? "could not be read — not an empty lesson" : esc(c.status)}</span></button>`).join("")
+          : `<p style="padding:12px">No lessons in the tree yet — the book begins at textbook/.</p>`) + `</div>`;
+        main.querySelectorAll("[data-i]").forEach(b => b.onclick = () => { reading = chapters[+b.dataset.i]; paint(); });
+      }
+    } else if (view === "cards" || view === "quiz") {
+      startSession(view === "quiz");
+    } else if (view === "prog") {
+      const k = counts(), day = today();
+      const per = chapters.filter(c => c.status === "published").map(c => {
+        const own = cards.filter(x => x.chapter === c.title);
+        const held = own.filter(x => (deck.get(x.id) || {}).int >= 3).length;
+        return { t: c.title, held, n: own.length };
+      });
+      const lapsed = cards.filter(c => (deck.get(c.id) || {}).lapses > 0)
+        .sort((a, b) => deck.get(b.id).lapses - deck.get(a.id).lapses).slice(0, 3);
+      main.innerHTML = `<div class="mb-prog">
+        ${per.map(r => `<div class="row"><div>${esc(r.t)} — ${r.held}/${r.n} holding</div>
+          <div class="mb-bar"><i style="width:${r.n ? Math.round(r.held / r.n * 100) : 0}%"></i></div></div>`).join("")}
+        <div class="row"><div>The ledger's spine — ${k.due} card${k.due === 1 ? "" : "s"} due today</div></div>
+        ${lapsed.length ? `<div class="row"><div>Still firing: ${lapsed.map(c => `<code>${c.id}</code> (×${deck.get(c.id).lapses})`).join(" · ")}</div></div>` : ""}
+        ${deckUnread ? `<div class="row"><b>Deck state unread</b> — this report may be stale, and grades this session are not being rescheduled.</div>` : ""}
+        <div class="mb-cert">✦ Certificate of Completion ✦<br>
+          Awarded when every lesson is published and every concept holds.<br>
+          The printer has been ready since 1998.</div>
+      </div>`;
+      say(mavis());
+    }
+  }
+
+  function bindNav() {
+    el().querySelectorAll(".mb-nav button").forEach(b =>
+      b.onclick = () => { view = b.dataset.v; reading = null; sess = null; paint(); });
+  }
+
+  /* ---- a card session (cards = whole deck by schedule; quiz = the spine) ---- */
+  function startSession(quiz) {
+    const day = today();
+    const order = dealOrder(cards, deck, day, quiz);
+    if (!order.length) {
+      el().querySelector(".mb-main").innerHTML = `<div class="mb-card"><div class="mb-face">` +
+        (quiz ? "The quiz has nothing to probe — no leaks, no lapses on record. That is either mastery or a very young deck."
+              : "No cards yet — cards are derived from published lessons.") + `</div></div>`;
+      return;
+    }
+    sess = { order, i: 0, got: 0, missed: 0, quiz, revealed: false };
+    paintCard();
+  }
+  function paintCard() {
+    const main = el().querySelector(".mb-main");
+    const c = sess.order[sess.i];
+    if (!c) {
+      const n = sess.got + sess.missed;
+      main.innerHTML = `<div class="mb-card"><div class="mb-face">
+        <span class="kind">${sess.quiz ? "Quiz" : "Session"} complete</span>
+        ${sess.got}/${n} held.<br><br><i>“${mavis()}”</i></div>
+        <div class="mb-grade"><button data-again>Again</button><button data-back>Classroom</button></div></div>`;
+      main.querySelector("[data-again]").onclick = () => startSession(sess.quiz);
+      main.querySelector("[data-back]").onclick = () => { view = "hub"; sess = null; paint(); };
+      if (!DEMO && n) Capture.queue && Capture.queue(
+        `MB ${sess.quiz ? "quiz" : "card session"}: ${sess.got}/${n} held` +
+        (sess.missedIds && sess.missedIds.length ? ` · missed ${sess.missedIds.join(", ")}` : ""),
+        "note", { input: "mb-review" });
+      return;
+    }
+    const st = deck.get(c.id);
+    const KINDS = { litmus: "Litmus", leak: "Find the leak", probe: "Boundary probe", teach: "Teach-back", drill: "Drill" };
+    main.innerHTML = `<div class="mb-card">
+      <div class="mb-face"><span class="kind">${KINDS[c.kind]} · ${c.id}${st && st.lapses ? ` · missed ×${st.lapses} before` : ""}</span>
+        <div class="md" data-front></div>
+        ${sess.revealed && c.back ? `<hr><div class="md" data-back></div>` : ""}</div>
+      <div class="mb-grade">${
+        !sess.revealed && c.back ? `<button data-reveal class="default">Show answer</button>`
+        : c.kind === "teach" && !sess.revealed ? `<button data-teach class="default">Dictate it → Notepad+++</button><button data-reveal>Done — grade it</button>`
+        : `<button data-miss>Missed</button><button data-got class="default">Got it</button>`}</div>
+      <div style="text-align:center;font-size:11px;color:var(--ink-on-face)">${sess.i + 1} of ${sess.order.length}</div></div>`;
+    const q = sel => main.querySelector(sel);
+    renderMd(c.front, q("[data-front]"));
+    if (sess.revealed && c.back) renderMd(c.back, q("[data-back]"));
+    if (q("[data-reveal]")) q("[data-reveal]").onclick = () => { sess.revealed = true; paintCard(); };
+    if (q("[data-teach]")) q("[data-teach]").onclick = () => {
+      WM.show("note");
+      say("Dictate the teach-back into the capture paper — it files as a session the next revision reads.");
+    };
+    const grade = got => {
+      if (!deckUnread) { deck.set(c.id, srsNext(deck.get(c.id), got, today())); scheduleSave(); }
+      sess[got ? "got" : "missed"]++;
+      if (!got) (sess.missedIds = sess.missedIds || []).push(c.id);
+      sess.i++; sess.revealed = false;
+      say(got ? mavis() : "A missed card is a lesson scheduling itself.");
+      paintCard();
+    };
+    if (q("[data-got]")) q("[data-got]").onclick = () => grade(true);
+    if (q("[data-miss]")) q("[data-miss]").onclick = () => grade(false);
+  }
+
+  APPS.mb.onOpen = async () => {
+    const body = el();
+    if (!body.dataset.ready) {
+      body.dataset.ready = 1;
+      body.classList.remove("white");
+      body.innerHTML = `<div class="mb-nav"></div><div class="mb-main"></div>`;
+    }
+    say("Preparing the classroom…");
+    const missed = await loadAll();
+    view = "hub"; reading = null; sess = null;
+    paint();
+    say((missed ? `${plural(missed, "lesson")} could not be read — shown as unread, not empty. ` : "") +
+        (deckUnread ? "Deck state unread — grades this session will not reschedule. " : "") +
+        `${chapters.length} lesson${chapters.length === 1 ? "" : "s"} · ${cards.length} cards · ` + mavis());
+  };
+  return { loadAll };
+})();
+
 /* ----- About PFC98 ----- */
 (() => {
   APPS.about.onOpen = () => {
@@ -7590,6 +8005,7 @@ function buildWindows() {
   WM.make("oracle", "Oracle.exe", Math.min(540, W - 40), 480, cascade(5) + 260, 60);
   WM.make("inquest", "Inquest.exe", Math.min(600, W - 40), 520, cascade(6) + 150, 70);
   WM.make("why", "why.exe", Math.min(640, W - 40), 540, cascade(6) + 220, 50);
+  WM.make("mb", "MB Teaches ML", Math.min(680, W - 40), Math.min(560, H - 130), cascade(7) + 60, 45);
   WM.make("web", "Wiki Web", Math.min(700, W - 40), Math.min(520, H - 138), cascade(7) + 120, 60);
   WM.make("settings", "Settings", 350, 500, cascade(7) + 260, 60);
   WM.make("about", "About PFC98", 400, 560, cascade(8) + 300, 40);
@@ -7701,6 +8117,41 @@ Every page, one line each. Sessions: keep this current (LINT check 3).
 ## [2026-08-03] surface | First findings file under the revised protocol — two findings, no padding.
 ## [2026-08-03] ingest | Lemonade-tree capture filed -> gardening, index.
 ## [2026-08-03] lint | 65 pages, 0 broken links, 0 orphans.
+`,
+"textbook/syllabus.md": `# MB Teaches ML — Version 11
+
+*Post Singularity Updated Edition. Broderbund quality since 1987.*
+
+| # | chapter | status |
+|---|---------|--------|
+| 1 | [[textbook/ch-01-sample-lesson.md]] | published |
+`,
+"textbook/ch-01-sample-lesson.md": `---
+title: "Sample Lesson — The Parable of the Player Piano"
+status: published
+cards: [d1-01, d1-02]
+---
+
+# Sample Lesson — The Parable of the Player Piano
+
+A demonstration lesson with invented content. The real book lives in the private
+repo; this one exists so the classroom has a desk to show.
+
+A player piano has a roll (the input), hammers (the mechanism), and a room the
+music fills (the output). Nobody is inside the piano. The roll is the only thing
+you get to write.
+
+## Checkpoint
+
+- The roll is yours; the hammers are not.
+- The music is gone when it stops.
+
+## Cards
+
+- \`d1-01\` ⚗ You swap the roll mid-song. What does the piano remember of the old
+  roll? → *Nothing — the hammers hold no history; only the roll holds the song.*
+- \`d1-02\` **Find the leak:** "The piano got better at this song by playing it
+  twice." → *It played the same roll the same way; any difference was in the room.*
 `,
 "retired.md": `# Retired pages
 
