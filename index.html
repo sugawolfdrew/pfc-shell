@@ -3023,6 +3023,100 @@ const Surface = (() => {
      tick. The pulse still quiet-exits unless inbox/ holds a capture — the check is
      what is promised, and the check is every minute. */
   const CHECK_SAID = "pulse checks every minute";
+
+  /* ---- the dream band: the weekly motion, watched the same way ----
+     Same doctrine as the beat band (2026-08-09): read the signature, never the
+     prose — with one honest difference. dream.sh writes its `dream |` log line
+     mechanically, in the same commit the dead-man's rule requires, so for THIS
+     motion the log line IS a signature and the fallback is not second-class.
+     The commit stays primary because the commits API answers in one call
+     (?author= filters server-side on the commit email — verified against the
+     real API 2026-08-14) and survives a log-parse defect. Cadence is weekly:
+     KEPT inside 7d (+4h grace for the firing hour itself), DUE through day 8,
+     LATE beyond — a missed Friday reads as DUE the day it happens. */
+  const DREAM_AUTHOR = "dream@postfrontal.invalid";
+  function dreamAge(when) {
+    const h = Math.max(0, Math.floor((Date.now() - when) / 36e5));
+    const amount = h >= 48 ? `${Math.floor(h / 24)}d` : `${h}h`;
+    const key   = h < 172 ? "ok" : h <= 192 ? "due" : "late";
+    const state = h < 172 ? "KEPT" : h <= 192 ? "DUE" : "LATE";
+    return { state, key, h, frac: Math.min(h / 192, 1), at: when,
+             said: key === "late" ? `no dream for ${amount}` : `last dream ${amount} ago` };
+  }
+  function readDreamLog(log) {
+    let best = null;
+    for (const o of logOps(log)) {          // every dream entry post-dates the
+      if (o.verb !== "dream") continue;     // 2026-08-05 clock seam: all local
+      const t = o.time || "00:00";
+      const when = new Date(`${o.day}T${t.length === 5 ? t + ":00" : t}`);
+      if (!best || when > best) best = when;
+    }
+    return best && !isNaN(best) ? best : null;
+  }
+  async function lastDreamCommit(log) {
+    if (DEMO) { const w = readDreamLog(DEMO_FILES["log.md"] || "");
+                return w ? { ok: true, when: w } : { ok: true, when: null }; }
+    try {
+      const list = await gh(`/repos/${CFG.owner}/${CFG.repo}/commits`
+                          + `?sha=${encodeURIComponent(CFG.branch)}&author=${DREAM_AUTHOR}&per_page=1`);
+      if (!Array.isArray(list)) return { ok: false };
+      if (!list.length) return { ok: true, when: null };   // an answer: none exist
+      const c = list[0];
+      const when = c && c.commit && c.commit.author && new Date(c.commit.author.date);
+      return when && !isNaN(when) ? { ok: true, when } : { ok: false };
+    } catch (e) { return { ok: false }; }
+  }
+  function dreamBand(commit, log, logUnread) {
+    if (commit.ok && commit.when) return dreamAge(commit.when);
+    if (commit.ok && commit.when === null)
+      return { state: "COLD", key: "cold", h: null, frac: 0,
+               said: "no dream on record yet" };   // the right-hand said carries the schedule
+    const w = readDreamLog(log);
+    if (w) { const b = dreamAge(w); return { ...b, said: `${b.said} (from the log)` }; }
+    return { state: "COLD", key: "cold", h: null, frac: 0,
+             said: logUnread ? "log unread — dream state unknown"
+                             : "commits unread — dream state unknown" };
+  }
+  /* The export nudge. The dream's ingest arm starves without a fresh claude.ai
+     export (a manual act only Andrew can perform), so as Friday approaches with
+     a stale snapshot the band says so while there is still time to act. The
+     staleness is read from the newest lint| entry — written daily by the
+     heartbeat's own lint run, so it is at most a day old itself. */
+  function exportStaleDays(log) {
+    let best = null;
+    for (const o of logOps(log)) {
+      if (o.verb !== "lint") continue;
+      const m = /chat-export snapshot (\d+)d old/.exec(o.text);
+      if (m) best = +m[1];                  // logOps is file order; last wins
+    }
+    return best;
+  }
+  function exportNudge(log, now) {
+    const day = now.getDay();               // 4 Thu, 5 Fri
+    if (day !== 4 && day !== 5) return "";
+    const stale = exportStaleDays(log);
+    if (stale === null || stale < 7) return "";
+    return `chat export ${stale}d stale — the dream's ingest arm starves without a fresh one`;
+  }
+  function dreamHTML(b, nudge) {
+    const C = `var(--${b.key})`, T = `var(--${b.key}T)`;
+    const seg = c => `repeating-linear-gradient(90deg, ${c} 0 5px, transparent 5px 7px)`;
+    const aria = b.h === null ? "No dream on record"
+      : b.h >= 48 ? `${Math.floor(b.h / 24)} days since the last dream`
+      : `${b.h} hours since the last dream`;
+    return `<div class="sf-beat sf-dream">
+      <span class="led" style="background:${C}"></span>
+      <span class="state">${b.state}</span>
+      <span class="said">${esc(b.said)}</span>
+      <span class="sf-meter" role="img" aria-label="${esc(aria)}">
+        <i class="trk" style="background:${seg(T)}"></i>
+        <i class="fil" style="width:calc((100% - 4px) * ${b.frac.toFixed(4)});background:${seg(C)}"></i>
+        <u></u>
+      </span>
+      <span class="sp"></span>
+      <span class="said">${esc(nudge || "dreams fire Friday 2:00 PM")}</span>
+    </div>`;
+  }
   function beatHTML(b) {
     const C = `var(--${b.key})`, T = `var(--${b.key}T)`;
     const seg = c => `repeating-linear-gradient(90deg, ${c} 0 5px, transparent 5px 7px)`;
@@ -3659,6 +3753,8 @@ const Surface = (() => {
     const logR = await readOr("log.md", "");
     N.logUnread = !logR.ok;
     N.beat    = beatBand(await lastBeatCommit(), logR.v, !logR.ok);
+    N.dream   = dreamBand(await lastDreamCommit(logR.v), logR.v, !logR.ok);
+    N.nudge   = exportNudge(logR.v, new Date());
     N.tending = tendingData(logR.v);
     N.archive = archiveGrid(tree, N.hidden);
 
@@ -3725,6 +3821,7 @@ const Surface = (() => {
         <button id="sf-refresh">Refresh</button>
       </div>
       ${beatHTML(D.beat)}
+      ${dreamHTML(D.dream, D.nudge)}
       <fieldset id="sf-otd"></fieldset>
       <fieldset id="sf-conn"></fieldset>
       <fieldset id="sf-gates"></fieldset>
@@ -3790,6 +3887,8 @@ const Surface = (() => {
   Object.assign(PFCT, { sfD: () => D, sfMonthPool: monthPool, sfParseGates: parseGates,
                      sfPaintGates: paintGates, sfPaintInstruments: paintInstruments,
                      sfReadBeat: readBeat, sfBeatBand: beatBand, sfBeatCommit: lastBeatCommit,
+                     sfDreamBand: dreamBand, sfReadDreamLog: readDreamLog,
+                     sfDreamAge: dreamAge, sfExportNudge: exportNudge,
                      sfLogBriefs: logBriefs, sfFindings: findings,
                      sfSplitBullet: splitBullet });
   return { render };
