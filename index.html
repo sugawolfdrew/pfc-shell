@@ -3957,6 +3957,9 @@ const Explorer = (() => {
     const groups = {
       "Wiki": wiki.filter(e => !isHid(e)),
       "Protocol": tree.filter(e => /^protocol\/.+\.md$/.test(e.path)),
+      // The textbook (docs/mb-teaches-ml.md law 1): readable here before any
+      // window of its own exists — the book is judged as prose first.
+      "Textbook": tree.filter(e => /^textbook\/.+\.md$/.test(e.path)),
       "Surface": tree.filter(e => /^surface\/.+\.md$/.test(e.path)).slice(-14).reverse(),
       "Sessions · claude": sess("claude").filter(e => !isHid(e)),
       "Sessions · gemini": sess("gemini").filter(e => !isHid(e)),
