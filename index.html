@@ -7612,7 +7612,7 @@ const Stoop = (() => {
       <fieldset class="st-box"><legend>The board</legend><div class="st-board">
         ${cols.concat(extra).map(c => `<div class="st-col"><h4>${esc(c)} · ${(grouped[c] || []).length}</h4>
           ${(grouped[c] || []).map(l => `<div class="st-item"><b>${esc(l.title || l.id || "?")}</b>
-            <div class="m">${money(l.ask)}${l.floor != null ? ` → ${money(l.floor)}` : ""}${l.clicks != null ? ` · ${l.clicks} click${l.clicks === 1 ? "" : "s"}` : ""}${l.days_listed != null ? ` · ${l.days_listed}d` : ""}${l.waiting_on ? ` · <span class="wait">${esc(l.waiting_on)}</span>` : ""}</div>
+            <div class="m">${money(l.ask)}${l.floor != null ? ` → ${money(l.floor)}` : ""}${l.clicks != null ? ` · ${l.clicks} click${l.clicks === 1 ? "" : "s"}` : ""}${l.saves ? ` · ${l.saves} saved` : ""}${l.shares ? ` · ${l.shares} shared` : ""}${l.days_listed != null ? ` · ${l.days_listed}d` : ""}${l.waiting_on ? ` · <span class="wait">${esc(l.waiting_on)}</span>` : ""}</div>
           </div>`).join("") || `<div class="m" style="font-size:11px;color:var(--disabled-text)">empty</div>`}</div>`).join("")}
       </div></fieldset>
 
