@@ -505,6 +505,13 @@
   .mb-nav { display:flex; gap:4px; padding:4px 6px; flex-wrap:wrap; align-items:center;
             border-bottom:1px solid var(--face-sh); }
   .mb-nav button { min-height:30px; }
+  .mb-index { padding:10px 14px; }
+  .ix-letter { font-weight:bold; font-size:15px; margin:12px 0 4px;
+               border-bottom:1px solid var(--face-sh); }
+  .ix-row { margin:5px 0; font-size:12.5px; }
+  .ix-row button { min-height:0; padding:1px 6px; font-size:11px; }
+  .ix-row.flash { outline:2px dotted var(--accent-on-face); }
+  .ix-bad { color:var(--accent-on-face); font-size:11px; margin-top:10px; }
   .mb-nav .on { box-shadow: inset 1px 1px var(--face-dk), inset -1px -1px var(--face-hi);
                 background: var(--window); }
   .mb-main { flex:1; overflow:auto; }
@@ -7692,6 +7699,30 @@ const MB = (() => {
     return out;
   }
 
+  /* ---- pure: the back-of-book index (textbook/index.md) ----
+     `- **term** — ch-NN §Heading prefix[; ...]` or `- **term** — *see* term`.
+     The lint holds the format repo-side; the parser still reports what it
+     cannot read — a malformed line is named, never dropped silently. */
+  function parseIndex(md) {
+    const entries = [], malformed = [];
+    for (const line of String(md || "").split("\n")) {
+      if (!line.startsWith("- ")) continue;
+      const m = /^- \*\*(.+?)\*\* — (.+)$/.exec(line);
+      if (!m) { malformed.push(line); continue; }
+      const term = m[1], rest = m[2];
+      const sm = /^\*see\* (.+)$/.exec(rest);
+      if (sm) { entries.push({ term, see: sm[1].trim(), refs: [] }); continue; }
+      const refs = []; let bad = false;
+      for (const r of rest.split("; ")) {
+        const rm = /^(ch-\d{2}) §(.+)$/.exec(r.trim());
+        if (rm) refs.push({ ch: rm[1], sec: rm[2] }); else bad = true;
+      }
+      if (bad || !refs.length) malformed.push(line);
+      if (refs.length) entries.push({ term, see: null, refs });
+    }
+    return { entries, malformed };
+  }
+
   /* ---- pure: the deck manifest (SRS state, repo-side) ---- */
   function parseDeckState(text) {
     const map = new Map();
@@ -7735,7 +7766,8 @@ const MB = (() => {
     return pool.sort((a, b) => { const ra = rank(a), rb = rank(b);
       return ra[0] - rb[0] || (ra[1] < rb[1] ? -1 : ra[1] > rb[1] ? 1 : 0); });
   }
-  Object.assign(PFCT, { mbParseCards: parseCards, mbParseDeckState: parseDeckState,
+  Object.assign(PFCT, { mbParseCards: parseCards, mbParseIndex: parseIndex,
+                        mbParseDeckState: parseDeckState,
                         mbRenderDeckState: renderDeckState, mbSrsNext: srsNext,
                         mbDealOrder: dealOrder });
 
@@ -7743,6 +7775,8 @@ const MB = (() => {
   let chapters = [];            // {path, title, status, md}
   let cards = [];               // parsed from published chapters
   let deck = new Map();         // id -> srs state
+  let gloss = { md: null, unread: false, absent: true };
+  let bookIndex = { md: null, entries: [], malformed: [], unread: false, absent: true };
   let deckUnread = false, deckDirty = false, deckSha = undefined;
   let saving = false, saveAgain = false, saveTimer = null;
 
@@ -7772,6 +7806,17 @@ const MB = (() => {
         deck = parseDeckState(f.text); deckSha = f.sha; deckUnread = false;
       }
     } catch (e) { deckUnread = true; }
+    /* Back matter rides the same honesty: absent is a fact, unreadable is a
+       read failure — the two render differently and neither is an empty page. */
+    const back = async path => {
+      if (!tree.some(e => e.path === path)) return { md: null, unread: false, absent: true };
+      const r = await readOr(path, "", force);
+      return r.ok ? { md: r.v, unread: false, absent: false }
+                  : { md: null, unread: true, absent: false };
+    };
+    gloss = await back("textbook/glossary.md");
+    bookIndex = { entries: [], malformed: [], ...await back("textbook/index.md") };
+    if (bookIndex.md !== null) Object.assign(bookIndex, parseIndex(bookIndex.md));
     return missed;
   }
 
@@ -7832,7 +7877,24 @@ const MB = (() => {
   function nav() {
     const b = (id, lbl) => `<button data-v="${id}" class="${view === id ? "on" : ""}">${lbl}</button>`;
     return `<div class="mb-nav">${b("hub", "Classroom")}${b("lessons", "Lessons")}` +
-           `${b("cards", "Flash Cards")}${b("quiz", "Quiz")}${b("prog", "Progress")}</div>`;
+           `${b("cards", "Flash Cards")}${b("quiz", "Quiz")}${b("prog", "Progress")}` +
+           `${b("gloss", "Glossary")}${b("index", "Index")}</div>`;
+  }
+
+  const nGloss = () => (gloss.md.match(/^- \*\*/gm) || []).length;
+
+  /* An index ref is a promise: open that chapter at that heading. The lint
+     keeps the promise repo-side; the honest failures here are for a tree that
+     drifted since the last lint (chapter unread, ref unresolvable). */
+  function openChapterAt(chId, sec) {
+    const ch = chapters.find(c => c.path.split("/").pop().startsWith(chId));
+    if (!ch) { say(`${chId} is not on the shelf — the index cites a chapter this tree does not hold.`); return; }
+    if (ch.md === null) { say(`${ch.title} could not be read — not an empty lesson.`); return; }
+    view = "lessons"; reading = ch; sess = null; paint();
+    const h = [...el().querySelectorAll(".mb-read h1, .mb-read h2, .mb-read h3")]
+      .find(x => x.textContent.trim().startsWith(sec));
+    if (h) h.scrollIntoView({ block: "start" });
+    say(`${ch.title} · §${sec}`);
   }
 
   function counts() {
@@ -7861,6 +7923,14 @@ const MB = (() => {
               <span class="sub">weighted to the ledger — the places you reliably err</span></span></button>
             <button class="mb-go" data-v="prog"><span><b>Progress Report</b><br>
               <span class="sub">${k.mastered} of ${k.total} concepts holding</span></span></button>
+            <button class="mb-go" data-v="gloss"><span><b>Glossary</b><br>
+              <span class="sub">${gloss.unread ? "could not be read — not an empty glossary"
+                : gloss.absent ? "not yet written"
+                : `${nGloss()} terms · your metaphor first, the canonical term second`}</span></span></button>
+            <button class="mb-go" data-v="index"><span><b>Index</b><br>
+              <span class="sub">${bookIndex.unread ? "could not be read — not an empty index"
+                : bookIndex.absent ? "not yet written"
+                : `${bookIndex.entries.length} ${bookIndex.entries.length === 1 ? "entry" : "entries"} · every term knows its chapter`}</span></span></button>
           </div>
         </div>
         <p class="mb-say">“${mavis()}”</p>`;
@@ -7878,6 +7948,45 @@ const MB = (() => {
           `<span class="meta">${c.status === "unread" ? "could not be read — not an empty lesson" : esc(c.status)}</span></button>`).join("")
           : `<p style="padding:12px">No lessons in the tree yet — the book begins at textbook/.</p>`) + `</div>`;
         main.querySelectorAll("[data-i]").forEach(b => b.onclick = () => { reading = chapters[+b.dataset.i]; paint(); });
+      }
+    } else if (view === "gloss" || view === "index") {
+      const bm = view === "gloss" ? gloss : bookIndex;
+      const what = view === "gloss" ? "glossary" : "index";
+      if (bm.unread) {
+        main.innerHTML = `<div class="mb-card"><div class="mb-face">The ${what} could not be read — a read failure, not an empty ${what}.</div>
+          <div class="mb-grade"><button data-retry class="default">Retry</button></div></div>`;
+        main.querySelector("[data-retry]").onclick = async () => { say("Rereading…"); await loadAll(true); paint(); };
+      } else if (bm.absent) {
+        main.innerHTML = `<div class="mb-card"><div class="mb-face">No ${what} yet — back matter lives at textbook/${what === "glossary" ? "glossary" : "index"}.md.</div></div>`;
+      } else if (view === "gloss") {
+        main.innerHTML = `<div class="mb-read md"></div>`;
+        renderMd(gloss.md, main.querySelector(".mb-read"));
+        say(`The bespoke glossary · ${plural(nGloss(), "term")} · a term enters when you flag it or coin it`);
+      } else {
+        let last = "";
+        main.innerHTML = `<div class="mb-index">` + bookIndex.entries.map((e, i) => {
+          const L = (e.term[0] || "").toUpperCase();
+          const hdr = L !== last ? `<div class="ix-letter">${esc(L)}</div>` : "";
+          last = L;
+          return hdr + `<div class="ix-row" data-t="${esc(e.term)}"><b>${esc(e.term)}</b> — ${
+            e.see ? `<button class="ix-see" data-see="${esc(e.see)}">see ${esc(e.see)}</button>`
+                  : e.refs.map((r, j) => `<button class="ix-ref" data-i="${i}" data-j="${j}">${esc(r.ch)} §${esc(r.sec)}</button>`).join(" · ")}</div>`;
+        }).join("") +
+        (bookIndex.malformed.length ? `<p class="ix-bad">${plural(bookIndex.malformed.length, "line")} could not be parsed — the lint names them; nothing is dropped silently.</p>` : "") +
+        `</div>`;
+        main.querySelectorAll(".ix-ref").forEach(b => b.onclick = () => {
+          const e = bookIndex.entries[+b.dataset.i];
+          openChapterAt(e.refs[+b.dataset.j].ch, e.refs[+b.dataset.j].sec);
+        });
+        main.querySelectorAll(".ix-see").forEach(b => b.onclick = () => {
+          const t = b.dataset.see;
+          const row = [...main.querySelectorAll(".ix-row")].find(x =>
+            x.dataset.t === t || x.dataset.t.startsWith(t + " "));
+          if (!row) { say(`“${t}” is not an entry — the lint would have named this.`); return; }
+          row.scrollIntoView({ block: "center" }); row.classList.add("flash");
+          setTimeout(() => row.classList.remove("flash"), 1200);
+        });
+        say(`${bookIndex.entries.length} entries · an index that lies fails the build`);
       }
     } else if (view === "cards" || view === "quiz") {
       startSession(view === "quiz");
@@ -7983,6 +8092,7 @@ const MB = (() => {
     paint();
     say((missed ? `${plural(missed, "lesson")} could not be read — shown as unread, not empty. ` : "") +
         (deckUnread ? "Deck state unread — grades this session will not reschedule. " : "") +
+        (gloss.unread || bookIndex.unread ? "Back matter unread — a read failure, not an empty page. " : "") +
         `${chapters.length} lesson${chapters.length === 1 ? "" : "s"} · ${cards.length} cards · ` + mavis());
   };
   return { loadAll };
@@ -8295,6 +8405,24 @@ Every page, one line each. Sessions: keep this current (LINT check 3).
 | # | chapter | status |
 |---|---------|--------|
 | 1 | [[textbook/ch-01-sample-lesson.md]] | published |
+`,
+"textbook/glossary.md": `# The demonstration glossary
+
+*Invented content — the real glossary lives in the private repo. A term enters
+this file when the player flags it or coins it; the demonstration has three.*
+
+## The player piano kit
+
+- **The roll** — the input: the only thing you get to write.
+- **The hammers** — the mechanism: they hold no history.
+- **The room** — the output: the music is gone when it stops.
+`,
+"textbook/index.md": `# Index
+
+- **hammers, the** — ch-01 §Sample Lesson
+- **memory (what the piano keeps)** — ch-01 §Checkpoint
+- **roll, the** — ch-01 §Sample Lesson
+- **room, the** — *see* hammers, the
 `,
 "textbook/ch-01-sample-lesson.md": `---
 title: "Sample Lesson — The Parable of the Player Piano"
