@@ -1867,6 +1867,7 @@ const LOG_CLASS = {                       // verb -> what kind of work it was
   surface: "conn", oracle: "conn", query: "conn", lint: "conn", gate: "conn", flag: "conn",
   build: "built", design: "built", plan: "built", admin: "built", heartbeat: "built",
   dream: "built",   // the weekly motion reporting on itself; its work files as its own verbs
+  ops: "built",     // the machinery a beat runs on: runners, projectors, launchd, the ops surface
 };
 const LOG_RX = /^##\s*\[(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}(?::\d{2})?))?\]\s*([a-z][a-z-]*)\s*\|[ \t]*(.*)$/gm;
 const logWarned = new Set();
