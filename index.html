@@ -543,6 +543,39 @@
     .mb-hub { padding:8px; gap:8px; } .mb-cover { max-width:34%; }
     .mb-grade button { min-height:52px; }
   }
+
+  /* ----- Stoop — the pipeline dashboard (role variables only) ----- */
+  #win-stoop .window-body { display:flex; flex-direction:column; padding:0; margin:3px; overflow:hidden; }
+  .st-main { flex:1; overflow:auto; padding:8px 10px; }
+  .st-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(118px,1fr)); gap:6px; margin-bottom:10px; }
+  .st-kpi { background:var(--window); padding:8px 10px; text-align:center;
+            box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-dk); }
+  .st-kpi b { display:block; font-size:22px; }
+  .st-kpi .lb { font-size:10px; letter-spacing:.6px; text-transform:uppercase; color:var(--ink-on-face); }
+  .st-kpi.hot b { color:var(--accent-on-face); }
+  fieldset.st-box { margin:0 0 10px; padding:8px; min-width:0; }
+  .st-scroll { overflow-x:auto; }
+  .st-card { background:var(--window); padding:8px 10px; margin:6px 0;
+             box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-dk); }
+  .st-card .who { font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--accent-on-face); }
+  .st-card .cmd { display:flex; gap:6px; align-items:center; margin-top:6px; }
+  .st-card .cmd code { flex:1; min-width:0; padding:4px 6px; background:var(--face);
+                       box-shadow: inset 1px 1px var(--face-dk); overflow-x:auto; white-space:nowrap; }
+  .st-card .cmd button { min-height:34px; }
+  .st-board { display:flex; gap:8px; align-items:flex-start; }
+  .st-col { flex:1; min-width:0; }
+  .st-col h4 { margin:0 0 4px; font-size:11px; letter-spacing:.6px; text-transform:uppercase;
+               color:var(--ink-on-face); border-bottom:1px solid var(--face-sh); padding-bottom:2px; }
+  .st-item { padding:5px 6px; margin:4px 0; background:var(--window); font-size:12px;
+             box-shadow: inset -1px -1px var(--face-hi), inset 1px 1px var(--face-dk); }
+  .st-item .m { color:var(--ink-on-face); font-size:11px; }
+  .st-item .wait { color:var(--accent-on-face); font-weight:bold; }
+  table.st-ledger { width:100%; border-collapse:collapse; font-size:12px; }
+  .st-ledger th, .st-ledger td { text-align:left; padding:3px 6px; border-bottom:1px solid var(--face-sh); }
+  .st-ledger td.n, .st-ledger th.n { text-align:right; }
+  .st-honest { font-size:11px; color:var(--ink-on-face); margin-top:8px; }
+  .st-honest details { margin-top:4px; } .st-honest code { font-size:10px; }
+  @media (max-width: 700px) { .st-board { flex-direction:column; } .st-kpi b { font-size:19px; } }
   .web-tools { flex:none; display:flex; align-items:center; gap:4px; padding:4px 5px;
       flex-wrap:wrap; font-size:12px; }
   .web-tools .sp { flex:1; }
@@ -1202,6 +1235,7 @@ const PNG_ICONS = new Map(); // name -> HTMLImageElement | false (tried and abse
 PNG_ICONS.set("logoff", false);
 PNG_ICONS.set("web", false);      // Wiki Web is hand-drawn too — see ART.web
 PNG_ICONS.set("mb", false);       // MB Teaches ML: the teacher's apple — see ART.mb
+PNG_ICONS.set("stoop", false);    // Stoop: front steps, parcel waiting — see ART.stoop
 function pngIcon(name) {
   if (PNG_ICONS.has(name)) return PNG_ICONS.get(name);
   const im = new Image();
@@ -1470,6 +1504,23 @@ const ART = {
     "...dd......dd...",
     "..BBBB....BBBB..",
     "..kBBk....kBBk..",
+    "................",
+    "................"],
+  stoop: [
+    "................",
+    "................",
+    "..kkkkkkk.......",
+    "..kwwwwwk.......",
+    "..kwwwwwkkkk....",
+    "..kwwwwwkoook...",
+    "..kkkkkkkoook...",
+    "..kssssskkkkkk..",
+    "..ksssssssssdk..",
+    "..kkkkkkkkkkkkk.",
+    "..kddddddddddsk.",
+    "..kkkkkkkkkkkkkk",
+    "..kssssssssssssk",
+    "..kkkkkkkkkkkkkk",
     "................",
     "................"],
   mb: [
@@ -2926,6 +2977,7 @@ const APPS = {
   inquest: { title: "Inquest.exe" },
   why: { title: "why.exe" },
   mb: { title: "MB Teaches ML" },
+  stoop: { title: "Stoop" },
   web: { title: "Wiki Web" },
   settings: { title: "Settings" },
   about: { title: "About PFC98" },
@@ -7476,6 +7528,123 @@ const Search = (() => {
                         webLocal: () => localSet && [...localSet] });
 })();
 
+/* ----- Stoop: the pipeline dashboard ----- */
+/* The window wiki/stoop-front-end.md has specified since 2026-08-05, buildable
+   since the rename ruled and pointed at its data today: Andrew's "its state is
+   served here" is ~/facebot/dashboard/api/state.json, which the projector now
+   carries through the type gate into stoop/state.json's `dashboard` block. The
+   Face reads ONLY the projection — no window ever reaches the Mac — so this
+   works from the phone, and G-2026-08-05-02's terms hold by construction. The
+   gap this closes is reach and action, not rendering (the sibling's own
+   dashboard renders fine and cannot leave the desk); the "needs you" card
+   carries the exact command because authority stays where the constitution
+   puts it — PFC shows the decision, a Stoop session executes it. */
+const Stoop = (() => {
+  const esc = t => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const el = () => document.querySelector("#win-stoop .window-body");
+  const say = m => WM.status("stoop", m);
+  const money = n => n === null || n === undefined ? "—" : "$" + Number(n).toLocaleString();
+
+  function age(iso) {
+    if (!iso) return null;
+    const h = (Date.now() - new Date(iso)) / 36e5;
+    return !isFinite(h) ? null : h < 1 ? "fresh" : h < 24 ? `${Math.floor(h)}h old` : `${Math.floor(h / 24)}d old`;
+  }
+
+  function render(d, unread) {
+    const body = el();
+    if (unread) {
+      body.innerHTML = `<div class="st-main"><p><b>The projection could not be read.</b>
+        This is a read failure, not an empty pipeline — the last state the brain
+        projected is still in the repo; retry below.</p>
+        <button id="st-retry">Try again</button></div>`;
+      body.querySelector("#st-retry").onclick = () => APPS.stoop.onOpen();
+      say("projection unread — not an empty pipeline");
+      return;
+    }
+    const db = d.dashboard;               // the curated source, when Stoop serves it
+    const sum = db ? db.summary : null;
+    const kpis = db ? [
+      ["active", sum.active_listings, false], ["queued", sum.queued_items, false],
+      ["needs you", (db.needs_you || []).length, (db.needs_you || []).length > 0],
+      ["awaiting buyer", sum.threads.awaiting_buyer, false],
+      ["sold", sum.lifetime_sales, false], ["net lifetime", money(sum.lifetime_revenue), false],
+    ] : [
+      ["items", d.counts.items, false], ["active", d.counts.active, false],
+      ["needs you", d.counts.needs_you, d.counts.needs_you > 0],
+      ["open threads", d.counts.open_threads, false],
+      ["sold", d.counts.sold, false], ["net lifetime", money(d.counts.net_lifetime), false],
+    ];
+    const needs = (db ? db.needs_you : d.needs_you) || [];
+    const listings = db ? db.listings : (d.items || []);
+    const sales = (db ? db.sales : d.sales) || [];
+    const phaseOf = l => db ? (l.phase || l.status || "unknown")
+                            : (l.status === "sold" ? "sold"
+                               : ["new", "identified", "priced", "ready_to_list"].includes(l.status) ? "queued" : "active");
+    const cols = ["queued", "active", "sold"];
+    const grouped = Object.fromEntries(cols.map(c => [c, []]));
+    for (const l of listings) (grouped[phaseOf(l)] || (grouped[phaseOf(l)] = [])).push(l);
+    const extra = Object.keys(grouped).filter(k => !cols.includes(k) && grouped[k].length);
+
+    const netTotal = sales.reduce((a, r) => a + (r.net || 0), 0);
+    const refused = d.refused || [];
+    const freshness = age(d.generated_at);
+
+    body.innerHTML = `<div class="st-main">
+      <div class="st-kpis">${kpis.map(([lb, v, hot]) =>
+        `<div class="st-kpi${hot ? " hot" : ""}"><b>${esc(v ?? "—")}</b><span class="lb">${esc(lb)}</span></div>`).join("")}</div>
+
+      ${needs.length ? `<fieldset class="st-box"><legend>Waiting on you</legend>${needs.map(n => `
+        <div class="st-card"><span class="who">${esc(n.label || n.waiting_on || "decision")}</span>
+          <div><b>${esc(n.title || n.id)}</b> · ask ${money(n.ask)}${n.offer != null ? ` · offer <b>${money(n.offer)}</b>` : ""}${n.floor != null ? ` · floor ${money(n.floor)}` : ""}</div>
+          <div class="cmd"><code>${esc(n.command || "")}</code><button data-copy="${esc(n.command || "")}">Copy</button></div>
+        </div>`).join("")}</fieldset>` :
+        `<fieldset class="st-box"><legend>Waiting on you</legend><p style="margin:4px 2px">Nothing. The pipeline is running itself.</p></fieldset>`}
+
+      <fieldset class="st-box"><legend>The board</legend><div class="st-board">
+        ${cols.concat(extra).map(c => `<div class="st-col"><h4>${esc(c)} · ${(grouped[c] || []).length}</h4>
+          ${(grouped[c] || []).map(l => `<div class="st-item"><b>${esc(l.title || l.id || "?")}</b>
+            <div class="m">${money(l.ask)}${l.floor != null ? ` → ${money(l.floor)}` : ""}${l.clicks != null ? ` · ${l.clicks} click${l.clicks === 1 ? "" : "s"}` : ""}${l.days_listed != null ? ` · ${l.days_listed}d` : ""}${l.waiting_on ? ` · <span class="wait">${esc(l.waiting_on)}</span>` : ""}</div>
+          </div>`).join("") || `<div class="m" style="font-size:11px;color:var(--disabled-text)">empty</div>`}</div>`).join("")}
+      </div></fieldset>
+
+      <fieldset class="st-box"><legend>Sales</legend>${sales.length ? `<div class="st-scroll"><table class="st-ledger">
+        <tr><th>date</th><th>item</th><th class="n">ask</th><th class="n">sold</th><th class="n">net</th><th class="n">days</th></tr>
+        ${sales.map(r => `<tr><td>${esc(r.date || "")}</td><td>${esc(r.title || r.item_id || "")}</td>
+          <td class="n">${money(r.ask)}</td><td class="n">${money(r.sold_price)}</td>
+          <td class="n"><b>${money(r.net)}</b></td><td class="n">${r.days_listed ?? ""}</td></tr>`).join("")}
+        <tr><td colspan="4"></td><td class="n"><b>${money(netTotal)}</b></td><td></td></tr>
+      </table></div>` : `<p style="margin:4px 2px">No sales on the ledger yet.</p>`}</fieldset>
+
+      <div class="st-honest">
+        Projected ${esc(freshness || "at an unknown time")}${db ? " · reading Stoop's own dashboard state" : " · dashboard state absent — reading the inventory projection"}
+        · ${refused.length} field${refused.length === 1 ? "" : "s"} refused by the type gate
+        ${refused.length ? `<details><summary>what was refused</summary>${refused.map(r =>
+          `<div><code>${esc(r.field)}</code> — ${esc(r.why)}</div>`).join("")}</details>` : ""}
+      </div>
+    </div>`;
+
+    body.querySelectorAll("[data-copy]").forEach(b => b.onclick = async () => {
+      try { await navigator.clipboard.writeText(b.dataset.copy); say(`Copied — run it in a Stoop session: ${b.dataset.copy}`); }
+      catch (e) { say("Copy failed — select the command by hand."); }
+    });
+    say(`${needs.length ? `${needs.length} decision${needs.length === 1 ? "" : "s"} waiting` : "nothing waiting"} · ${listings.length} listings · projected ${freshness || "?"}`);
+  }
+
+  APPS.stoop.onOpen = async () => {
+    const body = el();
+    if (!body.dataset.ready) { body.dataset.ready = 1; body.classList.remove("white"); }
+    say("Reading the projection…");
+    const r = await readOr("stoop/state.json", "", true);
+    if (!r.ok) return render(null, true);
+    let d;
+    try { d = JSON.parse(r.v); } catch (e) { return render(null, true); }
+    if (!d || typeof d !== "object") return render(null, true);
+    render(d, false);
+  };
+  return {};
+})();
+
 /* ----- MB Teaches ML: the classroom ----- */
 /* The textbook's own app (docs/mb-teaches-ml.md; content shipped as slice 1 the same
    day). Design inspiration is the original Mavis Beacon line, played straight per
@@ -8006,6 +8175,7 @@ function buildWindows() {
   WM.make("inquest", "Inquest.exe", Math.min(600, W - 40), 520, cascade(6) + 150, 70);
   WM.make("why", "why.exe", Math.min(640, W - 40), 540, cascade(6) + 220, 50);
   WM.make("mb", "MB Teaches ML", Math.min(680, W - 40), Math.min(560, H - 130), cascade(7) + 60, 45);
+  WM.make("stoop", "Stoop", Math.min(660, W - 40), Math.min(540, H - 135), cascade(7) + 90, 55);
   WM.make("web", "Wiki Web", Math.min(700, W - 40), Math.min(520, H - 138), cascade(7) + 120, 60);
   WM.make("settings", "Settings", 350, 500, cascade(7) + 260, 60);
   WM.make("about", "About PFC98", 400, 560, cascade(8) + 300, 40);
@@ -8152,6 +8322,41 @@ you get to write.
   roll? → *Nothing — the hammers hold no history; only the roll holds the song.*
 - \`d1-02\` **Find the leak:** "The piano got better at this song by playing it
   twice." → *It played the same roll the same way; any difference was in the room.*
+`,
+"stoop/state.json": `{
+  "generated_at": "2026-08-14T16:00:00+00:00",
+  "source": {"items_json": "2026-08-14T15:58:00", "sales_cssv": null, "audit_log": null, "dashboard_state": "2026-08-14T15:59:00"},
+  "counts": {"items": 3, "active": 2, "listed": 2, "negotiating": 1, "needs_you": 1, "open_threads": 2, "sold": 1, "net_lifetime": 85},
+  "needs_you": [],
+  "items": [],
+  "sales": [],
+  "dashboard": {
+    "meta": {"schema": 2, "mode": "owner", "seq": 12, "generated_at": "2026-08-14T15:59:00Z"},
+    "summary": {"active_listings": 2, "queued_items": 3, "lifetime_sales": 1, "lifetime_revenue": 85,
+                "threads": {"awaiting_owner": 1, "awaiting_buyer": 1, "open_other": 0, "closed": 4}},
+    "listings": [
+      {"id": "demo-001", "title": "Mid-century walnut side table", "phase": "active", "status": "negotiating",
+       "ask": 120, "floor": 90, "quantity": 1, "listed": true, "listed_at": "2026-08-09", "clicks": 14,
+       "waiting_on": "sale_acceptance", "threads": []},
+      {"id": "demo-002", "title": "Box fan, works great", "phase": "active", "status": "listed",
+       "ask": 20, "floor": 10, "quantity": 1, "listed": true, "listed_at": "2026-08-12", "clicks": 3,
+       "waiting_on": null, "threads": []},
+      {"id": "demo-003", "title": "Kids bike 16-inch", "phase": "queued", "status": "priced",
+       "ask": 45, "floor": 30, "quantity": 1, "listed": false, "listed_at": null, "clicks": 0,
+       "waiting_on": null, "threads": []}
+    ],
+    "sales": [
+      {"date": "2026-08-03", "item_id": "demo-000", "title": "Bookshelf", "ask": 100,
+       "sold_price": 85, "net": 85, "days_listed": 6, "platform": "facebook"}
+    ],
+    "needs_you": [
+      {"id": "demo-001", "title": "Mid-century walnut side table", "waiting_on": "sale_acceptance",
+       "label": "Accept offer", "command": "facebot accept demo-001", "ask": 120, "floor": 90, "offer": 100}
+    ]
+  },
+  "refused": [{"field": "dashboard.meta.note", "why": "not mapped"},
+              {"field": "dashboard.sales[0].buyer", "why": "not mapped"}]
+}
 `,
 "retired.md": `# Retired pages
 
