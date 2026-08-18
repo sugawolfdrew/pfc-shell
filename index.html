@@ -7572,14 +7572,25 @@ const Stoop = (() => {
     }
     const db = d.dashboard;               // the curated source, when Stoop serves it
     const sum = db ? db.summary : null;
+    /* A waiting_on the type gate refused is a decision we cannot READ, not a
+       decision that isn't there. Stoop moved waiting_on from enum tokens to
+       prose on 2026-08-18 and the gate refused all of it — correctly, prose
+       never crosses — which left the needs-you tile reading a confident 0 while
+       three listings carried some waiting state. Same law as the unread
+       projection above: silence is never rendered as nothing-to-do. */
+    const unreadable = (d.refused || []).filter(r =>
+      /^(dashboard\.)?(listings|items)\[\d+\]\.waiting_on$|^waiting_on$/.test(
+        (r && r.field) || "")).length;
     const kpis = db ? [
       ["active", sum.active_listings, false], ["queued", sum.queued_items, false],
-      ["needs you", (db.needs_you || []).length, (db.needs_you || []).length > 0],
+      ["needs you", (db.needs_you || []).length + (unreadable ? "+?" : ""),
+       (db.needs_you || []).length > 0 || unreadable > 0],
       ["awaiting buyer", sum.threads.awaiting_buyer, false],
       ["sold", sum.lifetime_sales, false], ["net lifetime", money(sum.lifetime_revenue), false],
     ] : [
       ["items", d.counts.items, false], ["active", d.counts.active, false],
-      ["needs you", d.counts.needs_you, d.counts.needs_you > 0],
+      ["needs you", d.counts.needs_you + (unreadable ? "+?" : ""),
+       d.counts.needs_you > 0 || unreadable > 0],
       ["open threads", d.counts.open_threads, false],
       ["sold", d.counts.sold, false], ["net lifetime", money(d.counts.net_lifetime), false],
     ];
@@ -7607,7 +7618,10 @@ const Stoop = (() => {
           <div><b>${esc(n.title || n.id)}</b> · ask ${money(n.ask)}${n.offer != null ? ` · offer <b>${money(n.offer)}</b>` : ""}${n.floor != null ? ` · floor ${money(n.floor)}` : ""}</div>
           <div class="cmd"><code>${esc(n.command || "")}</code><button data-copy="${esc(n.command || "")}">Copy</button></div>
         </div>`).join("")}</fieldset>` :
-        `<fieldset class="st-box"><legend>Waiting on you</legend><p style="margin:4px 2px">Nothing. The pipeline is running itself.</p></fieldset>`}
+        `<fieldset class="st-box"><legend>Waiting on you</legend><p style="margin:4px 2px">${
+          unreadable
+            ? `<b>${unreadable} listing${unreadable === 1 ? "" : "s"} carr${unreadable === 1 ? "ies" : "y"} a waiting state this projection could not read</b> — the type gate refused the value (prose, not an enum), so whether ${unreadable === 1 ? "it needs" : "they need"} you is unknown from here. Not "nothing waiting". Check Stoop directly, or have it emit a token alongside the note.`
+            : "Nothing. The pipeline is running itself."}</p></fieldset>`}
 
       <fieldset class="st-box"><legend>The board</legend><div class="st-board">
         ${cols.concat(extra).map(c => `<div class="st-col"><h4>${esc(c)} · ${(grouped[c] || []).length}</h4>
