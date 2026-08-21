@@ -4386,6 +4386,29 @@ const VisGL = (() => {
       }
       return n + 1;
     }
+    if (p.mode === 'double') {
+      // two mirrored lines breathing apart; n points split across them
+      const h = n >> 1;
+      for (let i = 0; i < h; i++) {
+        const x = (p.wave_x + (i / (h - 1) - 0.5) * 0.95) * 2 - 1;
+        const off = 0.12 + p.wave_mystery * 0.1;
+        out[i * 2] = x;
+        out[i * 2 + 1] = (p.wave_y - off + s[i] * 0.2) * 2 - 1;
+        out[(i + h) * 2] = x;
+        out[(i + h) * 2 + 1] = (p.wave_y + off - s[i] * 0.2) * 2 - 1;
+      }
+      return h * 2;
+    }
+    if (p.mode === 'spiral') {
+      for (let i = 0; i <= n; i++) {
+        const j = i % n, f = i / n;
+        const a = f * Math.PI * 4 + p.wave_mystery * 2;   // two turns
+        const r = 0.05 + f * 0.32 + 0.08 * s[j];
+        out[i * 2] = (p.wave_x + Math.cos(a) * r / as.x) * 2 - 1;
+        out[i * 2 + 1] = (p.wave_y + Math.sin(a) * r / as.y) * 2 - 1;
+      }
+      return n + 1;
+    }
     for (let i = 0; i < n; i++) {
       out[i * 2] = (p.wave_x + (i / (n - 1) - 0.5) * 0.95) * 2 - 1;
       out[i * 2 + 1] = (p.wave_y + s[i] * 0.25 + p.wave_mystery * 0.1) * 2 - 1;
@@ -4565,6 +4588,13 @@ void main(){
     const CHAN = ['decay_r', 'decay_g', 'decay_b'];
     let params = {}, waveMode = 'line', chanWritten = null;
     let perFrame = null, perVertex = null, runProgram = defaultRun, checkFinite = null;
+    /* The blend (docs/milkdrop-plus.md §Transitions): a second program context
+       runs alongside the current one; OUTPUTS are mixed by name, never the
+       equations; per-vertex UVs are computed twice and lerped; at the end of
+       the ease the incoming context is promoted whole. The feedback texture is
+       never touched — the new preset inherits and digests the old image. */
+    let bl = null;
+    const wsB = {}, uvOutB = [0, 0];
     let env = {}, K = IDKEYS, KSL = null, KW = null, KA = null, RVAL = null;
     const snap = [], ws = {}, uvOut = [0, 0];
     const uvArr = new Float32Array(NV * 2);
@@ -4776,6 +4806,7 @@ void main(){
 
     const engine = {
       precision: null, degraded: false, state: 'idle', fault: null,
+      blending: false, blendDone: false, blendFault: null,
       texsize: { w: 0, h: 0, long: longEdge }, gl: null,
       get env() { return env; },
       get frameCount() { return frameNo; },
@@ -4822,6 +4853,19 @@ void main(){
         rekey();
         return engine;
       },
+      setBlend(p, dur) {
+        p = p || {};
+        const K2 = p.slots ? keysFrom(p.slots) : IDKEYS;
+        bl = { perFrame: p.perFrame || null, perVertex: p.perVertex || null,
+               runProgram: p.runProgram || defaultRun, checkFinite: p.checkFinite || null,
+               env: p.env, K2, KW2: WARP.map(n => K2[n]), KA2: AUDIO.map(n => K2[n]),
+               resetOutputs: p.resetOutputs || (() => {}),
+               writes: (p.perFrame && p.perFrame.writes) || [],
+               t0: simTime, dur: Math.max(0.3, num(dur, 3)), snap: [],
+               localT: 0, cancelFault: null, promote: false };
+        engine.blending = true; engine.blendDone = false; engine.blendFault = null;
+        return engine;
+      },
       // The hardcoded-preset path (slice 2) and the frontmatter enums, which are not
       // numeric slots and so never enter the equation namespace.
       setParams(p) { params = Object.assign({}, params, p || {}); rekey(); return engine; },
@@ -4847,6 +4891,16 @@ void main(){
         const kHue = num(knobs && knobs.hue, 0) * Math.PI;
         const dtr = clamp(num(dt, 0), 0, DT_MAX);
         const dts = dtr * kSpeed;
+        // a finished blend promotes at the START of the next frame, cleanly
+        if (bl && bl.promote) {
+          perFrame = bl.perFrame; perVertex = bl.perVertex;
+          runProgram = bl.runProgram; checkFinite = bl.checkFinite;
+          env = bl.env; K = bl.K2;
+          chanWritten = bl.writes.length ? CHAN.map(n => bl.writes.indexOf(n) >= 0) : null;
+          rekey();
+          simTime = bl.localT;   // time = seconds since preset load, the incoming clock
+          bl = null; engine.blending = false; engine.blendDone = true;
+        }
         const t = simTime + dts;
 
         resetEnv();
@@ -4857,6 +4911,33 @@ void main(){
 
         if (perFrame) runProgram(perFrame, env);
         if (!guard(perFrame, 'per-frame')) return false;
+
+        let e = 0;
+        if (bl) {
+          bl.localT = t - bl.t0;
+          const B = bl.env, K2 = bl.K2;
+          bl.resetOutputs();
+          B[K2.time] = bl.localT; B[K2.dt] = dts; B[K2.frame] = frameNo;
+          B[K2.aspect] = aspect; B[K2.texsize] = longEdge;
+          B[K2.meshx] = NX; B[K2.meshy] = NY;
+          for (let i = 0; i < bl.KA2.length; i++) B[bl.KA2[i]] = env[KA[i]];
+          if (bl.perFrame) bl.runProgram(bl.perFrame, B);
+          const bad = bl.checkFinite && bl.perFrame ? bl.checkFinite(bl.perFrame, B) : null;
+          if (bad) {
+            // the INCOMING preset is broken: cancel the blend, keep the show on A
+            engine.blendFault = { name: bad.name, line: bad.line, stage: 'blend per-frame' };
+            bl = null; engine.blending = false;
+          } else {
+            const er = clamp(bl.localT / bl.dur, 0, 1);
+            e = er * er * (3 - 2 * er);
+            for (let i = 0; i < bl.KW2.length; i++) bl.snap[i] = B[bl.KW2[i]];  // B's pure warp, pre-mix
+            for (let i = 0; i < SLOTS.length; i++) {                            // outputs mixed by name
+              const kA = KSL[i], kB = K2[SLOTS[i]];
+              if (kB !== undefined) env[kA] += (B[kB] - env[kA]) * e;
+            }
+            if (er >= 1) bl.promote = true;
+          }
+        }
         for (let i = 0; i < KW.length; i++) snap[i] = env[KW[i]];
 
         for (let v = 0; v < NV; v++) {
@@ -4872,6 +4953,21 @@ void main(){
           ws.zoom = env[K.zoom] * kZoom;
           warpUV(ws, dts, as, uvOut);
           if (!isFinite(uvOut[0]) || !isFinite(uvOut[1])) return fault('uv', 'per-vertex');
+          if (bl && e > 0 && bl.perVertex) {
+            const B = bl.env, K2 = bl.K2;
+            for (let i = 0; i < bl.KW2.length; i++) B[bl.KW2[i]] = bl.snap[i];
+            vertexSlots(v, as, B, K2);
+            bl.runProgram(bl.perVertex, B);
+            wsB.x = B[K2.x]; wsB.y = B[K2.y]; wsB.rad = B[K2.rad];
+            wsB.cx = B[K2.cx]; wsB.cy = B[K2.cy]; wsB.rot = B[K2.rot];
+            wsB.sx = B[K2.sx]; wsB.sy = B[K2.sy]; wsB.dx = B[K2.dx]; wsB.dy = B[K2.dy];
+            wsB.zoomexp = B[K2.zoomexp]; wsB.zoom = B[K2.zoom] * kZoom;
+            warpUV(wsB, dts, as, uvOutB);
+            if (isFinite(uvOutB[0]) && isFinite(uvOutB[1])) {
+              uvOut[0] += (uvOutB[0] - uvOut[0]) * e;
+              uvOut[1] += (uvOutB[1] - uvOut[1]) * e;
+            }
+          }
           uvArr[v * 2] = uvOut[0]; uvArr[v * 2 + 1] = uvOut[1];
         }
 
@@ -9907,6 +10003,15 @@ const VZ = (() => {
         { bass: b.bass, mid: b.mid, treb: b.treb, bass_att: b.bass_att,
           mid_att: b.mid_att, treb_att: b.treb_att, vol: b.level, vol_att: b.level,
           beat: bt, wave: td }, engKnobs());
+      if (eng.blendDone && pending) {
+        eng.blendDone = false;
+        if (eng.setWave) eng.setWave(pending.r.parsed.meta.wave || {});
+        finalizePreset(pending); pending = null;
+      }
+      if (eng.blendFault) {
+        say("incoming preset rejected mid-blend: " + eng.blendFault.name + " went non-finite — staying on " + (cur ? cur.name : "?"));
+        eng.blendFault = null; pending = null; paintLibrary();
+      }
       if (eng.fault) {
         stopLoop();
         renderState(eng.fault.stage === "per-frame" || eng.fault.stage === "per-vertex" ? "fault" : "glfault");
@@ -10034,7 +10139,8 @@ const VZ = (() => {
     }
     return missed;
   }
-  function applyPreset(entry) {
+  let pending = null;   // the incoming preset while a blend runs
+  function applyPreset(entry, viaBlend) {
     if (entry.text === null) { say(entry.name + " could not be read — not an empty preset"); return false; }
     const r = loadPreset(entry.text);
     if (!r.ok) {
@@ -10049,6 +10155,36 @@ const VZ = (() => {
     const env = VisLang.makeEnv(r.compiled);
     const sl = r.compiled.slots;
     for (const pr of r.params) env[sl[pr.name]] = pr.default;
+    const next = { entry, r, env, sl };
+    /* Blend when the show is live and a preset is already up: the outgoing image
+       is inherited, the equations cross-fade over ~3s, and the knob row snaps to
+       the incoming file at promotion (the loading contract). q-vars zero at
+       preset LOAD, which for a blended switch is the blend's first frame. */
+    if (viaBlend && eng && source && cur && cur.path !== entry.path && !eng.blending) {
+      VisLang.resetQ(r.compiled, env);
+      eng.clearFault();
+      eng.setBlend({ perFrame: r.compiled.programs["per-frame"], perVertex: r.compiled.programs["per-vertex"],
+                     env, slots: sl, runProgram: VisLang.runProgram, checkFinite: VisLang.checkFinite,
+                     resetOutputs: () => VisLang.resetOutputs(r.compiled, env) }, 3.0);
+      pending = next;
+      say("blending → " + entry.name);
+      return true;
+    }
+    if (eng) {
+      eng.clearFault(); eng.resetClock();   // time is seconds since preset load
+      eng.setPrograms({ perFrame: r.compiled.programs["per-frame"], perVertex: r.compiled.programs["per-vertex"],
+                        env, slots: sl, runProgram: VisLang.runProgram, checkFinite: VisLang.checkFinite,
+                        resetOutputs: () => VisLang.resetOutputs(r.compiled, env), resetQ: () => VisLang.resetQ(r.compiled, env) });
+      if (eng.setWave) eng.setWave(r.parsed.meta.wave || {});
+      VisLang.resetQ(r.compiled, env);
+      if (source) startLoop();              // a fault stopped the loop; a good preset restarts it
+    }
+    finalizePreset(next);
+    return true;
+  }
+  /* The tail every path shares: at once for a hard set, at promotion for a blend. */
+  function finalizePreset(next) {
+    const { entry, r, env, sl } = next;
     const vs = VisAudio.makeVariation((r.parsed.meta.variationSeed ?? r.parsed.meta.seed) || 0);
     cur = {
       name: entry.name, path: entry.path, text: entry.text, env, slots: sl,
@@ -10064,17 +10200,8 @@ const VZ = (() => {
       for (const k of KNOBS) knobs[k] = typeof kb[k] === "number" ? kb[k] : 0;   // absent -> neutral
       paintKnobs(); persistKnobs();
     }
-    if (eng) {
-      eng.clearFault(); eng.resetClock();   // time is seconds since preset load
-      eng.setPrograms({ perFrame: r.compiled.programs["per-frame"], perVertex: r.compiled.programs["per-vertex"],
-                        env, slots: sl, runProgram: VisLang.runProgram, checkFinite: VisLang.checkFinite,
-                        resetOutputs: () => VisLang.resetOutputs(r.compiled, env), resetQ: () => VisLang.resetQ(r.compiled, env) });
-      if (eng.setWave) eng.setWave(r.parsed.meta.wave || {});
-      VisLang.resetQ(r.compiled, env);
-      if (source) startLoop();              // a fault stopped the loop; a good preset restarts it
-    }
     if (!autoTimer) try { localStorage.setItem(LSP, entry.path); } catch (e) {}
-    paintParams();
+    paintParams(); paintLibrary();
     if (lastState === "running" || lastState === "synthetic") renderState(lastState);
     return true;
   }
@@ -10156,7 +10283,7 @@ const VZ = (() => {
       try { localStorage.removeItem(LSP); } catch (e) {}   // law 2 carve-out
       autoTimer = setInterval(() => {
         const ok = presets.filter((pp) => pp.text !== null);
-        if (ok.length > 1) { let n; do { n = ok[(Math.random() * ok.length) | 0]; } while (cur && n.path === cur.path); applyPreset(n); paintLibrary(); }
+        if (ok.length > 1) { let n; do { n = ok[(Math.random() * ok.length) | 0]; } while (cur && n.path === cur.path); applyPreset(n, true); }
       }, 30000);
     }
   }
@@ -10187,7 +10314,7 @@ const VZ = (() => {
         body.querySelector("[data-vz-promise]").textContent = "this build has no microphone — Start plays a seeded synthetic signal";
       body.querySelector("[data-vz-save]").onclick = saveAs;
       body.querySelector("[data-vz-auto]").onchange = (e) => setAuto(e.target.checked);
-      body.querySelector("[data-vz-preset]").onchange = (e) => { const pp = presets[+e.target.value]; if (pp) applyPreset(pp); };
+      body.querySelector("[data-vz-preset]").onchange = (e) => { const pp = presets[+e.target.value]; if (pp) applyPreset(pp, true); };
       body.querySelector("[data-vz-prev]").onclick = () => stepPreset(-1);
       body.querySelector("[data-vz-next]").onclick = () => stepPreset(1);
       body.querySelector("[data-vz-dev]").onchange = (e) => { deviceId = e.target.value; if (source === "mic") { life.event("hidden"); start(); } };
@@ -10213,7 +10340,7 @@ const VZ = (() => {
     const ok = presets.filter((pp) => pp.text !== null);
     if (!ok.length || !cur) return;
     const i = ok.findIndex((pp) => pp.path === cur.path);
-    applyPreset(ok[(i + d + ok.length) % ok.length]); paintLibrary();
+    applyPreset(ok[(i + d + ok.length) % ok.length], true);
   }
   APPS.vz.onClose = () => {
     life.event("closed"); stopLoop(); setAuto(false); source = null;
