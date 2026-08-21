@@ -582,6 +582,34 @@
   .st-ledger td.n, .st-ledger th.n { text-align:right; }
   .st-honest { font-size:11px; color:var(--ink-on-face); margin-top:8px; }
   .st-honest details { margin-top:4px; } .st-honest code { font-size:10px; }
+  /* ---- MilkDrop+ ---- */
+  .vz-main { display:flex; flex-direction:column; gap:8px; padding:8px; height:100%; box-sizing:border-box; overflow-y:auto; }
+  .vz-stage { position:relative; background:#000; flex:0 0 auto; aspect-ratio:16/9; min-height:120px;
+              box-shadow: inset 1px 1px var(--face-dk), inset -1px -1px var(--face-hi); }
+  .vz-stage canvas { width:100%; height:100%; display:block; }
+  .vz-stage.full { position:fixed; inset:0; z-index:9000; aspect-ratio:auto; }
+  .vz-state { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+              justify-content:center; gap:8px; color:#cfe0cf; background:rgba(0,0,0,.82);
+              text-align:center; padding:16px; font-size:12.5px; }
+  .vz-state b { font-size:13.5px; }
+  .vz-state.hidden { display:none; }
+  .vz-badge { position:absolute; left:6px; bottom:6px; font-size:10px; letter-spacing:.4px;
+              color:#9fbf9f; background:rgba(0,0,0,.6); padding:2px 6px; pointer-events:none; }
+  .vz-row { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .vz-row select { min-width:130px; }
+  .vz-knobs { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap:4px 10px; }
+  .vz-knob { display:grid; grid-template-columns:64px 30px minmax(0,1fr) 30px 34px; gap:4px; align-items:center; }
+  .vz-knob .lb { font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:var(--ink-on-face); }
+  .vz-knob input[type=range] { width:100%; min-width:0; touch-action:none; }
+  .vz-knob button { min-height:26px; min-width:0; width:100%; padding:0; }
+  .vz-knob .val { font-size:10.5px; text-align:right; font-variant-numeric:tabular-nums; }
+  .vz-strip { font-size:11px; color:var(--ink-on-face); }
+  .vz-knob .lb { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  @media (max-width: 700px) {
+    .vz-knob { grid-template-columns:54px 28px 1fr 28px 32px; }
+    .vz-row select { min-width:0; max-width:46vw; }
+  }
+  .vz-strip b { color:var(--accent-on-face); }
   @media (max-width: 700px) { .st-board { flex-direction:column; } .st-kpi b { font-size:19px; } }
   .web-tools { flex:none; display:flex; align-items:center; gap:4px; padding:4px 5px;
       flex-wrap:wrap; font-size:12px; }
@@ -1243,6 +1271,7 @@ PNG_ICONS.set("logoff", false);
 PNG_ICONS.set("web", false);      // Wiki Web is hand-drawn too — see ART.web
 PNG_ICONS.set("mb", false);       // MB Teaches ML: the teacher's apple — see ART.mb
 PNG_ICONS.set("stoop", false);    // Stoop: front steps, parcel waiting — see ART.stoop
+PNG_ICONS.set("vz", false);       // MilkDrop+: the tunnel, mid-swallow — see ART.vz
 function pngIcon(name) {
   if (PNG_ICONS.has(name)) return PNG_ICONS.get(name);
   const im = new Image();
@@ -1272,6 +1301,23 @@ function refreshIcons() {
   });
 }
 const ART = {
+  vz: [  // concentric tunnel pulling right-down, a wave riding through
+    "................",
+    ".kkkkkkkkkkkkkk.",
+    ".k....mmmm....k.",
+    ".k..mm....mm..k.",
+    ".k.m..pppp..m.k.",
+    ".k.m.p....p.m.k.",
+    ".km.p..ww..p.mk.",
+    ".km.p.w..w.p.mk.",
+    ".km.p.w..w.p.mk.",
+    ".kmwp..ww..pwmk.",
+    ".kw.p......p.wk.",
+    ".k.wmpp..ppmw.k.",
+    ".k..wwmppm.w..k.",
+    ".k....wwww....k.",
+    ".kkkkkkkkkkkkkk.",
+    "................"],
   surface: [
     "................",
     ".......y........",
@@ -2939,10 +2985,13 @@ const WM = (() => {
     document.getElementById(`win-${id}`).classList.remove("open");
     open.delete(id);
     renderTaskButtons();
+    // an app holding hardware (MilkDrop+'s mic) must hear about this
+    if (APPS[id] && APPS[id].onClose) APPS[id].onClose();
   }
   function minimize(id) {
     document.getElementById(`win-${id}`).classList.remove("open");
     syncTaskbar(null);
+    if (APPS[id] && APPS[id].onHide) APPS[id].onHide();
   }
 
   function renderTaskButtons() {
@@ -2975,6 +3024,2228 @@ const WM = (() => {
 })();
 
 /* ---------------- Apps ---------------- */
+
+/*VIS-MODULES-BEGIN — MilkDrop+'s pure layer. Built subagent-first 2026-08-21
+  (five Opus workers, docs/milkdrop-plus.md), integrated by the deep session.
+  verify/presets.mjs extracts and runs THIS region — one grammar, no copy. */
+const VisLang = (() => {
+  // Totality is enforced at the op, not at the author. Every value that leaves an
+  // instruction passes through fin(): NaN becomes 0, infinities saturate. One NaN in
+  // dx discards every triangle touching the vertex and the feedback loop keeps the
+  // hole after the value recovers, so there is nowhere downstream to fix this.
+  const LIMIT = 1e30;
+  const fin = (x) => (x !== x ? 0 : x > LIMIT ? LIMIT : x < -LIMIT ? -LIMIT : x);
+
+  const add = (a, b) => fin(a + b);
+  const sub = (a, b) => fin(a - b);
+  const mul = (a, b) => fin(a * b);
+  const div = (a, b) => (b === 0 ? 0 : fin(a / b));
+  const mod = (a, b) => (b === 0 ? 0 : fin(a % b));
+  const neg = (a) => fin(-a);
+
+  // --- deterministic noise -------------------------------------------------
+  // Value noise, not gradient noise: no permutation table to carry, and the hash is
+  // the whole state, so noise1(x) is the same number in every process forever.
+  const hashi = (n) => {
+    let h = n | 0;
+    h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
+    h = Math.imul(h ^ (h >>> 12), 0x297a2d39);
+    h ^= h >>> 15;
+    return (h >>> 0) / 4294967296;
+  };
+  const hash2i = (a, b) => hashi(Math.imul(a | 0, 0x27d4eb2d) ^ Math.imul(b | 0, 0x165667b1) ^ 0x9e3779b9);
+  const fade = (t) => t * t * (3 - 2 * t);
+  // Lattice coords go through |0 in the hash, so keep them inside int32 first.
+  const LAT = 1 << 22;
+  const lat = (x) => (x > LAT ? LAT : x < -LAT ? -LAT : x);
+
+  const noise1 = (x) => {
+    const v = lat(x), i = Math.floor(v), t = fade(v - i);
+    return hashi(i) * (1 - t) + hashi(i + 1) * t;
+  };
+  const noise2 = (x, y) => {
+    const u = lat(x), v = lat(y);
+    const i = Math.floor(u), j = Math.floor(v);
+    const s = fade(u - i), t = fade(v - j);
+    const a = hash2i(i, j) * (1 - s) + hash2i(i + 1, j) * s;
+    const b = hash2i(i, j + 1) * (1 - s) + hash2i(i + 1, j + 1) * s;
+    return a * (1 - t) + b * t;
+  };
+  const randStatic = (i, seed) => hash2i(Math.floor(lat(i)), (seed | 0) * 2654435761);
+
+  // --- function set --------------------------------------------------------
+  // [minArgs, maxArgs, impl]. Every impl is total on its own; fin() at the call site
+  // is belt and braces.
+  const FNS = {
+    sin: [1, 1, Math.sin],
+    cos: [1, 1, Math.cos],
+    tan: [1, 1, Math.tan],
+    asin: [1, 1, (x) => Math.asin(x < -1 ? -1 : x > 1 ? 1 : x)],
+    acos: [1, 1, (x) => Math.acos(x < -1 ? -1 : x > 1 ? 1 : x)],
+    atan: [1, 1, Math.atan],
+    atan2: [2, 2, Math.atan2],
+    abs: [1, 1, Math.abs],
+    sign: [1, 1, (x) => (x > 0 ? 1 : x < 0 ? -1 : 0)],
+    sqr: [1, 1, (x) => x * x],
+    sqrt: [1, 1, (x) => Math.sqrt(x < 0 ? 0 : x)],
+    // sign(x)*|x|^y for negative bases with fractional exponents; integer exponents
+    // keep their real sign. 0^negative is a division by zero, so it is 0.
+    pow: [2, 2, (a, b) => (a < 0 ? (Math.floor(b) === b ? Math.pow(a, b) : -Math.pow(-a, b)) : a === 0 && b < 0 ? 0 : Math.pow(a, b))],
+    exp: [1, 1, Math.exp],
+    log: [1, 1, (x) => Math.log(x < 1e-30 ? 1e-30 : x)],
+    min: [2, 2, (a, b) => (a < b ? a : b)],
+    max: [2, 2, (a, b) => (a > b ? a : b)],
+    clamp: [3, 3, (x, a, b) => (x < a ? a : x > b ? b : x)],
+    floor: [1, 1, Math.floor],
+    ceil: [1, 1, Math.ceil],
+    int: [1, 1, Math.trunc],
+    fmod: [2, 2, mod],
+    sigmoid: [1, 2, (x, k) => 1 / (1 + Math.exp(-x * (k === undefined ? 1 : k)))],
+    // Strict: both branches are evaluated. Stated in the docs so nobody reaches for
+    // if() to guard a division — division guards itself (x/0 = 0).
+    if: [3, 3, (c, a, b) => (c !== 0 ? a : b)],
+    above: [2, 2, (a, b) => (a > b ? 1 : 0)],
+    below: [2, 2, (a, b) => (a < b ? 1 : 0)],
+    equal: [2, 2, (a, b) => (a === b ? 1 : 0)],
+    band: [2, 2, (a, b) => (a !== 0 && b !== 0 ? 1 : 0)],
+    bor: [2, 2, (a, b) => (a !== 0 || b !== 0 ? 1 : 0)],
+    bnot: [1, 1, (a) => (a === 0 ? 1 : 0)],
+    noise1: [1, 1, noise1],
+    noise2: [2, 2, noise2],
+    // rand_static gets its own opcode: the seed lives on the program, not the stack.
+    rand_static: [1, 1, null]
+  };
+  const FN_NAMES = Object.keys(FNS);
+  const FN_IMPL = FN_NAMES.map((n) => FNS[n][2]);
+  const FN_INDEX = {};
+  FN_NAMES.forEach((n, i) => (FN_INDEX[n] = i));
+
+  // --- the grammar ---------------------------------------------------------
+  const AUDIO = ['bass', 'mid', 'treb', 'bass_att', 'mid_att', 'treb_att', 'vol', 'vol_att', 'beat'];
+  const ENGINE = ['dt', 'aspect', 'time', 'frame', 'texsize', 'meshx', 'meshy'];
+  const QVARS = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8'];
+  const VERTEX_IN = ['x', 'y', 'xc', 'yc', 'rad', 'ang'];
+  const WARP = ['zoom', 'rot', 'cx', 'cy', 'sx', 'sy', 'dx', 'dy', 'zoomexp'];
+  const DECAY = ['decay', 'decay_r', 'decay_g', 'decay_b'];
+  const WAVE = ['wave_r', 'wave_g', 'wave_b', 'wave_a', 'wave_x', 'wave_y', 'wave_mystery', 'wave_thick', 'wave_smoothing', 'additive_waves'];
+  const STAGE_A = ['ob_size', 'ob_r', 'ob_g', 'ob_b', 'ob_a', 'ib_size', 'ib_r', 'ib_g', 'ib_b', 'ib_a', 'darken_center'];
+  const STAGE_B = ['gamma', 'echo_zoom', 'echo_alpha', 'echo_orient', 'brighten', 'darken', 'solarize', 'invert'];
+  const CONSTANTS = { pi: Math.PI, e: Math.E };
+
+  const OUTPUTS = WARP.concat(DECAY, WAVE, STAGE_A, STAGE_B);
+  const CONST_NAMES = Object.keys(CONSTANTS);
+
+  const DEFAULTS = {
+    zoom: 1, rot: 0, cx: 0.5, cy: 0.5, sx: 1, sy: 1, dx: 0, dy: 0, zoomexp: 1,
+    decay: 0.97, decay_r: 0.97, decay_g: 0.97, decay_b: 0.97,
+    wave_r: 1, wave_g: 1, wave_b: 1, wave_a: 1, wave_x: 0.5, wave_y: 0.5,
+    wave_mystery: 0, wave_thick: 1, wave_smoothing: 0.75, additive_waves: 0,
+    ob_size: 0.01, ob_r: 0, ob_g: 0, ob_b: 0, ob_a: 0,
+    ib_size: 0.01, ib_r: 0, ib_g: 0, ib_b: 0, ib_a: 0, darken_center: 0,
+    gamma: 1, echo_zoom: 1, echo_alpha: 0, echo_orient: 0,
+    brighten: 0, darken: 0, solarize: 0, invert: 0,
+    dt: 1 / 60, aspect: 1, time: 0, frame: 0, texsize: 720, meshx: 32, meshy: 24
+  };
+
+  const fnArity = {};
+  FN_NAMES.forEach((n) => (fnArity[n] = { min: FNS[n][0], max: FNS[n][1] }));
+
+  const VIS_GRAMMAR = {
+    version: 1,
+    // One declaration, read by the engine, the load-path validator and
+    // verify/presets.mjs alike — lint-vs-engine drift is impossible by construction.
+    constants: CONSTANTS,
+    audio: AUDIO,
+    engine: ENGINE,
+    qvars: QVARS,
+    vertexInputs: VERTEX_IN,
+    outputs: { warp: WARP, decay: DECAY, wave: WAVE, stageA: STAGE_A, stageB: STAGE_B },
+    defaults: DEFAULTS,
+    // Slot order for the shared env. Every name the language can touch lives here.
+    vars: CONST_NAMES.concat(ENGINE, AUDIO, QVARS, VERTEX_IN, OUTPUTS),
+    sections: ['per-frame', 'per-vertex'],
+    blocks: {
+      'per-frame': {
+        // Per-frame sees last frame's q-vars; its own outputs must be assigned before
+        // they are read, which is what makes the block a pure (inputs,q)->(out,q').
+        reads: CONST_NAMES.concat(ENGINE, AUDIO, QVARS),
+        writes: OUTPUTS.concat(QVARS)
+      },
+      'per-vertex': {
+        reads: CONST_NAMES.concat(ENGINE, AUDIO, QVARS, VERTEX_IN, OUTPUTS),
+        writes: WARP
+      }
+    },
+    functions: fnArity,
+    functionNames: FN_NAMES,
+    frontmatter: {
+      keys: ['name', 'author', 'created', 'derived-from', 'seed', 'variation-seed', 'knobs', 'params', 'wave', 'shape'],
+      required: ['name', 'author', 'created', 'seed'],
+      // Neutral position per knob: the render at neutral is bit-identical to the
+      // unmodified preset, which is what makes an old preset still controllable.
+      knobs: {
+        speed: { min: -1, max: 1, neutral: 0 },
+        variation: { min: 0, max: 1, neutral: 0 },
+        sensitivity: { min: -1, max: 1, neutral: 0 },
+        persistence: { min: -1, max: 1, neutral: 0 },
+        zoom: { min: -1, max: 1, neutral: 0 },
+        hue: { min: -1, max: 1, neutral: 0 }
+      },
+      params: { keys: ['name', 'label', 'min', 'max', 'default', 'vary'], required: ['name', 'min', 'max', 'default'] },
+      enums: {
+        'wave.mode': ['line', 'double', 'circle', 'spiral'],
+        'wave.additive': ['true', 'false'],
+        'shape.blend': ['alpha', 'additive'],
+        echo_orient: ['none', 'flip-x', 'flip-y', 'both']
+      }
+    },
+    noiseRange: [0, 1]
+  };
+
+  // --- tokenizer -----------------------------------------------------------
+  const isDigit = (c) => c >= '0' && c <= '9';
+  const isNameStart = (c) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '_';
+  const isNamePart = (c) => isNameStart(c) || isDigit(c);
+
+  const tokenize = (src) => {
+    const out = [];
+    let i = 0, line = 1;
+    const n = src.length;
+    while (i < n) {
+      const c = src[i];
+      if (c === '\n') { out.push({ t: 'nl', v: '\n', line }); line++; i++; continue; }
+      if (c === ' ' || c === '\t' || c === '\r') { i++; continue; }
+      if (c === '/' && src[i + 1] === '/') { while (i < n && src[i] !== '\n') i++; continue; }
+      if (isDigit(c) || (c === '.' && isDigit(src[i + 1]))) {
+        const s = i;
+        while (i < n && isDigit(src[i])) i++;
+        if (src[i] === '.') { i++; while (i < n && isDigit(src[i])) i++; }
+        if (src[i] === 'e' || src[i] === 'E') {
+          const save = i;
+          i++;
+          if (src[i] === '+' || src[i] === '-') i++;
+          if (isDigit(src[i])) { while (i < n && isDigit(src[i])) i++; } else i = save;
+        }
+        out.push({ t: 'num', v: fin(parseFloat(src.slice(s, i))), line });
+        continue;
+      }
+      if (isNameStart(c)) {
+        const s = i;
+        while (i < n && isNamePart(src[i])) i++;
+        out.push({ t: 'name', v: src.slice(s, i), line });
+        continue;
+      }
+      if ('+-*/%(),=;'.indexOf(c) >= 0) { out.push({ t: 'op', v: c, line }); i++; continue; }
+      out.push({ t: 'bad', v: c, line });
+      i++;
+    }
+    out.push({ t: 'eof', v: '', line });
+    return out;
+  };
+
+  // --- parser --------------------------------------------------------------
+  // program := stmt* ; stmt := NAME '=' expr END
+  // expr := term (('+'|'-') term)* ; term := unary (('*'|'/'|'%') unary)*
+  // unary := ('-'|'+') unary | primary
+  // primary := NUM | NAME | NAME '(' [expr (',' expr)*] ')' | '(' expr ')'
+  const parse = (src, baseLine) => {
+    const base = (baseLine || 1) - 1;
+    const tk = tokenize(src);
+    const errors = [], stmts = [];
+    let p = 0;
+
+    const peek = () => tk[p];
+    const fail = (tok, why) => { const err = new Error(why); err.line = tok.line + base; throw err; };
+    const isOp = (v) => tk[p].t === 'op' && tk[p].v === v;
+    const eat = (v) => { if (isOp(v)) { p++; return true; } return false; };
+    const desc = (tok) => (tok.t === 'eof' ? 'end of block' : tok.t === 'nl' ? 'end of line' : `"${tok.v}"`);
+
+    let expr;
+    const primary = () => {
+      const tok = peek();
+      if (tok.t === 'num') { p++; return { k: 'num', v: tok.v }; }
+      if (tok.t === 'name') {
+        p++;
+        if (isOp('(')) {
+          p++;
+          const args = [];
+          if (!isOp(')')) {
+            for (;;) {
+              args.push(expr());
+              if (eat(',')) continue;
+              break;
+            }
+          }
+          if (!eat(')')) fail(peek(), `expected ")" to close ${tok.v}(, found ${desc(peek())}`);
+          return { k: 'call', n: tok.v, args, line: tok.line + base };
+        }
+        return { k: 'var', n: tok.v, line: tok.line + base };
+      }
+      if (isOp('(')) {
+        p++;
+        const e = expr();
+        if (!eat(')')) fail(peek(), `expected ")" , found ${desc(peek())}`);
+        return e;
+      }
+      fail(tok, `expected a number, a name or "(", found ${desc(tok)}`);
+    };
+    const unary = () => {
+      if (isOp('-')) { p++; return { k: 'neg', a: unary() }; }
+      if (isOp('+')) { p++; return unary(); }
+      return primary();
+    };
+    const term = () => {
+      let a = unary();
+      while (isOp('*') || isOp('/') || isOp('%')) { const op = tk[p++].v; a = { k: 'bin', op, a, b: unary() }; }
+      return a;
+    };
+    expr = () => {
+      let a = term();
+      while (isOp('+') || isOp('-')) { const op = tk[p++].v; a = { k: 'bin', op, a, b: term() }; }
+      return a;
+    };
+
+    const skipLine = () => { while (tk[p].t !== 'eof' && !(tk[p].t === 'nl' || (tk[p].t === 'op' && tk[p].v === ';'))) p++; };
+
+    while (tk[p].t !== 'eof') {
+      if (tk[p].t === 'nl' || isOp(';')) { p++; continue; }
+      const start = tk[p];
+      try {
+        if (start.t !== 'name') fail(start, `expected a variable name to assign, found ${desc(start)}`);
+        p++;
+        if (!eat('=')) fail(peek(), `expected "=" after ${start.v}, found ${desc(peek())}`);
+        const e = expr();
+        const end = peek();
+        if (!(end.t === 'eof' || end.t === 'nl' || (end.t === 'op' && end.v === ';'))) fail(end, `unexpected ${desc(end)} after the expression`);
+        stmts.push({ name: start.v, line: start.line + base, expr: e });
+      } catch (err) {
+        if (err.line === undefined) throw err;
+        errors.push({ line: err.line, name: start.t === 'name' ? start.v : null, why: err.message, severity: 'error' });
+        skipLine();
+      }
+    }
+    return { stmts, errors };
+  };
+
+  const parseExpression = (src, baseLine) => {
+    const r = parse('__e = ' + src, baseLine);
+    if (r.errors.length) { const e = new Error(r.errors[0].why); e.line = r.errors[0].line; throw e; }
+    return r.stmts[0].expr;
+  };
+
+  // --- instruction set -----------------------------------------------------
+  const OP_CONST = 0, OP_LOAD = 1, OP_STORE = 2, OP_ADD = 3, OP_SUB = 4, OP_MUL = 5,
+    OP_DIV = 6, OP_MOD = 7, OP_NEG = 8, OP_CALL = 9, OP_POP = 10, OP_RANDS = 11;
+
+  // One preallocated stack for every program in the page: the evaluator is a flat
+  // loop, not a closure tree, because two 30-node per-vertex equations at 768
+  // vertices is ~50k megamorphic dispatches a frame on mobile Safari.
+  let STACK = new Float64Array(256);
+  const reserve = (n) => { if (n > STACK.length) STACK = new Float64Array(1 << Math.ceil(Math.log2(n))); };
+
+  const runProgram = (program, env) => {
+    const code = program.code, K = program.consts, S = STACK, seed = program.seed;
+    const n = code.length;
+    let sp = 0, i = 0;
+    while (i < n) {
+      switch (code[i]) {
+        case OP_CONST: S[sp++] = K[code[i + 1]]; i += 2; break;
+        case OP_LOAD: S[sp++] = fin(env[code[i + 1]]); i += 2; break;
+        case OP_STORE: env[code[i + 1]] = S[--sp]; i += 2; break;
+        case OP_ADD: sp--; S[sp - 1] = fin(S[sp - 1] + S[sp]); i++; break;
+        case OP_SUB: sp--; S[sp - 1] = fin(S[sp - 1] - S[sp]); i++; break;
+        case OP_MUL: sp--; S[sp - 1] = fin(S[sp - 1] * S[sp]); i++; break;
+        case OP_DIV: sp--; S[sp - 1] = S[sp] === 0 ? 0 : fin(S[sp - 1] / S[sp]); i++; break;
+        case OP_MOD: sp--; S[sp - 1] = S[sp] === 0 ? 0 : fin(S[sp - 1] % S[sp]); i++; break;
+        case OP_NEG: S[sp - 1] = fin(-S[sp - 1]); i++; break;
+        case OP_POP: sp--; i++; break;
+        case OP_RANDS: S[sp - 1] = randStatic(S[sp - 1], seed); i++; break;
+        default: { // OP_CALL
+          const f = FN_IMPL[code[i + 1]], argc = code[i + 2];
+          sp -= argc;
+          S[sp] = fin(argc === 1 ? f(S[sp]) : argc === 2 ? f(S[sp], S[sp + 1]) : f(S[sp], S[sp + 1], S[sp + 2]));
+          sp++;
+          i += 3;
+        }
+      }
+    }
+  };
+
+  // The lint cannot see runtime non-finites; this can. Returns the first output that
+  // went bad so the engine can name variable and line and hold the last good frame.
+  const checkFinite = (program, env) => {
+    const t = program.targets;
+    for (let i = 0; i < t.length; i++) {
+      const v = env[t[i].slot];
+      if (!(v > -Infinity && v < Infinity)) return { name: t[i].name, line: t[i].line, block: program.block };
+    }
+    return null;
+  };
+
+  // --- compiler ------------------------------------------------------------
+  const compileBlock = (stmts, ctx) => {
+    const code = [], consts = [], constMap = new Map();
+    const targets = [], writes = [], reads = [];
+    const assigned = new Set(), used = new Set(), localLine = new Map();
+    const errors = ctx.errors, warnings = ctx.warnings;
+    let depth = 0, maxDepth = 0;
+
+    const push = (d) => { depth += d; if (depth > maxDepth) maxDepth = depth; };
+    const emit = (a, b, c) => { code.push(a); if (b !== undefined) code.push(b); if (c !== undefined) code.push(c); };
+    const konst = (v) => {
+      v = fin(v);
+      let k = constMap.get(v);
+      if (k === undefined) { k = consts.length; consts.push(v); constMap.set(v, k); }
+      return k;
+    };
+    const err = (line, name, why) => errors.push({ line, name, why, severity: 'error' });
+    const warn = (line, name, why) => warnings.push({ line, name, why, severity: 'warning' });
+
+    const slotFor = (name) => {
+      if (ctx.slots[name] !== undefined) return ctx.slots[name];
+      let s = ctx.locals[name];
+      if (s === undefined) { s = ctx.alloc(); ctx.locals[name] = s; }
+      return s;
+    };
+
+    // Constant folding exists for exactly one reason: rand_static must resolve once
+    // at load, so Save-as reproduces the frame he liked.
+    const foldable = (node) => {
+      if (node.k === 'num') return true;
+      if (node.k === 'neg') return foldable(node.a);
+      if (node.k === 'bin') return foldable(node.a) && foldable(node.b);
+      return false;
+    };
+    const foldValue = (node) => {
+      if (node.k === 'num') return fin(node.v);
+      if (node.k === 'neg') return neg(foldValue(node.a));
+      const a = foldValue(node.a), b = foldValue(node.b);
+      return node.op === '+' ? add(a, b) : node.op === '-' ? sub(a, b) : node.op === '*' ? mul(a, b) : node.op === '/' ? div(a, b) : mod(a, b);
+    };
+
+    const walk = (node, line) => {
+      switch (node.k) {
+        case 'num': emit(OP_CONST, konst(node.v)); push(1); return;
+        case 'neg': walk(node.a, line); emit(OP_NEG); return;
+        case 'bin':
+          walk(node.a, line);
+          walk(node.b, line);
+          emit(node.op === '+' ? OP_ADD : node.op === '-' ? OP_SUB : node.op === '*' ? OP_MUL : node.op === '/' ? OP_DIV : OP_MOD);
+          push(-1);
+          return;
+        case 'var': {
+          const name = node.n;
+          used.add(name);
+          if (!ctx.reads.has(name) && !assigned.has(name)) {
+            if (name[0] === '_') warn(node.line, name, `local "${name}" is read before it is assigned — it reads 0`);
+            else err(node.line, name, `"${name}" is read before it is assigned, and is not readable in ${ctx.block} — author locals need a leading underscore`);
+          }
+          emit(OP_LOAD, slotFor(name));
+          push(1);
+          return;
+        }
+        default: {
+          const spec = FNS[node.n];
+          if (!spec) {
+            err(node.line, node.n, `unknown function "${node.n}"`);
+            node.args.forEach((a) => walk(a, line));
+            for (let i = 0; i < node.args.length; i++) { emit(OP_POP); push(-1); }
+            emit(OP_CONST, konst(0));
+            push(1);
+            return;
+          }
+          const argc = node.args.length;
+          if (argc < spec[0] || argc > spec[1]) {
+            err(node.line, node.n, `${node.n}() takes ${spec[0] === spec[1] ? spec[0] : spec[0] + '-' + spec[1]} argument${spec[1] === 1 ? '' : 's'}, got ${argc}`);
+            node.args.forEach((a) => walk(a, line));
+            for (let i = 0; i < argc; i++) { emit(OP_POP); push(-1); }
+            emit(OP_CONST, konst(0));
+            push(1);
+            return;
+          }
+          if (node.n === 'rand_static') {
+            if (foldable(node.args[0])) { emit(OP_CONST, konst(randStatic(foldValue(node.args[0]), ctx.seed))); push(1); return; }
+            walk(node.args[0], line);
+            emit(OP_RANDS);
+            return;
+          }
+          node.args.forEach((a) => walk(a, line));
+          emit(OP_CALL, FN_INDEX[node.n], argc);
+          push(-(argc - 1));
+          return;
+        }
+      }
+    };
+
+    for (const st of stmts) {
+      walk(st.expr, st.line);
+      const name = st.name;
+      if (ctx.block === 'per-vertex' && ctx.qvars.has(name)) {
+        err(st.line, name, `q-vars are read-only in per-vertex — "${name}" is written by per-frame and persists across frames`);
+        emit(OP_POP);
+        push(-1);
+      } else if (ctx.writes.has(name)) {
+        const slot = ctx.slots[name];
+        emit(OP_STORE, slot);
+        push(-1);
+        if (writes.indexOf(name) < 0) writes.push(name);
+        targets.push({ name, line: st.line, slot });
+      } else if (ctx.reads.has(name)) {
+        err(st.line, name, `"${name}" is a read-only input in ${ctx.block}`);
+        emit(OP_POP);
+        push(-1);
+      } else if (name[0] === '_') {
+        const slot = slotFor(name);
+        emit(OP_STORE, slot);
+        push(-1);
+        if (!localLine.has(name)) localLine.set(name, st.line);
+      } else {
+        err(st.line, name, `"${name}" is not a variable in ${ctx.block} — author locals need a leading underscore`);
+        emit(OP_POP);
+        push(-1);
+      }
+      assigned.add(name);
+    }
+
+    // The other half of a typo: a local computed and then never spent.
+    localLine.forEach((line, name) => { if (!used.has(name)) warn(line, name, `"${name}" is assigned and never read`); });
+    ctx.reads.forEach((n) => { if (used.has(n)) reads.push(n); });
+
+    reserve(maxDepth + 1);
+    return {
+      block: ctx.block,
+      code: Int32Array.from(code),
+      consts: Float64Array.from(consts),
+      seed: ctx.seed,
+      maxStack: maxDepth,
+      writes,
+      reads,
+      locals: ctx.locals,
+      targets
+    };
+  };
+
+  // Three accepted shapes per block: a string, {text, line}, or VisPreset's
+  // array of line entries [{line, text, comment}]. The entries shape is joined
+  // with its real line numbers preserved via a base-line offsetting trick kept
+  // OUT of here: we rebuild the text with padding newlines so line arithmetic
+  // stays true. Integration defect C (2026-08-20): the first version read
+  // `v.text` off an entries ARRAY, got undefined, and compiled an empty
+  // program reporting ok:true — a silently-valid nothing. Never again: an
+  // unrecognized block shape is now a loud throw, not an empty string.
+  const entriesToText = (rows) => {
+    let text = '', at = rows.length ? rows[0].line : 1;
+    for (const r of rows) {
+      while (at < r.line) { text += '\n'; at++; }
+      text += r.text + '\n'; at++;
+    }
+    return { text, line: rows.length ? rows[0].line : 1 };
+  };
+  const normalizeBlocks = (blocks) => {
+    const one = (name, v) => {
+      if (typeof v === 'string') return { name, text: v, line: 1 };
+      if (Array.isArray(v)) { const e = entriesToText(v); return { name, text: e.text, line: e.line }; }
+      if (v && typeof v.text === 'string') return { name, text: v.text, line: v.line || 1 };
+      throw new Error('compilePreset: unrecognized block shape for "' + name + '"');
+    };
+    if (Array.isArray(blocks)) return blocks.map((b) => one(b.name, b.entries || b.text || ''));
+    return Object.keys(blocks).map((k) => one(k, blocks[k]));
+  };
+
+  const compilePreset = (blocks, grammar, opts) => {
+    const g = grammar || VIS_GRAMMAR;
+    const seed = ((opts && opts.seed) | 0);
+    const errors = [], warnings = [];
+    const slots = {};
+    let next = 0;
+    g.vars.forEach((n) => (slots[n] = next++));
+    const alloc = () => next++;
+    const qvars = new Set(g.qvars);
+    const programs = {};
+    const seen = new Set();
+
+    for (const b of normalizeBlocks(blocks)) {
+      const spec = g.blocks[b.name];
+      if (!spec) {
+        errors.push({ line: b.line, name: b.name, why: `unknown section "## ${b.name}" — known sections: ${g.sections.join(', ')}`, severity: 'error' });
+        continue;
+      }
+      if (seen.has(b.name)) {
+        errors.push({ line: b.line, name: b.name, why: `duplicate section "## ${b.name}"`, severity: 'error' });
+        continue;
+      }
+      seen.add(b.name);
+      const parsed = parse(b.text, b.line);
+      parsed.errors.forEach((e) => errors.push(e));
+      programs[b.name] = compileBlock(parsed.stmts, {
+        block: b.name,
+        reads: new Set(spec.reads),
+        writes: new Set(spec.writes),
+        qvars,
+        slots,
+        locals: {},
+        alloc,
+        seed,
+        errors,
+        warnings
+      });
+    }
+    // A missing section is legal; the engine still wants something callable.
+    g.sections.forEach((s) => {
+      if (!programs[s]) {
+        programs[s] = compileBlock([], {
+          block: s, reads: new Set(g.blocks[s].reads), writes: new Set(g.blocks[s].writes),
+          qvars, slots, locals: {}, alloc, seed, errors, warnings
+        });
+      }
+    });
+
+    errors.sort((a, b) => a.line - b.line);
+    warnings.sort((a, b) => a.line - b.line);
+    return { programs, errors, warnings, ok: errors.length === 0, slots, envSize: next, seed, grammar: g };
+  };
+
+  // Fresh env: constants, engine scalars and every output at its documented default,
+  // q-vars zeroed. Zeroing on load is what keeps preset switching reproducible.
+  const makeEnv = (compiled) => {
+    const env = new Float64Array(compiled.envSize);
+    const g = compiled.grammar || VIS_GRAMMAR;
+    Object.keys(g.constants).forEach((n) => (env[compiled.slots[n]] = g.constants[n]));
+    Object.keys(g.defaults).forEach((n) => { if (compiled.slots[n] !== undefined) env[compiled.slots[n]] = g.defaults[n]; });
+    return env;
+  };
+
+  const resetOutputs = (compiled, env) => {
+    const g = compiled.grammar || VIS_GRAMMAR;
+    Object.keys(g.defaults).forEach((n) => { if (compiled.slots[n] !== undefined) env[compiled.slots[n]] = g.defaults[n]; });
+  };
+
+  const resetQ = (compiled, env) => {
+    const g = compiled.grammar || VIS_GRAMMAR;
+    g.qvars.forEach((n) => (env[compiled.slots[n]] = 0));
+  };
+
+  const validateFrontmatter = (fm, grammar) => {
+    // VisPreset pre-seeds every grammar key as camelCase null (round-trip
+    // stability needs it); a null is "absent", never "unknown" (defect B).
+    const kebab = (k) => k.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase());
+    const g = grammar || VIS_GRAMMAR;
+    const f = g.frontmatter;
+    const errors = [];
+    const at = (key) => (fm && fm.__lines && fm.__lines[key]) || 0;
+    const err = (name, why, line) => errors.push({ line: line || at(name) || 0, name, why, severity: 'error' });
+    if (!fm || typeof fm !== 'object') { errors.push({ line: 0, name: null, why: 'preset has no frontmatter block', severity: 'error' }); return errors; }
+    Object.keys(fm).forEach((k) => {
+      if (k === '__lines' || fm[k] === null) return;
+      if (f.keys.indexOf(k) >= 0 || f.keys.indexOf(kebab(k)) >= 0) return;
+      err(k, `unknown frontmatter key "${k}" — known keys: ${f.keys.join(', ')}`);
+    });
+    const get = (k) => { const c = k.replace(/-([a-z])/g, (m, ch) => ch.toUpperCase()); const v = fm[k] !== undefined ? fm[k] : fm[c]; return v === null ? undefined : v; };
+    f.required.forEach((k) => { if (get(k) === undefined) err(k, `frontmatter is missing "${k}"`); });
+    if (fm.seed !== undefined && (typeof fm.seed !== 'number' || Math.floor(fm.seed) !== fm.seed)) err('seed', 'seed must be an integer');
+    if (fm.knobs) Object.keys(fm.knobs).forEach((k) => {
+      const spec = f.knobs[k];
+      if (!spec) return err(k, `unknown knob "${k}" — known knobs: ${Object.keys(f.knobs).join(', ')}`);
+      const v = fm.knobs[k];
+      if (typeof v !== 'number' || v < spec.min || v > spec.max) err(k, `knob "${k}" must be a number in [${spec.min}, ${spec.max}]`);
+    });
+    if (fm.params) fm.params.forEach((p, i) => {
+      Object.keys(p).forEach((k) => { if (f.params.keys.indexOf(k) < 0) err(k, `unknown params key "${k}" — known keys: ${f.params.keys.join(', ')}`); });
+      f.params.required.forEach((k) => { if (p[k] === undefined) err(p.name || `params[${i}]`, `param "${p.name || i}" is missing "${k}"`); });
+      // A declared param becomes a readable name in the equations, so it may not
+      // collide with an engine name and it may not wear the local underscore.
+      if (p.name !== undefined && (g.vars.indexOf(p.name) >= 0 || FNS[p.name] || p.name[0] === '_')) err(p.name, `param "${p.name}" collides with an engine name`);
+    });
+    Object.keys(f.enums).forEach((path) => {
+      const dot = path.indexOf('.');
+      if (dot < 0) return;
+      const group = fm[path.slice(0, dot)], key = path.slice(dot + 1);
+      if (!group || group[key] === undefined) return;
+      const v = String(group[key]);
+      if (f.enums[path].indexOf(v) < 0) err(key, `"${path}: ${v}" is not one of: ${f.enums[path].join(', ')}`);
+    });
+    return errors;
+  };
+
+  return {
+    VIS_GRAMMAR,
+    tokenize,
+    parse,
+    parseExpression,
+    compilePreset,
+    runProgram,
+    checkFinite,
+    makeEnv,
+    resetOutputs,
+    resetQ,
+    validateFrontmatter,
+    // Primitive semantics, exposed so a reference implementation (tests, verify/)
+    // can check the flat evaluator without re-deriving the arithmetic.
+    prim: { fin, add, sub, mul, div, mod, neg, randStatic },
+    fns: FNS
+  };
+})();
+
+/* VisPreset — the preset file format (visualizer/presets/*.md): parse, serialize,
+   derive, resolve names. Every KEY LIST — sections, frontmatter keys, knob/param/wave
+   keys, enum values — is data carried by the grammar the caller passes in (VIS_GRAMMAR,
+   which lives beside the parser), so there is no second hand-kept list to drift from.
+   Value types are this module's own business (TYPES/SUBTYPES below). */
+const VisPreset = (() => {
+  const SEP = '---';
+  const NUM = /^-?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/;
+  const camel = k => k.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+  const dash = f => f.replace(/[A-Z]/g, c => '-' + c.toLowerCase());
+
+  const TYPES = { name: 'string', author: 'string', created: 'string', derivedFrom: 'string', seed: 'number', variationSeed: 'number' };
+  const SUBTYPES = {
+    knobs: { '*': 'number' },
+    params: { name: 'string', label: 'string', min: 'number', max: 'number', default: 'number', vary: 'boolean' },
+    wave: { mode: 'string', additive: 'boolean' }
+  };
+  const badType = (v, want) => want === 'number' ? !Number.isFinite(v) : typeof v !== want;
+
+  // split on ch at depth 0, respecting "quoted, escaped\" strings"
+  const splitTop = (s, ch) => {
+    const out = [];
+    let cur = '', q = false;
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (q) {
+        if (c === '\\' && i + 1 < s.length) { cur += c + s[++i]; continue; }
+        if (c === '"') q = false;
+        cur += c;
+      } else if (c === '"') { q = true; cur += c; }
+      else if (c === ch) { out.push(cur); cur = ''; }
+      else cur += c;
+    }
+    out.push(cur);
+    return out;
+  };
+
+  const scalar = raw => {
+    const s = raw.trim();
+    if (s.length > 1 && s[0] === '"' && s[s.length - 1] === '"') return s.slice(1, -1).replace(/\\(.)/g, '$1');
+    if (s === 'true') return true;
+    if (s === 'false') return false;
+    if (NUM.test(s)) return Number(s);
+    return s;
+  };
+
+  const emit = v => {
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    const s = String(v);
+    const needs = s === '' || /^\s|\s$|[,{}:"#]/.test(s) || s === 'true' || s === 'false' || NUM.test(s);
+    return needs ? '"' + s.replace(/(["\\])/g, '\\$1') + '"' : s;
+  };
+
+  const parseMap = src => {
+    const body = src.trim();
+    if (body[0] !== '{' || body[body.length - 1] !== '}') return null;
+    const inner = body.slice(1, -1).trim();
+    const out = {};
+    if (!inner) return out;
+    for (const part of splitTop(inner, ',')) {
+      const bits = splitTop(part, ':');
+      if (bits.length < 2) return null;
+      const key = bits[0].trim();
+      if (!key) return null;
+      out[key] = scalar(bits.slice(1).join(':'));
+    }
+    return out;
+  };
+  const emitMap = o => {
+    const ks = Object.keys(o);
+    return ks.length ? '{ ' + ks.map(k => k + ': ' + emit(o[k])).join(', ') + ' }' : '{}';
+  };
+
+  // a block line: text is comment-free (what the compiler reads), comment is the
+  // verbatim tail from '//' on (what Save-as must not shed). text + comment === source.
+  const entry = (raw, line) => {
+    const i = raw.indexOf('//');
+    return i < 0 ? { line, text: raw, comment: '' } : { line, text: raw.slice(0, i), comment: raw.slice(i) };
+  };
+  const blank = e => !e.text.trim() && !e.comment;
+
+  const parsePresetFile = (text, grammar) => {
+    // Defect A (2026-08-20): this module was written against a flat
+    // `frontmatterKeys` while VIS_GRAMMAR publishes `frontmatter.keys`.
+    // Normalized here, once, at the only entry that takes a grammar.
+    if (grammar && !grammar.frontmatterKeys && grammar.frontmatter) {
+      grammar = Object.assign({}, grammar, { frontmatterKeys: grammar.frontmatter.keys });
+    }
+    const errors = [];
+    const err = (line, code, message) => errors.push({ line, code, message });
+    const lines = String(text).replace(/\r\n?/g, '\n').split('\n');
+    const meta = {}, blocks = {}, at = {};
+    for (const k of grammar.frontmatterKeys) meta[camel(k)] = null;
+
+    let fmEnd = 0, bodyStart = 0;
+    if (lines[0].trim() === SEP) {
+      const close = lines.findIndex((l, i) => i > 0 && l.trim() === SEP);
+      if (close < 0) { err(1, 'frontmatter-unterminated', 'frontmatter opened with --- and never closed'); fmEnd = 1; bodyStart = 1; }
+      else { fmEnd = close; bodyStart = close + 1; }
+    } else {
+      err(1, 'frontmatter-missing', 'file does not open with --- : a preset needs frontmatter');
+    }
+
+    const checkMap = (key, map, ln) => {
+      const known = grammar.subKeys && grammar.subKeys[key];
+      const types = SUBTYPES[key];
+      const enums = grammar.enums && grammar.enums[key];
+      for (const k of Object.keys(map)) {
+        if (known && known.indexOf(k) < 0) err(ln, 'unknown-key', `unknown ${key} key "${k}" — known ${key} keys: ${known.join(', ')}`);
+        const want = types && (types[k] || types['*']);
+        if (want && badType(map[k], want)) err(ln, 'bad-value', `${key}.${k} must be a ${want}, got "${map[k]}"`);
+        if (enums && enums[k] && enums[k].indexOf(map[k]) < 0) err(ln, 'bad-enum', `${key}.${k} "${map[k]}" is not one of: ${enums[k].join(', ')}`);
+      }
+    };
+
+    for (let i = 1; i < fmEnd; i++) {
+      const raw = lines[i], ln = i + 1;
+      if (!raw.trim()) continue;
+      const m = /^([A-Za-z][\w-]*)[ \t]*:[ \t]*(.*)$/.exec(raw);
+      if (!m) { err(ln, 'frontmatter-syntax', `frontmatter line is not "key: value": ${raw.trim()}`); continue; }
+      const key = m[1], rest = m[2].trim(), field = camel(key);
+      at[field] = ln;
+      if (grammar.frontmatterKeys.indexOf(key) < 0) {
+        err(ln, 'unknown-frontmatter-key', `unknown frontmatter key "${key}" — known keys: ${grammar.frontmatterKeys.join(', ')}`);
+        continue;
+      }
+      if (rest === '') {
+        const items = [];
+        while (i + 1 < fmEnd && /^[ \t]*-[ \t]*/.test(lines[i + 1])) {
+          i++;
+          const map = parseMap(lines[i].replace(/^[ \t]*-[ \t]*/, ''));
+          if (!map) { err(i + 1, 'frontmatter-syntax', `list item is not an inline map: ${lines[i].trim()}`); continue; }
+          checkMap(key, map, i + 1);
+          items.push(map);
+        }
+        meta[field] = items;
+      } else if (rest[0] === '{') {
+        const map = parseMap(rest);
+        if (!map) { err(ln, 'frontmatter-syntax', `not an inline map: ${rest}`); continue; }
+        checkMap(key, map, ln);
+        meta[field] = map;
+      } else {
+        if (grammar.subKeys && grammar.subKeys[key]) { err(ln, 'bad-value', `${key} must be an inline map or a list of inline maps`); continue; }
+        meta[field] = scalar(rest);
+      }
+    }
+
+    for (const f of Object.keys(meta)) {
+      const want = TYPES[f], v = meta[f];
+      if (want && v !== null && badType(v, want)) err(at[f] || 1, 'bad-value', `${dash(f)} must be a ${want}`);
+    }
+    if ('name' in meta && meta.name === null) err(1, 'missing-name', 'preset has no name: — Save-as and derived-from resolution need one');
+
+    const prose = [];
+    let cur = null;
+    for (let i = bodyStart; i < lines.length; i++) {
+      const raw = lines[i], ln = i + 1;
+      const h = /^##[ \t]*(.*?)[ \t]*$/.exec(raw);
+      if (h) {
+        const name = h[1];
+        if (grammar.sections.indexOf(name) < 0) err(ln, 'unknown-section', `unknown section "## ${name}" — known sections: ${grammar.sections.map(s => '## ' + s).join(', ')}`);
+        else if (blocks[name]) err(ln, 'duplicate-section', `duplicate section "## ${name}"`);
+        cur = blocks[name] = blocks[name] || [];
+      } else if (cur) cur.push(entry(raw, ln));
+      else prose.push(raw);
+    }
+    for (const k of Object.keys(blocks)) {
+      const b = blocks[k];
+      while (b.length && blank(b[0])) b.shift();
+      while (b.length && blank(b[b.length - 1])) b.pop();
+    }
+    while (prose.length && !prose[0].trim()) prose.shift();
+    while (prose.length && !prose[prose.length - 1].trim()) prose.pop();
+
+    return { meta, prose: prose.join('\n'), blocks, errors };
+  };
+
+  const serializePresetFile = preset => {
+    const meta = preset.meta, out = [SEP];
+    for (const f of Object.keys(meta)) {
+      const v = meta[f];
+      if (v === null || v === undefined) continue;
+      const key = dash(f);
+      if (Array.isArray(v)) { out.push(key + ':'); for (const it of v) out.push('  - ' + emitMap(it)); }
+      else if (typeof v === 'object') out.push(key + ': ' + emitMap(v));
+      else out.push(key + ': ' + emit(v));
+    }
+    out.push(SEP);
+    if (preset.prose) { out.push(''); out.push(preset.prose); }
+    for (const k of Object.keys(preset.blocks)) {
+      out.push('', '## ' + k);
+      for (const e of preset.blocks[k]) out.push(e.text + (e.comment || ''));
+    }
+    return out.join('\n') + '\n';
+  };
+
+  const copyBlocks = blocks => {
+    const out = {};
+    for (const k of Object.keys(blocks)) out[k] = blocks[k].map(e => ({ line: e.line, text: e.text, comment: e.comment || '' }));
+    return out;
+  };
+
+  // created is a date string from the caller — this module never reads the clock.
+  // Equations, prose and seed ride along verbatim; only the knob row, the name, the
+  // variation seed and the provenance change. Block line numbers stay the parent's
+  // until the child is written out and re-parsed.
+  const deriveChild = (parent, opts) => ({
+    meta: Object.assign({}, parent.meta, {
+      name: opts.name,
+      created: opts.created === undefined ? null : opts.created,
+      // the slug, not the display name: the preset gate resolves derived-from
+      // against filenames, and a provenance line nobody can follow is false
+      derivedFrom: String(parent.meta.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+      knobs: Object.assign({}, opts.knobs),
+      variationSeed: opts.variationSeed === undefined ? null : opts.variationSeed
+    }),
+    prose: parent.prose,
+    blocks: copyBlocks(parent.blocks),
+    errors: []
+  });
+
+  // Rule: a free name is returned unchanged. Otherwise strip a trailing " <digits>"
+  // to get the base and return the first free "<base> <n>" counting from 2.
+  // Comparison is trimmed and case-insensitive, because these become filenames.
+  const nameCollision = (name, existingNames) => {
+    const taken = {};
+    for (const n of existingNames) taken[String(n).trim().toLowerCase()] = 1;
+    const want = String(name).trim();
+    if (!taken[want.toLowerCase()]) return want;
+    const base = want.replace(/\s+\d+$/, '');
+    for (let n = 2; ; n++) {
+      const c = base + ' ' + n;
+      if (!taken[c.toLowerCase()]) return c;
+    }
+  };
+
+  return { parsePresetFile, serializePresetFile, deriveChild, nameCollision };
+})();
+
+const VisAudio = (() => {
+  // The pure audio layer: bands, beat, the knob maths, and the demo's synthetic song.
+  // Every rate in here is seconds or milliseconds — nothing counts frames, because the
+  // phone moves between 30 and 120fps inside one song (plan §The clock). Smoothing is
+  // ours alone: the analyser runs with smoothingTimeConstant = 0.
+  const PI2 = Math.PI * 2;
+  const DT_MAX = 0.05;        // a tab restore or GC pause must not integrate one huge step
+  const EPS = 1e-9;
+  const AVG_TAU = 3.0;        // "average for this room right now"
+  const ATTACK = 0.06;
+  const RELEASE = 0.35;
+  const SILENT_LEVEL = 3.2e-5;  // mean linear magnitude, ≈ −90 dBFS: sample-derived silence
+
+  // --- the clock -----------------------------------------------------------------
+
+  const clampDt = dt => (dt > 0 ? (dt < DT_MAX ? dt : DT_MAX) : 0);   // NaN and negatives → 0
+  // Every EMA in this file is dt-based, which is what makes the 30/60/120 contract hold.
+  const lerpK = (dt, tau) => 1 - Math.exp(-dt / tau);
+  // Author-facing per-frame quantities are defined per 1/60s reference frame.
+  const compFrame = (v, dt) => {
+    const e = clampDt(dt) * 60;
+    return v < 0 ? -Math.pow(-v, e) : Math.pow(v, e);   // signed pow: pow(neg, frac) is NaN
+  };
+  const compRate = (v, dt) => v * clampDt(dt) * 60;
+
+  // --- knob transforms -----------------------------------------------------------
+
+  // Half-life-space remap of the preset's own decay, so one knob position means one
+  // thing everywhere. The 0.999 ceiling is the anti-divergence guard: a composition
+  // that reaches 1.0 is non-contractive and the loop saturates white.
+  const persistenceMap = (decay, k) => {
+    const d = Math.pow(decay, Math.pow(2, -2 * k));
+    return d > 0.999 ? 0.999 : d > 0 ? d : 0;           // NaN → 0
+  };
+  // Bipolar knob b ∈ [−1,1] → a multiplier in [0.9, 1.1]. b = 0 is bit-identity.
+  const zoomBias = (zoom, b) => zoom * (1 + 0.1 * (b > -1 ? (b < 1 ? b : 1) : b <= -1 ? -1 : 0));
+
+  // --- seeded scalar hash (phases, noise) ----------------------------------------
+
+  const hash01 = (a, b, c) => {
+    let h = Math.imul(a ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(b + 0x165667b1, 0xc2b2ae35) ^ Math.imul(c + 0x27d4eb2f, 0x9e3779b1);
+    h ^= h >>> 15; h = Math.imul(h, 0x2545f491);
+    h ^= h >>> 13; h = Math.imul(h, 0x3f4a7c15);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  };
+
+  // --- bands ---------------------------------------------------------------------
+
+  // Standard three-band split. treb starts at 4kHz, which is exactly Nyquist for an
+  // 8kHz Bluetooth mic — there the band is honestly empty rather than quietly wrong.
+  const RANGES = { bass: [20, 250], mid: [250, 4000], treb: [4000, 16000] };
+  const KEYS = ['bass', 'mid', 'treb'];
+
+  const makeBands = (sampleRate, fftSize, ranges) => {
+    const r = ranges || RANGES;
+    const nBins = fftSize >> 1;
+    const binHz = sampleRate / fftSize;
+    // Bin indices are derived from the sample rate every construction: bins move with
+    // the rate, so a bin-indexed treb reads a different octave on every device.
+    const span = (lo, hi) => {
+      const a = Math.min(nBins, Math.ceil(lo / binHz));
+      const b = Math.min(nBins, Math.floor(hi / binHz) + 1);
+      return [a, b > a ? b : a];
+    };
+    const bins = { bass: span(r.bass[0], r.bass[1]), mid: span(r.mid[0], r.mid[1]), treb: span(r.treb[0], r.treb[1]) };
+    const nAll = KEYS.reduce((n, k) => n + bins[k][1] - bins[k][0], 0);
+    const avg = [0, 0, 0], att = [0, 0, 0];
+    let primed = 0;
+    const out = {
+      bass: 0, mid: 0, treb: 0,
+      bass_att: 0, mid_att: 0, treb_att: 0,
+      bass_raw: 0, mid_raw: 0, treb_raw: 0,
+      level: 0, silent: 0
+    };
+    return {
+      bins, binHz, nBins,
+      reset() { primed = 0; for (let i = 0; i < 3; i++) { avg[i] = 0; att[i] = 0; } },
+      // db is the analyser's Float32Array of dB values; sensitivity is the knob's
+      // multiplier (1 = neutral), landing post-summation and pre-follower, and never
+      // touching *_raw — the beat detector reads those. The result object is reused.
+      update(db, dt, sensitivity) {
+        const d = clampDt(dt);
+        const s = sensitivity === undefined ? 1 : sensitivity;
+        let total = 0;
+        for (let bi = 0; bi < 3; bi++) {
+          const sp = bins[KEYS[bi]];
+          let sum = 0;
+          for (let i = sp[0]; i < sp[1]; i++) {
+            const v = db[i];
+            sum += v > -400 ? Math.pow(10, v * 0.05) : 0;  // −Infinity and NaN both read as silence
+          }
+          total += sum;
+          if (!primed) avg[bi] = sum; else avg[bi] += (sum - avg[bi]) * lerpK(d, AVG_TAU);
+          const norm = (sum / (avg[bi] > EPS ? avg[bi] : EPS)) * s;
+          att[bi] += (norm - att[bi]) * lerpK(d, norm > att[bi] ? ATTACK : RELEASE);
+          out[KEYS[bi]] = norm;
+          out[KEYS[bi] + '_att'] = att[bi];
+          out[KEYS[bi] + '_raw'] = sum;
+        }
+        primed = 1;
+        out.level = nAll ? total / nAll : 0;
+        out.silent = out.level < SILENT_LEVEL ? 1 : 0;
+        return out;
+      }
+    };
+  };
+
+  // --- beat ----------------------------------------------------------------------
+
+  const makeBeat = opts => {
+    const o = opts || {};
+    const winS = (o.windowMs === undefined ? 1500 : o.windowMs) / 1000;
+    const refS = (o.refractoryMs === undefined ? 220 : o.refractoryMs) / 1000;
+    const ratio = o.ratio === undefined ? 1.35 : o.ratio;
+    // minEnergy is in the units makeBands reports as *_raw: a sum of linear magnitudes
+    // over the band's bins. An analyser floor of −100dB over the ~10 default bass bins
+    // is 1e-4, so digital silence sits a decade and a half under the gate — a ratio
+    // detector alone would happily call beats in a room that is emitting nothing.
+    const minE = o.minEnergy === undefined ? 3e-3 : o.minEnergy;
+    let avg = 0, primed = 0, since = 1e6;
+    return {
+      reset() { avg = 0; primed = 0; since = 1e6; },
+      // e is the RAW pre-sensitivity band energy. sensitivity gates rather than scales:
+      // a ratio detector is scale-invariant, so scaling would make the knob a no-op here.
+      update(e, dt, sensitivity) {
+        const d = clampDt(dt);
+        const x = e > 0 ? e : 0;                       // NaN → 0
+        const s = sensitivity === undefined ? 1 : sensitivity;
+        since += d;
+        if (!primed) { avg = x; primed = 1; }
+        const hit = s > 0 && x > minE && x > avg * ratio && since >= refS;
+        // The average tracks the room even while gated, so turning sensitivity back up
+        // does not fire a beat against a stale window.
+        avg += (x - avg) * lerpK(d, winS);
+        if (hit) { since = 0; return 1; }
+        return 0;
+      }
+    };
+  };
+
+  // --- variation -----------------------------------------------------------------
+
+  const VKEYS = ['zoom', 'rot', 'cx', 'cy', 'dxy'];
+  // Caps: zoom and dxy are relative (multiply by 1 + offset), rot/cx/cy are absolute
+  // (add). decay is deliberately absent — its safe range is too narrow to perturb blind.
+  const VCAP = { zoom: 0.02, rot: 0.05, cx: 0.05, cy: 0.05, dxy: 0.25 };
+  const VFREQ = [0.05, 0.11, 0.17];
+  const PARAM_CAP = 0.25;
+
+  const makeVariation = seed => {
+    const sd = seed >>> 0;
+    const wave = (t, i) => {
+      let x = 0;
+      for (let j = 0; j < 3; j++) x += Math.sin(PI2 * VFREQ[j] * t + PI2 * hash01(sd, i, j));
+      return x / 3;
+    };
+    const out = { zoom: 0, rot: 0, cx: 0, cy: 0, dxy: 0 };
+    return {
+      // The result object is reused every frame — read it before the next sample().
+      // The `k ?` guards are the neutral law taken literally: at 0 the offset is +0, not
+      // a signed zero and not a small number, so the render is bit-identical.
+      sample(t, k) {
+        for (let i = 0; i < 5; i++) out[VKEYS[i]] = k ? k * VCAP[VKEYS[i]] * wave(t, i) : 0;
+        return out;
+      },
+      // Declared params take their own phases (index 5+) so the row never moves in
+      // lockstep, and are scaled by the param's own declared range.
+      param(t, k, i, min, max) { return k ? k * PARAM_CAP * (max - min) * wave(t, 5 + i) : 0; }
+    };
+  };
+
+  // --- the synthetic song --------------------------------------------------------
+
+  const TITLES = ['Plastic', 'Midnight', 'Chrome', 'Velvet', 'Dial-Up', 'Cassette', 'Neon', 'Bootleg'];
+  const PLACES = ['Sunrise', 'Motorway', 'Arcade', 'Ballroom', 'Static', 'Weekend', 'Lagoon', 'Freeway'];
+  const ACTS = ['The Modem Set', 'Winsock', 'Blue Screen Orchestra', 'Dial Tone Quartet', 'Screensaver'];
+  const CHORDS = [
+    [329.63, 415.30, 493.88],
+    [293.66, 369.99, 440.00],
+    [261.63, 329.63, 392.00],
+    [349.23, 440.00, 523.25]
+  ];
+  const FLOOR = -100;   // the fixture's noise floor, matching the analyser's default minDecibels
+
+  const makeSynth = (seed, variant, sampleRate, fftSize, titleOverride) => {
+    const sd = (seed >>> 0) || 1;
+    const kind = variant || 'song';
+    const sr = sampleRate || 48000;
+    const N = fftSize || 2048;
+    const half = N >> 1;
+    const BEAT = 60 / 124, BAR = BEAT * 4;
+    const chordOff = (sd & 3);
+    const padPh = [];
+    for (let i = 0; i < 6; i++) padPh.push(PI2 * hash01(sd, i, 21));
+
+    const td = new Float32Array(N), re = new Float64Array(N), im = new Float64Array(N);
+    const db = new Float32Array(half), hann = new Float64Array(N);
+    // Sample n lives at ring[n & MASK] — fftSize is always a power of two.
+    const ring = new Float32Array(N), MASK = N - 1;
+    let head = -1;
+    for (let i = 0; i < N; i++) hann[i] = 0.5 - 0.5 * Math.cos(PI2 * i / N);
+
+    const rev = new Uint32Array(N);
+    for (let i = 1, j = 0; i < N; i++) {
+      let bit = N >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      rev[i] = j;
+    }
+    const cosT = new Float64Array(half), sinT = new Float64Array(half);
+    for (let i = 0; i < half; i++) { cosT[i] = Math.cos(-PI2 * i / N); sinT[i] = Math.sin(-PI2 * i / N); }
+    const fft = () => {
+      for (let i = 0; i < N; i++) {
+        const j = rev[i];
+        if (j > i) { let s = re[i]; re[i] = re[j]; re[j] = s; s = im[i]; im[i] = im[j]; im[j] = s; }
+      }
+      for (let len = 2; len <= N; len <<= 1) {
+        const step = N / len, h = len >> 1;
+        for (let i = 0; i < N; i += len) {
+          for (let k = 0; k < h; k++) {
+            const c = cosT[k * step], s = sinT[k * step];
+            const a = i + k, b = a + h;
+            const vr = re[b] * c - im[b] * s, vi = re[b] * s + im[b] * c;
+            re[b] = re[a] - vr; im[b] = im[a] - vi;
+            re[a] += vr; im[a] += vi;
+          }
+        }
+      }
+    };
+
+    // A kick on every beat except the third beat of the last bar of each 4-bar phrase:
+    // the hole is the bar structure the demo exists to prove a preset can separate.
+    const hasKick = b => b >= 0 && !(((b >> 2) & 3) === 3 && (b & 3) === 2);
+    const kick = u => {
+      if (u < 0) return 0;   // total on its own: exp(-u/0.16) runs away for negative u
+      const ph = PI2 * (48 * u + 90 * 0.035 * (1 - Math.exp(-u / 0.035)));   // ∫ of an exponential pitch drop
+      return 0.8 * Math.exp(-u / 0.16) * Math.sin(ph);
+    };
+    const kickAt = (b, t) => (hasKick(b) ? kick(t - b * BEAT) : 0);
+    const pad = t => {
+      const bar = Math.floor(t / BAR), ch = CHORDS[(bar + chordOff) & 3];
+      const env = (0.5 - 0.5 * Math.cos(PI2 * (t / BAR - bar))) * ((bar & 3) === 3 ? 1.3 : 1);
+      let x = 0;
+      for (let i = 0; i < 3; i++) {
+        const f = ch[i];
+        x += 0.11 * Math.sin(PI2 * f * t + padPh[i]) + 0.045 * Math.sin(PI2 * 2 * f * t + padPh[i + 3]);
+      }
+      return x * env;
+    };
+    // Hats run at 8ths, doubling to 16ths on the phrase's last bar: treb moves on its
+    // own grid so a preset that separates the bands visibly separates them.
+    const hatEnv = t => {
+      const div = ((Math.floor(t / BAR) & 3) === 3 ? BEAT / 4 : BEAT / 2);
+      const k = Math.floor(t / div);
+      return (k & 1 ? 0.55 : 0.3) * Math.exp(-(t - k * div) / 0.028);
+    };
+    const noise = n => hash01(sd, n, 11) * 2 - 1;
+    // Every sample is a function of its absolute index alone — no running oscillator
+    // state — which is what lets the window be rebuilt from any t and makes the same
+    // song replayable at 30, 60 and 120fps.
+    const sampleAt = n => {
+      const tt = n / sr;
+      if (tt < 0) return 0;
+      const b = Math.floor(tt / BEAT);
+      const x = kickAt(b, tt) + kickAt(b - 1, tt);
+      if (kind === 'kick') return x;
+      // Twice-differenced white noise is a 12dB/oct highpass: the hats stay out of the
+      // mid band, so the three bands really do move independently.
+      return x + pad(tt) + hatEnv(tt) * (noise(n) - 2 * noise(n - 1) + noise(n - 2)) * 0.055;
+    };
+
+    const out = { floatFreqDb: db, timeDomain: td };
+    return {
+      sampleRate: sr, fftSize: N, beatSec: BEAT, barSec: BAR, hasKick, variant: kind,
+      title: titleOverride || (TITLES[(sd >>> 2) & 7] + ' ' + PLACES[(sd >>> 5) & 7] + ' — ' + ACTS[(sd >>> 8) % 5]),
+      // dt is accepted and unused: the analyser's window is always the last fftSize
+      // samples, so the window is addressed by absolute t and only the samples that are
+      // actually new get generated.
+      render(t, dt) {
+        if (kind === 'silence') { td.fill(0); db.fill(FLOOR); return out; }
+        const end = Math.round(t * sr);              // the window is samples [end−N, end)
+        let from = end - N;
+        if (head >= from - 1 && head < end) from = head + 1;   // contiguous with the last render
+        for (let n = from; n < end; n++) ring[n & MASK] = sampleAt(n);
+        head = end - 1;
+        for (let i = 0, n = end - N; i < N; i++, n++) {
+          const x = ring[n & MASK];
+          td[i] = x;
+          re[i] = x * hann[i];
+          im[i] = 0;
+        }
+        fft();
+        for (let k = 0; k < half; k++) {
+          const m = Math.sqrt(re[k] * re[k] + im[k] * im[k]) / N;   // the spec's normalisation
+          const v = m > 0 ? 20 * Math.log10(m) : FLOOR;
+          db[k] = v > FLOOR ? v : FLOOR;
+        }
+        return out;
+      }
+    };
+  };
+
+  return {
+    RANGES, DT_MAX, FLOOR,
+    clampDt, compFrame, compRate, persistenceMap, zoomBias,
+    makeBands, makeBeat, makeVariation, makeSynth
+  };
+})();
+
+// VisGL — the MilkDrop+ render engine (docs/milkdrop-plus.md §Render pipeline, §The clock).
+// Stage A is the fed-back buffer and everything drawn in it smears; stage B is the
+// composite and is never fed back. The two shaders are engine-fixed: presets are data.
+// Nothing here touches the DOM until init(), so the module loads in node unchanged.
+const VisGL = (() => {
+  const NX = 32, NY = 24, NV = NX * NY;   // mesh vertices, not cells
+  const REF = 60;                          // author-facing per-frame rates are per 1/60s
+  const DT_MAX = 0.05;                     // a tab restore must not integrate one huge step
+  const WARM = 0.3;                        // seconds the bootstrap field renders as "warming"
+  const WAVE_MAX = 512;
+  const RES = [720, 512, 360, 256];        // internal long edge; the context-loss ladder
+  const WARP = ['zoom', 'rot', 'cx', 'cy', 'sx', 'sy', 'dx', 'dy', 'zoomexp'];
+
+  // Every engine slot at its neutral value — the same numbers VIS_GRAMMAR declares, so
+  // the two never drift. The engine owns this reset; do not also call VisLang's
+  // resetOutputs between frames. decay_r/g/b carry -1 as "follow decay": a block that
+  // wrote decay and nothing else must still tint all three channels. When the compiled
+  // program declares its writes, that declaration is used instead and the slots hold a
+  // readable value, so `ob_r = decay_r` reads a decay rather than a sentinel.
+  const DEFAULTS = {
+    zoom: 1, rot: 0, cx: 0.5, cy: 0.5, sx: 1, sy: 1, dx: 0, dy: 0, zoomexp: 1,
+    decay: 0.97, decay_r: -1, decay_g: -1, decay_b: -1,
+    ob_size: 0.01, ob_r: 0, ob_g: 0, ob_b: 0, ob_a: 0,
+    ib_size: 0.01, ib_r: 0, ib_g: 0, ib_b: 0, ib_a: 0,
+    darken_center: 0,
+    wave_r: 1, wave_g: 1, wave_b: 1, wave_a: 1,
+    wave_x: 0.5, wave_y: 0.5, wave_mystery: 0, wave_thick: 1, wave_smoothing: 0.75,
+    additive_waves: 0,
+    gamma: 1, echo_zoom: 1, echo_alpha: 0, echo_orient: 0,
+    brighten: 0, darken: 0, solarize: 0, invert: 0
+  };
+  const SLOTS = Object.keys(DEFAULTS);
+  const AUDIO = ['bass', 'mid', 'treb', 'bass_att', 'mid_att', 'treb_att', 'vol', 'vol_att', 'beat'];
+  const ENGINE_IN = ['time', 'dt', 'frame', 'aspect', 'texsize', 'meshx', 'meshy'];
+  const VERTEX_IN = ['x', 'y', 'xc', 'yc', 'rad', 'ang'];
+  // VisLang's env is a Float64Array addressed by slot index; a bare engine env is a
+  // plain object addressed by name. One key table covers both, so the hot loops do not
+  // branch. A name the slot map lacks falls back to its own string key, which a typed
+  // array will still store — slower, never wrong.
+  const IDKEYS = (() => {
+    const k = {};
+    SLOTS.concat(AUDIO, ENGINE_IN, VERTEX_IN).forEach(n => { k[n] = n; });
+    return k;
+  })();
+  const keysFrom = (slots) => {
+    const k = {};
+    Object.keys(IDKEYS).forEach(n => { k[n] = slots[n] !== undefined ? slots[n] : n; });
+    return k;
+  };
+
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+  // The clock contract: rates authored per reference frame, compensated by real dt.
+  const compPow = (v, dt) => Math.pow(v, dt * REF);
+  const compLin = (v, dt) => v * dt * REF;
+  // rad is 1.0 at the shorter-axis edge, so the long axis overshoots 1.0 by the aspect.
+  const aspectScale = (a) => a >= 1 ? { x: a, y: 1 } : { x: 1, y: 1 / a };
+  // persistence is a half-life remap of the preset's own decay; 0.999 is the
+  // anti-divergence ceiling — a composition reaching 1.0 stops contracting.
+  const persistDecay = (d, k) => clamp(Math.pow(clamp(d, 0, 1), Math.pow(2, -2 * k)), 0, 0.999);
+
+  const vertexSlots = (i, as, e, k) => {
+    k = k || IDKEYS;
+    const ix = i % NX, iy = (i / NX) | 0;
+    const x = ix / (NX - 1), y = iy / (NY - 1);
+    const xc = (x - 0.5) * 2 * as.x, yc = (y - 0.5) * 2 * as.y;
+    e[k.x] = x; e[k.y] = y; e[k.xc] = xc; e[k.yc] = yc;
+    e[k.rad] = Math.sqrt(xc * xc + yc * yc); e[k.ang] = Math.atan2(yc, xc);
+    return e;
+  };
+
+  // The pinned composition. p = uv - c in aspect-corrected space, rotate, zoom with the
+  // radial exponent, scale, back to uv space, then dx/dy — post-rotation, screen-fixed.
+  const warpUV = (s, dt, as, out) => {
+    as = as || aspectScale(s.aspect);
+    out = out || [0, 0];
+    const px = (s.x - s.cx) * as.x, py = (s.y - s.cy) * as.y;
+    const a = compLin(s.rot, dt), co = Math.cos(a), si = Math.sin(a);
+    let qx = px * co - py * si, qy = px * si + py * co;
+    const z = Math.pow(compPow(s.zoom, dt), Math.pow(Math.max(s.rad, 1e-6), s.zoomexp));
+    qx /= z * s.sx; qy /= z * s.sy;
+    out[0] = qx / as.x + s.cx + compLin(s.dx, dt);
+    out[1] = qy / as.y + s.cy + compLin(s.dy, dt);
+    return out;
+  };
+
+  const ihash = (x, y, s) => {
+    let h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(s | 0, 1442695041);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  };
+  const vnoise = (u, v, cells, s) => {
+    const fx = u * cells, fy = v * cells;
+    const x0 = Math.floor(fx), y0 = Math.floor(fy);
+    const tx = (fx - x0) * (fx - x0) * (3 - 2 * (fx - x0)), ty = (fy - y0) * (fy - y0) * (3 - 2 * (fy - y0));
+    const a = ihash(x0, y0, s), b = ihash(x0 + 1, y0, s), c = ihash(x0, y0 + 1, s), d = ihash(x0 + 1, y0 + 1, s);
+    const t = a + (b - a) * tx;
+    return t + ((c + (d - c) * tx) - t) * ty;
+  };
+  // Frame 0 is seeded, not black: a dark canvas is indistinguishable from the failures
+  // the honesty law forbids. Integer-hashed, so the same seed is the same first frame.
+  const seedField = (w, h, s) => {
+    const out = new Float32Array(w * h * 4);
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+      const u = (i + 0.5) / w, v = (j + 0.5) / h, o = (j * w + i) * 4;
+      const vig = 1 - 0.7 * Math.min(1, ((u - 0.5) * (u - 0.5) + (v - 0.5) * (v - 0.5)) * 4);
+      for (let ch = 0; ch < 3; ch++) {
+        const k = s + ch * 17;
+        const n = vnoise(u, v, 4, k) * 0.6 + vnoise(u, v, 9, k + 101) * 0.3 + vnoise(u, v, 19, k + 211) * 0.1;
+        out[o + ch] = clamp(n * vig, 0, 1);
+      }
+      out[o + 3] = 1;
+    }
+    return out;
+  };
+  const quantize = (f) => {
+    const out = new Uint8Array(f.length);
+    for (let i = 0; i < f.length; i++) out[i] = clamp(f[i], 0, 1) * 255 + 0.5;
+    return out;
+  };
+
+  let smTmp = null;
+  // The silky line IS the low-pass. smoothing 0 must be bit-identical to the raw signal.
+  const smoothWave = (src, n, sm, out) => {
+    for (let i = 0; i < n; i++) out[i] = src[i];
+    if (!(sm > 0)) return out;
+    // k tops out at 0.25 (the binomial 1-2-1 kernel): at 0.5 the centre tap vanishes and
+    // the filter inverts Nyquist instead of removing it.
+    const s = clamp(sm, 0, 1), k = 0.25 * s, passes = 1 + Math.floor(s * 5);
+    if (!smTmp || smTmp.length < n) smTmp = new Float32Array(n);
+    for (let p = 0; p < passes; p++) {
+      for (let i = 0; i < n; i++) {
+        const a = out[i > 0 ? i - 1 : 0], b = out[i], c = out[i < n - 1 ? i + 1 : n - 1];
+        smTmp[i] = b * (1 - 2 * k) + (a + c) * k;
+      }
+      for (let i = 0; i < n; i++) out[i] = smTmp[i];
+    }
+    return out;
+  };
+
+  // NDC vertices for the waveform. Circle offsets divide by the aspect scale, which is
+  // the same correction the warp uses, so a circle is round at any window shape.
+  const waveVerts = (s, n, p, as, out) => {
+    if (p.mode === 'circle') {
+      for (let i = 0; i <= n; i++) {
+        const j = i % n, a = (i / n) * Math.PI * 2;
+        const r = 0.22 + 0.1 * s[j] + p.wave_mystery * 0.05;
+        out[i * 2] = (p.wave_x + Math.cos(a) * r / as.x) * 2 - 1;
+        out[i * 2 + 1] = (p.wave_y + Math.sin(a) * r / as.y) * 2 - 1;
+      }
+      return n + 1;
+    }
+    for (let i = 0; i < n; i++) {
+      out[i * 2] = (p.wave_x + (i / (n - 1) - 0.5) * 0.95) * 2 - 1;
+      out[i * 2 + 1] = (p.wave_y + s[i] * 0.25 + p.wave_mystery * 0.1) * 2 - 1;
+    }
+    return n;
+  };
+
+  // Engine-fixed GLSL. Presets never reach here — they are data that lands in uniforms
+  // and in the per-vertex UV buffer.
+  const GLSL = {
+    quadVS: `#version 300 es
+layout(location=0) in vec2 aPos;
+out vec2 vUV;
+void main(){ vUV = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }`,
+
+    warpVS: `#version 300 es
+layout(location=0) in vec2 aPos;
+layout(location=1) in vec2 aUV;
+out vec2 vUV;
+void main(){ vUV = aUV; gl_Position = vec4(aPos, 0.0, 1.0); }`,
+
+    // Stage A. Decay is per channel — unequal channel decay is the whole mechanism of
+    // trails drifting orange or cyan. darken_center rides here because it is a
+    // destination-space multiply and belongs to the loop, not the composite.
+    warpFS: `#version 300 es
+precision highp float;
+in vec2 vUV;
+out vec4 fragColor;
+uniform sampler2D uPrev;
+uniform vec3 uDecay;
+uniform vec2 uTexsize;
+uniform vec2 uAsp;
+uniform float uDarken;
+uniform float uFloor;
+uniform float uDither;
+const float BAYER[16] = float[16](0.0,8.0,2.0,10.0,12.0,4.0,14.0,6.0,3.0,11.0,1.0,9.0,15.0,7.0,13.0,5.0);
+void main(){
+  vec3 c = texture(uPrev, vUV).rgb * uDecay;
+  vec2 d = (gl_FragCoord.xy / uTexsize - 0.5) * 2.0 * uAsp;
+  c *= 1.0 - 0.06 * uDarken * exp(-6.0 * dot(d, d));
+  // At RGBA8 every channel under 0.5/(1-decay) is a fixed point that never fades.
+  // The subtract breaks the floor; the ordered dither keeps it from banding.
+  c = max(c - uFloor, vec3(0.0));
+  ivec2 b = ivec2(mod(gl_FragCoord.xy, 4.0));
+  c += (BAYER[b.y * 4 + b.x] * 0.0625 - 0.46875) * uDither;
+  fragColor = vec4(max(c, vec3(0.0)), 1.0);
+}`,
+
+    // Borders are the fuel, not trim: without fresh material at the rim a zoom-in
+    // preset converges to flat within a couple hundred frames.
+    borderFS: `#version 300 es
+precision highp float;
+in vec2 vUV;
+out vec4 fragColor;
+uniform float uOb;
+uniform float uIb;
+uniform vec4 uObCol;
+uniform vec4 uIbCol;
+void main(){
+  float d = min(min(vUV.x, 1.0 - vUV.x), min(vUV.y, 1.0 - vUV.y));
+  vec4 c = vec4(0.0);
+  if (d < uOb) c = uObCol;
+  else if (d < uOb + uIb) c = uIbCol;
+  fragColor = c;
+}`,
+
+    waveVS: `#version 300 es
+layout(location=0) in vec2 aPos;
+uniform vec2 uOff;
+void main(){ gl_Position = vec4(aPos + uOff, 0.0, 1.0); }`,
+
+    waveFS: `#version 300 es
+precision highp float;
+out vec4 fragColor;
+uniform vec4 uCol;
+void main(){ fragColor = uCol; }`,
+
+    copyFS: `#version 300 es
+precision highp float;
+in vec2 vUV;
+out vec4 fragColor;
+uniform sampler2D uSrc;
+void main(){ fragColor = vec4(texture(uSrc, vUV).rgb, 1.0); }`,
+
+    // Stage B, once per presented frame, never fed back. Hue at stage A would compound:
+    // 2 degrees a frame is a full wheel every three seconds and every echo layer at a
+    // different hue. uFitScale/uFitOff carry the presentation scale, so a resize is a
+    // uniform change and the recursion never learns about it.
+    compFS: `#version 300 es
+precision highp float;
+in vec2 vUV;
+out vec4 fragColor;
+uniform sampler2D uSrc;
+uniform vec2 uFitScale;
+uniform vec2 uFitOff;
+uniform float uEchoZoom;
+uniform float uEchoAlpha;
+uniform float uGamma;
+uniform float uHue;
+uniform float uBrighten;
+uniform float uDarken;
+uniform float uSolarize;
+uniform float uInvert;
+uniform int uEchoOrient;
+vec3 hueRot(vec3 c, float a){
+  vec3 k = vec3(0.57735026919);
+  float cs = cos(a), sn = sin(a);
+  return c * cs + cross(k, c) * sn + k * dot(k, c) * (1.0 - cs);
+}
+void main(){
+  vec2 uv = vUV * uFitScale + uFitOff;
+  vec3 base = texture(uSrc, uv).rgb;
+  vec2 e = (uv - 0.5) / max(uEchoZoom, 0.001) + 0.5;
+  if ((uEchoOrient & 1) != 0) e.x = 1.0 - e.x;
+  if ((uEchoOrient & 2) != 0) e.y = 1.0 - e.y;
+  vec3 c = mix(base, texture(uSrc, e).rgb, uEchoAlpha);
+  c *= uGamma;
+  // Blended by their own value, so 0 is exactly the unmodified picture.
+  c = mix(c, sqrt(clamp(c, 0.0, 1.0)), clamp(uBrighten, 0.0, 1.0));
+  c = mix(c, c * c, clamp(uDarken, 0.0, 1.0));
+  c = mix(c, clamp(c * (1.0 - c) * 4.0, 0.0, 1.0), clamp(uSolarize, 0.0, 1.0));
+  c = mix(c, 1.0 - c, clamp(uInvert, 0.0, 1.0));
+  c = hueRot(c, uHue);
+  fragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+}`
+  };
+
+  const num = (v, d) => typeof v === 'number' && isFinite(v) ? v : d;
+  // The boundary with VisLang: a program is whatever runProgram understands. The engine
+  // only promises the slot object, the call order, and that it never mutates a program.
+  const defaultRun = (p, e) => { if (typeof p === 'function') p(e); };
+
+  const compileProg = (gl, vs, fs) => {
+    const p = gl.createProgram();
+    const parts = [[gl.VERTEX_SHADER, vs], [gl.FRAGMENT_SHADER, fs]];
+    for (let i = 0; i < 2; i++) {
+      const sh = gl.createShader(parts[i][0]);
+      gl.shaderSource(sh, parts[i][1]);
+      gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(sh);
+        gl.deleteShader(sh); gl.deleteProgram(p);
+        return { err: log };
+      }
+      gl.attachShader(p, sh);
+      gl.deleteShader(sh);
+    }
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+      const log = gl.getProgramInfoLog(p);
+      gl.deleteProgram(p);
+      return { err: log };
+    }
+    return { prog: p };
+  };
+  const uniformsOf = (gl, prog) => {
+    const u = {}, n = gl.getProgramParameter(prog, gl.ACTIVE_UNIFORMS);
+    for (let i = 0; i < n; i++) {
+      const info = gl.getActiveUniform(prog, i);
+      u[info.name.replace('[0]', '')] = gl.getUniformLocation(prog, info.name);
+    }
+    return u;
+  };
+
+  const createEngine = (canvas, opts) => {
+    opts = opts || {};
+    const fitMode = opts.fit || 'cover';
+    const seed = num(opts.seed, 41);
+    let gl = null, ready = false, longEdge = num(opts.longEdge, RES[0]), lossCount = 0;
+    let tw = 0, th = 0, aspect = 1, as = { x: 1, y: 1 };
+    let cur = 0, shown = 0, simTime = 0, frameNo = 0;
+    let targets = [null, null], readTarget = null;
+    let progs = {}, unis = {};
+    let vaoWarp = null, vaoQuad = null, vaoWave = null;
+    let bufPos = null, bufUV = null, bufIdx = null, bufQuad = null, bufWave = null;
+    let idxCount = 0;
+    const CHAN = ['decay_r', 'decay_g', 'decay_b'];
+    let params = {}, waveMode = 'line', chanWritten = null;
+    let perFrame = null, perVertex = null, runProgram = defaultRun, checkFinite = null;
+    let env = {}, K = IDKEYS, KSL = null, KW = null, KA = null, RVAL = null;
+    const snap = [], ws = {}, uvOut = [0, 0];
+    const uvArr = new Float32Array(NV * 2);
+    const waveRaw = new Float32Array(WAVE_MAX);
+    const waveSm = new Float32Array(WAVE_MAX);
+    const waveArr = new Float32Array((WAVE_MAX + 1) * 2);
+    const onLost = (e) => { e.preventDefault(); lossCount++; ready = false; engine.state = 'lost'; };
+    const onRestored = () => { /* restore() is an offer, never automatic — see the ladder */ };
+
+    const makeTarget = (w, h, fmt) => {
+      const tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, fmt.internal, w, h, 0, gl.RGBA, fmt.type, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      const fbo = gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+      const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      return { tex, fbo, w, h, ok };
+    };
+    const dropTarget = (t) => { if (t) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fbo); } };
+
+    const sizeFor = (a) => a >= 1
+      ? { w: longEdge, h: Math.max(1, Math.round(longEdge / a)) }
+      : { w: Math.max(1, Math.round(longEdge * a)), h: longEdge };
+
+    const uploadSeed = (t) => {
+      const f = seedField(t.w, t.h, seed);
+      gl.bindTexture(gl.TEXTURE_2D, t.tex);
+      if (engine.precision === 'rgba8') gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, t.w, t.h, gl.RGBA, gl.UNSIGNED_BYTE, quantize(f));
+      else gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, t.w, t.h, gl.RGBA, gl.FLOAT, f);
+    };
+
+    const buildBuffers = () => {
+      const pos = new Float32Array(NV * 2);
+      for (let i = 0; i < NV; i++) {
+        const x = (i % NX) / (NX - 1), y = ((i / NX) | 0) / (NY - 1);
+        pos[i * 2] = x * 2 - 1; pos[i * 2 + 1] = y * 2 - 1;
+      }
+      const idx = new Uint16Array((NX - 1) * (NY - 1) * 6);
+      let k = 0;
+      for (let j = 0; j < NY - 1; j++) for (let i = 0; i < NX - 1; i++) {
+        const a = j * NX + i, b = a + 1, c = a + NX, d = c + 1;
+        idx[k++] = a; idx[k++] = b; idx[k++] = c;
+        idx[k++] = b; idx[k++] = d; idx[k++] = c;
+      }
+      idxCount = k;
+      bufPos = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, bufPos); gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW);
+      bufUV = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, bufUV); gl.bufferData(gl.ARRAY_BUFFER, uvArr, gl.DYNAMIC_DRAW);
+      bufIdx = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bufIdx); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+      vaoWarp = gl.createVertexArray();
+      gl.bindVertexArray(vaoWarp);
+      gl.bindBuffer(gl.ARRAY_BUFFER, bufPos); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, bufUV); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bufIdx);
+
+      bufQuad = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, bufQuad);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+      vaoQuad = gl.createVertexArray();
+      gl.bindVertexArray(vaoQuad);
+      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+      bufWave = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, bufWave);
+      gl.bufferData(gl.ARRAY_BUFFER, waveArr, gl.DYNAMIC_DRAW);
+      vaoWave = gl.createVertexArray();
+      gl.bindVertexArray(vaoWave);
+      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      gl.bindVertexArray(null);
+    };
+
+    const buildPrograms = () => {
+      const want = {
+        warp: [GLSL.warpVS, GLSL.warpFS], border: [GLSL.quadVS, GLSL.borderFS],
+        wave: [GLSL.waveVS, GLSL.waveFS], comp: [GLSL.quadVS, GLSL.compFS],
+        copy: [GLSL.quadVS, GLSL.copyFS]
+      };
+      progs = {}; unis = {};
+      for (const k in want) {
+        const r = compileProg(gl, want[k][0], want[k][1]);
+        if (r.err) { engine.fault = { name: k, stage: 'shader', detail: r.err }; return false; }
+        progs[k] = r.prog; unis[k] = uniformsOf(gl, r.prog);
+      }
+      return true;
+    };
+
+    const buildTargets = () => {
+      const fmt = engine.precision === 'rgba8'
+        ? { internal: gl.RGBA8, type: gl.UNSIGNED_BYTE }
+        : { internal: gl.RGBA16F, type: gl.HALF_FLOAT };
+      const s = sizeFor(aspect);
+      tw = s.w; th = s.h;
+      aspect = tw / th; as = aspectScale(aspect);
+      targets = [makeTarget(tw, th, fmt), makeTarget(tw, th, fmt)];
+      readTarget = makeTarget(tw, th, { internal: gl.RGBA8, type: gl.UNSIGNED_BYTE });
+      if (!targets[0].ok || !targets[1].ok || !readTarget.ok) { engine.fault = { name: 'framebuffer', stage: 'init' }; return false; }
+      engine.texsize = { w: tw, h: th, long: longEdge };
+      uploadSeed(targets[0]); uploadSeed(targets[1]);
+      cur = 0; shown = 0;
+      return true;
+    };
+
+    const dropGL = () => {
+      dropTarget(targets[0]); dropTarget(targets[1]); dropTarget(readTarget);
+      targets = [null, null]; readTarget = null;
+      for (const k in progs) gl.deleteProgram(progs[k]);
+      progs = {}; unis = {};
+      [bufPos, bufUV, bufIdx, bufQuad, bufWave].forEach(b => b && gl.deleteBuffer(b));
+      [vaoWarp, vaoQuad, vaoWave].forEach(v => v && gl.deleteVertexArray(v));
+      bufPos = bufUV = bufIdx = bufQuad = bufWave = null;
+      vaoWarp = vaoQuad = vaoWave = null;
+    };
+
+    const buildAll = () => {
+      if (!buildPrograms()) return false;
+      buildBuffers();
+      if (!buildTargets()) return false;
+      gl.disable(gl.DEPTH_TEST);
+      gl.disable(gl.BLEND);
+      simTime = 0; frameNo = 0;
+      engine.state = 'warming';
+      ready = true;
+      return true;
+    };
+
+    const rekey = () => {
+      KSL = SLOTS.map(n => K[n]);
+      KW = WARP.map(n => K[n]);
+      KA = AUDIO.map(n => K[n]);
+      const fallback = 'decay' in params ? params.decay : DEFAULTS.decay;
+      RVAL = SLOTS.map(n => {
+        if (n in params) return params[n];
+        if (chanWritten && CHAN.indexOf(n) >= 0) return fallback;
+        return DEFAULTS[n];
+      });
+    };
+    const resetEnv = () => { for (let i = 0; i < KSL.length; i++) env[KSL[i]] = RVAL[i]; };
+    const E = (n) => env[K[n]];
+    // Whether the frame's own channel value should stand: the compiled program's own
+    // declaration when there is one, the sentinel when there is not.
+    const chanDecay = (i, d) => {
+      const v = E(CHAN[i]);
+      if (chanWritten) return chanWritten[i] || (CHAN[i] in params) ? v : d;
+      return v < 0 ? d : v;
+    };
+    const fault = (name, stage, line) => { engine.fault = { name, stage, line: line === undefined ? null : line }; return false; };
+    // VisLang's checkFinite knows which names a block actually wrote and on what line,
+    // which is the difference between "dx went non-finite" and "something did".
+    const guard = (prog, stage) => {
+      if (checkFinite && prog) {
+        const bad = checkFinite(prog, env);
+        if (bad) return fault(bad.name, bad.block || stage, bad.line);
+        return true;
+      }
+      const list = stage === 'per-frame' ? KSL : KW, names = stage === 'per-frame' ? SLOTS : WARP;
+      for (let i = 0; i < list.length; i++) if (!isFinite(env[list[i]])) return fault(names[i], stage);
+      return true;
+    };
+
+    const compState = { echoZoom: 1, echoAlpha: 0, echoOrient: 0, gamma: 1, hue: 0, brighten: 0, darken: 0, solarize: 0, invert: 0 };
+    const drawComp = (fbo, vx, vy, vw, vh, sx, sy, ox, oy, clearFirst) => {
+      const u = unis.comp;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+      if (clearFirst) {
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+      }
+      gl.viewport(vx, vy, vw, vh);
+      gl.disable(gl.BLEND);
+      gl.useProgram(progs.comp);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, targets[shown].tex);
+      gl.uniform1i(u.uSrc, 0);
+      gl.uniform2f(u.uFitScale, sx, sy);
+      gl.uniform2f(u.uFitOff, ox, oy);
+      gl.uniform1f(u.uEchoZoom, compState.echoZoom);
+      gl.uniform1f(u.uEchoAlpha, compState.echoAlpha);
+      gl.uniform1f(u.uGamma, compState.gamma);
+      gl.uniform1f(u.uHue, compState.hue);
+      gl.uniform1f(u.uBrighten, compState.brighten);
+      gl.uniform1f(u.uDarken, compState.darken);
+      gl.uniform1f(u.uSolarize, compState.solarize);
+      gl.uniform1f(u.uInvert, compState.invert);
+      gl.uniform1i(u.uEchoOrient, compState.echoOrient | 0);
+      gl.bindVertexArray(vaoQuad);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    };
+
+    const present = () => {
+      const cw = canvas.width, ch = canvas.height;
+      const aC = cw / ch, aF = tw / th;
+      let sx = 1, sy = 1, ox = 0, oy = 0, vx = 0, vy = 0, vw = cw, vh = ch, clear = false;
+      if (fitMode === 'cover') {
+        // The composite scales to whatever the canvas is; the FBOs never hear about it.
+        if (aC > aF) { sy = aF / aC; oy = (1 - sy) * 0.5; }
+        else { sx = aC / aF; ox = (1 - sx) * 0.5; }
+      } else if (fitMode === 'contain') {
+        clear = true;
+        if (aC > aF) { vw = Math.round(ch * aF); vx = ((cw - vw) / 2) | 0; }
+        else { vh = Math.round(cw / aF); vy = ((ch - vh) / 2) | 0; }
+      }
+      drawComp(null, vx, vy, vw, vh, sx, sy, ox, oy, clear);
+    };
+
+    const engine = {
+      precision: null, degraded: false, state: 'idle', fault: null,
+      texsize: { w: 0, h: 0, long: longEdge }, gl: null,
+      get env() { return env; },
+      get frameCount() { return frameNo; },
+      get time() { return simTime; },
+
+      init() {
+        if (ready) return true;
+        if (engine.state === 'destroyed') return false;
+        if (!gl) {
+          gl = canvas.getContext('webgl2', {
+            alpha: false, antialias: false, depth: false, stencil: false,
+            preserveDrawingBuffer: !!opts.preserveDrawingBuffer, powerPreference: 'high-performance'
+          });
+          if (!gl) { engine.state = 'unsupported'; return fault('webgl2', 'init'); }
+          canvas.addEventListener('webglcontextlost', onLost, false);
+          canvas.addEventListener('webglcontextrestored', onRestored, false);
+          // The ladder. Named, never a silent downgrade: at RGBA8 the loop lies.
+          if (gl.getExtension('EXT_color_buffer_float')) engine.precision = 'rgba16f';
+          else if (gl.getExtension('EXT_color_buffer_half_float')) engine.precision = 'rgba16f-half';
+          else engine.precision = 'rgba8';
+          engine.degraded = engine.precision === 'rgba8';
+          engine.gl = gl;
+        }
+        const cw = canvas.clientWidth || canvas.width || 640, ch = canvas.clientHeight || canvas.height || 480;
+        aspect = cw / ch;
+        return buildAll();
+      },
+
+      // env is the shared slot object. Pass VisLang's own and the engine adopts it;
+      // otherwise the engine keeps its own plain object. runProgram is VisLang's
+      // executor: the engine calls it once with perFrame, then once per mesh vertex
+      // with perVertex, and reads the slots back out. It compiles nothing itself.
+      setPrograms(p) {
+        p = p || {};
+        perFrame = p.perFrame || null;
+        perVertex = p.perVertex || null;
+        runProgram = p.runProgram || defaultRun;
+        checkFinite = p.checkFinite || null;
+        chanWritten = perFrame && perFrame.writes
+          ? CHAN.map(n => perFrame.writes.indexOf(n) >= 0)
+          : null;
+        if (p.env) env = p.env;
+        if ('slots' in p) K = p.slots ? keysFrom(p.slots) : IDKEYS;
+        rekey();
+        return engine;
+      },
+      // The hardcoded-preset path (slice 2) and the frontmatter enums, which are not
+      // numeric slots and so never enter the equation namespace.
+      setParams(p) { params = Object.assign({}, params, p || {}); rekey(); return engine; },
+      // additive is a numeric slot like everything else, so a preset can write it and a
+      // knob can read it back; only the mode enum stays out of the equation namespace.
+      setWave(cfg) {
+        cfg = cfg || {};
+        if (cfg.mode) waveMode = cfg.mode;
+        if ('additive' in cfg) engine.setParams({ additive_waves: cfg.additive ? 1 : 0 });
+        return engine;
+      },
+      clearFault() { engine.fault = null; return engine; },
+      resetClock() { simTime = 0; frameNo = 0; return engine; },
+
+      frame(dt, audio, knobs) {
+        if (!ready || engine.state === 'destroyed') return false;
+        if (gl.isContextLost()) { engine.state = 'lost'; return false; }
+        syncCanvas();
+
+        const kSpeed = clamp(1 + num(knobs && knobs.speed, 0), 0, 2);
+        const kPers = num(knobs && knobs.persistence, 0);
+        const kZoom = 1 + 0.1 * clamp(num(knobs && knobs.zoom, 0), -1, 1);
+        const kHue = num(knobs && knobs.hue, 0) * Math.PI;
+        const dtr = clamp(num(dt, 0), 0, DT_MAX);
+        const dts = dtr * kSpeed;
+        const t = simTime + dts;
+
+        resetEnv();
+        env[K.time] = t; env[K.dt] = dts; env[K.frame] = frameNo;
+        env[K.aspect] = aspect; env[K.texsize] = longEdge;
+        env[K.meshx] = NX; env[K.meshy] = NY;
+        for (let i = 0; i < KA.length; i++) env[KA[i]] = num(audio && audio[AUDIO[i]], AUDIO[i] === 'beat' ? 0 : 1);
+
+        if (perFrame) runProgram(perFrame, env);
+        if (!guard(perFrame, 'per-frame')) return false;
+        for (let i = 0; i < KW.length; i++) snap[i] = env[KW[i]];
+
+        for (let v = 0; v < NV; v++) {
+          for (let i = 0; i < KW.length; i++) env[KW[i]] = snap[i];
+          vertexSlots(v, as, env, K);
+          if (perVertex) {
+            runProgram(perVertex, env);
+            if (!guard(perVertex, 'per-vertex')) return false;
+          }
+          ws.x = env[K.x]; ws.y = env[K.y]; ws.rad = env[K.rad];
+          ws.cx = env[K.cx]; ws.cy = env[K.cy]; ws.rot = env[K.rot]; ws.sx = env[K.sx]; ws.sy = env[K.sy];
+          ws.dx = env[K.dx]; ws.dy = env[K.dy]; ws.zoomexp = env[K.zoomexp];
+          ws.zoom = env[K.zoom] * kZoom;
+          warpUV(ws, dts, as, uvOut);
+          if (!isFinite(uvOut[0]) || !isFinite(uvOut[1])) return fault('uv', 'per-vertex');
+          uvArr[v * 2] = uvOut[0]; uvArr[v * 2 + 1] = uvOut[1];
+        }
+
+        const src = targets[cur], dst = targets[1 - cur];
+        // speed 0: the field is not written at all, so "bit-stable" is structural rather
+        // than a claim about blit fidelity. dst is scratch for this frame only.
+        const frozen = dts === 0;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fbo);
+        gl.viewport(0, 0, tw, th);
+        gl.disable(gl.BLEND);
+        gl.activeTexture(gl.TEXTURE0);
+
+        if (frozen) {
+          gl.useProgram(progs.copy);
+          gl.bindTexture(gl.TEXTURE_2D, src.tex);
+          gl.uniform1i(unis.copy.uSrc, 0);
+          gl.bindVertexArray(vaoQuad);
+          gl.drawArrays(gl.TRIANGLES, 0, 3);
+        } else {
+          const d = E('decay');
+          const dr = chanDecay(0, d), dg = chanDecay(1, d), db = chanDecay(2, d);
+          const u = unis.warp;
+          gl.bindBuffer(gl.ARRAY_BUFFER, bufUV);
+          gl.bufferSubData(gl.ARRAY_BUFFER, 0, uvArr);
+          gl.useProgram(progs.warp);
+          gl.bindTexture(gl.TEXTURE_2D, src.tex);
+          gl.uniform1i(u.uPrev, 0);
+          gl.uniform3f(u.uDecay,
+            compPow(persistDecay(dr, kPers), dts),
+            compPow(persistDecay(dg, kPers), dts),
+            compPow(persistDecay(db, kPers), dts));
+          gl.uniform2f(u.uTexsize, tw, th);
+          gl.uniform2f(u.uAsp, as.x, as.y);
+          gl.uniform1f(u.uDarken, E('darken_center'));
+          gl.uniform1f(u.uFloor, engine.degraded ? 0.75 / 255 : 0);
+          gl.uniform1f(u.uDither, engine.degraded ? 1 / 255 : 0);
+          gl.bindVertexArray(vaoWarp);
+          gl.drawElements(gl.TRIANGLES, idxCount, gl.UNSIGNED_SHORT, 0);
+        }
+
+        if (E('ob_a') > 0 || E('ib_a') > 0) {
+          const u = unis.border;
+          gl.enable(gl.BLEND);
+          gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+          gl.useProgram(progs.border);
+          gl.uniform1f(u.uOb, E('ob_size'));
+          gl.uniform1f(u.uIb, E('ib_size'));
+          gl.uniform4f(u.uObCol, E('ob_r'), E('ob_g'), E('ob_b'), E('ob_a'));
+          gl.uniform4f(u.uIbCol, E('ib_r'), E('ib_g'), E('ib_b'), E('ib_a'));
+          gl.bindVertexArray(vaoQuad);
+          gl.drawArrays(gl.TRIANGLES, 0, 3);
+        }
+
+        const wave = audio && audio.wave;
+        if (wave && wave.length > 1 && E('wave_a') > 0) {
+          const n = Math.min(wave.length, WAVE_MAX);
+          const stride = wave.length / n;
+          for (let i = 0; i < n; i++) waveRaw[i] = wave[(i * stride) | 0];
+          smoothWave(waveRaw, n, E('wave_smoothing'), waveSm);
+          const count = waveVerts(waveSm, n, {
+            mode: waveMode, wave_x: E('wave_x'), wave_y: E('wave_y'), wave_mystery: E('wave_mystery')
+          }, as, waveArr);
+          const u = unis.wave;
+          gl.bindBuffer(gl.ARRAY_BUFFER, bufWave);
+          gl.bufferSubData(gl.ARRAY_BUFFER, 0, waveArr);
+          gl.enable(gl.BLEND);
+          // ONE,ONE: the over-range cores are exactly why additive waves smear into
+          // glowing trails — the wave draws inside the loop.
+          if (E('additive_waves') > 0.5) gl.blendFunc(gl.ONE, gl.ONE);
+          else gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+          gl.useProgram(progs.wave);
+          const wa = E('wave_a');
+          gl.uniform4f(u.uCol, E('wave_r') * wa, E('wave_g') * wa, E('wave_b') * wa, wa);
+          gl.bindVertexArray(vaoWave);
+          const offs = E('wave_thick') > 0 ? [[0, 0], [2 / tw, 0], [0, 2 / th]] : [[0, 0]];
+          for (let i = 0; i < offs.length; i++) {
+            gl.uniform2f(u.uOff, offs[i][0], offs[i][1]);
+            gl.drawArrays(gl.LINE_STRIP, 0, count);
+          }
+        }
+        gl.disable(gl.BLEND);
+
+        compState.echoZoom = E('echo_zoom');
+        compState.echoAlpha = clamp(E('echo_alpha'), 0, 1);
+        compState.echoOrient = clamp(Math.round(E('echo_orient')), 0, 3);
+        compState.gamma = E('gamma');
+        compState.brighten = E('brighten'); compState.darken = E('darken');
+        compState.solarize = E('solarize'); compState.invert = E('invert');
+        compState.hue = kHue;
+        shown = 1 - cur;
+        present();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+        if (!frozen) cur = 1 - cur;
+        simTime = t; frameNo++;
+        engine.state = simTime > WARM ? 'running' : 'warming';
+        return true;
+      },
+
+      // Reads the composite at internal resolution, not at whatever the canvas happens
+      // to be — a pixel assertion should not depend on the window.
+      readPixels(cb) {
+        if (!ready || gl.isContextLost()) return false;
+        drawComp(readTarget.fbo, 0, 0, tw, th, 1, 1, 0, 0, false);
+        const px = new Uint8Array(tw * th * 4);
+        gl.readPixels(0, 0, tw, th, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        cb(px, tw, th);
+        return true;
+      },
+
+      // Voluntary degradation (the performance ladder): the old field is blitted into
+      // the new one, so the history survives the reallocation.
+      setLongEdge(n) {
+        if (!ready || gl.isContextLost() || n === longEdge) return false;
+        const fmt = engine.precision === 'rgba8'
+          ? { internal: gl.RGBA8, type: gl.UNSIGNED_BYTE }
+          : { internal: gl.RGBA16F, type: gl.HALF_FLOAT };
+        const old = targets[cur], oldRead = readTarget, other = targets[1 - cur];
+        longEdge = n;
+        const s = sizeFor(aspect);
+        const a = makeTarget(s.w, s.h, fmt), b = makeTarget(s.w, s.h, fmt);
+        const r = makeTarget(s.w, s.h, { internal: gl.RGBA8, type: gl.UNSIGNED_BYTE });
+        if (!a.ok || !b.ok || !r.ok) { dropTarget(a); dropTarget(b); dropTarget(r); return fault('framebuffer', 'resize'); }
+        gl.bindFramebuffer(gl.FRAMEBUFFER, a.fbo);
+        gl.viewport(0, 0, s.w, s.h);
+        gl.disable(gl.BLEND);
+        gl.useProgram(progs.copy);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, old.tex);
+        gl.uniform1i(unis.copy.uSrc, 0);
+        gl.bindVertexArray(vaoQuad);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        dropTarget(old); dropTarget(other); dropTarget(oldRead);
+        targets = [a, b]; readTarget = r;
+        tw = s.w; th = s.h; cur = 0; shown = 0;
+        engine.texsize = { w: tw, h: th, long: longEdge };
+        return true;
+      },
+
+      // Offered after webglcontextrestored, never automatic. A second loss steps the
+      // internal resolution down first: at phone resolutions the likeliest trigger is
+      // our own fill rate.
+      restore() {
+        if (engine.state === 'destroyed' || !gl || gl.isContextLost()) return false;
+        if (lossCount > 1) {
+          for (let i = 0; i < RES.length; i++) if (RES[i] < longEdge) { longEdge = RES[i]; break; }
+        }
+        dropGL();
+        engine.fault = null;
+        return buildAll();
+      },
+
+      destroy() {
+        if (gl && !gl.isContextLost()) dropGL();
+        canvas.removeEventListener('webglcontextlost', onLost, false);
+        canvas.removeEventListener('webglcontextrestored', onRestored, false);
+        ready = false; gl = null; engine.gl = null; engine.state = 'destroyed';
+      }
+    };
+
+    rekey();
+
+    // Resize, rotation, the iOS URL bar and root zoom all land here and nowhere else.
+    const syncCanvas = () => {
+      if (!canvas.clientWidth || !canvas.clientHeight) return;
+      const dpr = Math.min(num(opts.dpr, typeof devicePixelRatio === 'number' ? devicePixelRatio : 1), 2);
+      const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
+      const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+      if (canvas.width !== w) canvas.width = w;
+      if (canvas.height !== h) canvas.height = h;
+    };
+
+    return engine;
+  };
+
+  return {
+    createEngine, GLSL, DEFAULTS,
+    mesh: { NX, NY, NV }, ref: REF, dtMax: DT_MAX, resLadder: RES, warpSlots: WARP,
+    math: { clamp, compPow, compLin, aspectScale, persistDecay, vertexSlots, warpUV, seedField, quantize, smoothWave, waveVerts, ihash }
+  };
+})();
+
+const VisMic = (() => {
+  // The whole register in one place: cause-keyed, never mood-keyed. Every rendering
+  // names what happened. Copy is data so the state table can be read without a browser.
+  const MAP = {
+    insecure: {
+      headline: 'this page is not on https — the browser hides the microphone entirely',
+      detail: 'nothing was denied. open the page over https, or through localhost, and the microphone comes back.',
+      retryable: false
+    },
+    nomedia: {
+      headline: 'this browser does not offer microphone capture',
+      detail: 'the browser exposes no microphone API here, so there was never anything to ask.',
+      retryable: false
+    },
+    dismissed: {
+      headline: 'the permission prompt was closed',
+      detail: 'nothing was blocked — the ask went away. start again and the browser will ask again.',
+      retryable: true
+    },
+    blocked: {
+      headline: 'the microphone is blocked for this site',
+      detail: 'the browser refuses before it asks. this has to change in site settings; the page cannot undo it.',
+      retryable: false
+    },
+    notfound: {
+      headline: 'no microphone was found',
+      detail: 'the browser sees no input device at all. plug one in, then start again.',
+      retryable: true
+    },
+    busy: {
+      headline: 'another app is holding the microphone',
+      detail: 'a call, a recorder, or another tab has the device. close it and start again — the microphone is there.',
+      retryable: true
+    },
+    overconstrained: {
+      headline: 'no input matched what was asked for',
+      detail: 'the chosen device cannot do it. pick another input from the list and start again.',
+      retryable: true
+    },
+    abort: {
+      headline: 'the microphone was granted but would not start',
+      detail: 'permission was fine; the device failed to open and gave no reason. starting again often works.',
+      retryable: true
+    },
+    security: {
+      headline: 'this page is not allowed to capture audio',
+      detail: 'a policy on the document forbids it — permissions-policy, or a sandboxed frame. it will never ask.',
+      retryable: false
+    },
+    silent: {
+      headline: 'the microphone is open and hearing nothing',
+      detail: 'live stream, flat samples. check the input is the one you meant, and that the room is actually playing.',
+      retryable: true
+    },
+    running: {
+      headline: 'listening',
+      detail: 'the microphone is open and the signal is live.',
+      retryable: false
+    },
+    ended: {
+      headline: 'the microphone went away',
+      detail: 'the device was unplugged or taken by the system. pick another input, or start again.',
+      retryable: true
+    },
+    osmuted: {
+      headline: 'the microphone is muted at the system level',
+      detail: 'this is not silence — the operating system is holding the stream shut. unmute it there and the signal returns on its own.',
+      retryable: false
+    },
+    resume: {
+      headline: 'microphone released while hidden — tap to resume',
+      detail: 'the stream was stopped on purpose when this window went away. resuming asks for the microphone again.',
+      retryable: true
+    },
+    interrupted: {
+      headline: 'the audio session was interrupted',
+      detail: 'a call or an alarm took the audio away. this is not silence and it is not a failure — it comes back when the system gives it back.',
+      retryable: true
+    },
+    synthetic: {
+      headline: 'synthetic signal — this build has no microphone',
+      detail: 'the published build ships without the capture code. everything moving on screen comes from a seeded fake.',
+      retryable: false
+    }
+  };
+
+  const ERRORS = {
+    NotFoundError: 'notfound',
+    NotReadableError: 'busy',
+    OverconstrainedError: 'overconstrained',
+    AbortError: 'abort',
+    SecurityError: 'security'
+  };
+
+  const at = key => ({ key, ...MAP[key] });
+
+  const micStateOf = input => {
+    let q = typeof input === 'string' ? { status: input } : input || {};
+    if (q.key && !q.status) q = Object.assign({}, q, { status: q.key });
+    if (q.name && !q.error) q = Object.assign({}, q, { error: { name: q.name } });
+    // Pre-flight, in this order: on plain http the capture API is simply absent, so no
+    // permission was ever considered and no error will ever be thrown to explain it.
+    if (q.secure === false) return at('insecure');
+    if (q.noMediaDevices) return at('nomedia');
+    const name = q.error && (q.error.name || q.error);
+    // Dismissal and block arrive as the same DOMException; only the permission state tells them apart.
+    if (name === 'NotAllowedError') return at(q.permissionState === 'denied' ? 'blocked' : 'dismissed');
+    if (ERRORS[name]) return at(ERRORS[name]);
+    if (!name && MAP[q.status]) return at(q.status);
+    return {
+      key: 'unknown',
+      headline: 'the microphone could not be opened',
+      detail: 'the cause came back as "' + (name || q.status || 'none') + '" — this build has no rendering for it.',
+      retryable: true
+    };
+  };
+
+  const PROCESSING = [
+    ['autoGainControl', 'auto-gain'],
+    ['echoCancellation', 'echo cancellation'],
+    ['noiseSuppression', 'noise suppression']
+  ];
+
+  const settingsReport = (requested, actual) => {
+    const req = requested || {}, got = actual || {};
+    const stuck = PROCESSING.filter(([k]) => {
+      // Constraints are ideal-valued, so a request is either false or {ideal:false}.
+      const want = req[k] && typeof req[k] === 'object' ? req[k].ideal : req[k];
+      // Only a settings value of exactly true is evidence; an unreported key claims nothing.
+      return want === false && got[k] === true;
+    }).map(([, label]) => label);
+    if (!stuck.length) return null;
+    const named = stuck.length === 1 ? stuck[0] : stuck.slice(0, -1).join(', ') + ' and ' + stuck[stuck.length - 1];
+    const tail = stuck.includes('auto-gain')
+      ? 'the dynamics on screen are not the room\'s.'
+      : 'what is on screen is not the room\'s signal.';
+    return named + ' could not be disabled — ' + tail;
+  };
+
+  const makeLifecycle = hooks => {
+    let acquired = false, released = false, ctx = 'suspended';
+    // Law 3: hidden and closed tear down unconditionally, so no bookkeeping slip can
+    // leave a track live behind a window nobody is looking at. The hooks are idempotent.
+    const teardown = () => { hooks.stopTracks(); hooks.suspend(); hooks.releaseWakeLock(); };
+    const send = (event, arg) => {
+      switch (event) {
+        case 'open':
+          break;
+        case 'started':
+          acquired = true; released = false; ctx = 'running';
+          hooks.requestWakeLock(); hooks.render('running');
+          break;
+        case 'hidden':
+          released = released || acquired; acquired = false;
+          teardown();
+          break;
+        case 'visible':
+          // Renders the offer and stops. Re-acquiring is the tap's job, never this event's.
+          if (released) { released = false; hooks.render('resume'); }
+          break;
+        case 'closed':
+          acquired = false; released = false;
+          teardown();
+          break;
+        case 'trackEnded':
+          acquired = false; released = false;
+          hooks.stopTracks(); hooks.releaseWakeLock(); hooks.render('ended');
+          break;
+        case 'trackMuted':
+          // The OS unmutes it back on its own; there is nothing to tear down.
+          hooks.render('osmuted');
+          break;
+        case 'ctxStateChange':
+          if (arg === 'interrupted') { hooks.releaseWakeLock(); hooks.render('interrupted'); }
+          else if (arg === 'running' && ctx === 'interrupted' && acquired) { hooks.requestWakeLock(); hooks.render('running'); }
+          ctx = arg;
+          break;
+        default:
+          throw new Error('VisMic: unknown lifecycle event ' + event);
+      }
+    };
+    // `event` alias: the integration calls it by that name, and a seam that
+    // throws is a seam that strands a live microphone (review, 2026-08-21).
+    return { send, event: send, state: () => ({ acquired, released, ctx }) };
+  };
+
+  return { micStateOf, settingsReport, makeLifecycle };
+})();
+/*VIS-MODULES-END*/
+
 const APPS = {
   surface: { title: "Surface.exe" },
   explorer: { title: "Wiki Explorer" },
@@ -2986,6 +5257,7 @@ const APPS = {
   why: { title: "why.exe" },
   mb: { title: "MB Teaches ML" },
   stoop: { title: "Stoop" },
+  vz: { title: "MilkDrop+" },
   web: { title: "Wiki Web" },
   settings: { title: "Settings" },
   about: { title: "About PFC98" },
@@ -7536,6 +9808,422 @@ const Search = (() => {
                         webLocal: () => localSet && [...localSet] });
 })();
 
+
+/* ----- MilkDrop+ ----- */
+/* The visualizer (docs/milkdrop-plus.md). The pure layer lives in the
+   VIS-MODULES region above; this IIFE is the window: states, knobs, loader,
+   lifecycle. The "+" is two claims — the preset is playable while it plays,
+   and a broken preset is refused by name, never rendered as a dark window. */
+const VZ = (() => {
+  const el = () => document.querySelector("#win-vz .window-body");
+  const say = (m) => WM.status("vz", m);
+  const LSK = "pfc_vz_knobs" + (DEMO ? "_demo" : "");
+  const LSP = "pfc_vz_preset" + (DEMO ? "_demo" : "");
+  const G = VisLang.VIS_GRAMMAR;
+  const KNOBS = ["speed", "variation", "sensitivity", "persistence", "zoom", "hue"];
+
+  /* Capture: the ONLY microphone-API code in the file, sentinel-wrapped.
+     mirror.sh strips this region from the public copy and then refuses to push
+     if any capture identifier survives — so the public build is synthetic by
+     construction, not by URL flag. Everything else feature-detects VzCapture. */
+  let VzCapture = null;
+
+  /* ---- the loader: parse -> validate(base) -> extend(params) -> compile ----
+     Runs on load AND before every Save-as write. verify/presets.mjs runs the
+     same modules over the repo files, so this seam cannot drift unwatched. */
+  function loadPreset(text) {
+    const parsed = VisPreset.parsePresetFile(text, G);
+    if (parsed.errors.length) return { ok: false, errors: parsed.errors, parsed };
+    const fmErrors = VisLang.validateFrontmatter(parsed.meta, G).filter((e) => e.severity === "error");
+    const params = parsed.meta.params || [];
+    let g = G;
+    if (params.length) {
+      g = JSON.parse(JSON.stringify(G));
+      for (const pr of params) { g.vars.push(pr.name); for (const b of g.sections) g.blocks[b].reads.push(pr.name); }
+    }
+    const compiled = VisLang.compilePreset(parsed.blocks, g, { seed: parsed.meta.seed || 0 });
+    const errors = fmErrors.concat(compiled.errors);
+    return { ok: errors.length === 0, errors, warnings: compiled.warnings, parsed, compiled, params };
+  }
+
+  /* ---- state ---- */
+  let eng = null, canvas = null, raf = 0, lastT = 0;
+  let audioCtx = null, analyser = null, stream = null, track = null, deviceId = null;
+  let source = null;                 // null | 'mic' | 'synthetic'
+  let bands = null, beat = null, synth = null;
+  let cur = null;
+  let presets = [];
+  let autoTimer = 0, procBadge = null, lastState = "idle", blackSaid = false;
+  const knobs = Object.fromEntries(KNOBS.map((k) => [k, 0]));
+  try { Object.assign(knobs, JSON.parse(localStorage.getItem(LSK) || "{}")); } catch (e) {}
+  const fbuf = new Float32Array(1024), tbuf = new Float32Array(2048);
+
+  const life = VisMic.makeLifecycle({
+    stopTracks() {
+      if (track) { try { track.stop(); } catch (e) {} }
+      if (stream) for (const t of stream.getTracks()) { try { t.stop(); } catch (e) {} }
+      stream = track = null;
+      if (source === "mic") stopLoop();
+    },
+    suspend() { if (audioCtx && audioCtx.state === "running") audioCtx.suspend().catch(() => {}); },
+    render(key) { renderState(key); },
+    requestWakeLock() { wakeReq(); },
+    releaseWakeLock() { wakeRel(); },
+  });
+  let wake = null;
+  const wakeReq = () => { if (navigator.wakeLock) navigator.wakeLock.request("screen").then((w) => (wake = w)).catch(() => {}); };
+  const wakeRel = () => { if (wake) { wake.release().catch(() => {}); wake = null; } };
+  document.addEventListener("visibilitychange", () => {
+    if (!source) return;
+    life.event(document.hidden ? "hidden" : "visible");
+    if (!document.hidden && source === "synthetic") { wakeReq(); startLoop(); }   // synthetic holds no hardware
+  });
+
+  /* ---- knob application (every neutral is 0; docs/milkdrop-plus.md table) ---- */
+  const speedFactor = () => Math.max(0, 1 + knobs.speed);
+  const sensFactor  = () => Math.pow(Math.max(0, 1 + knobs.sensitivity), 2);
+  const engKnobs = () => ({ persistence: knobs.persistence, zoom: knobs.zoom, hue: knobs.hue });
+
+  /* ---- render loop ---- */
+  function frame(now) {
+    raf = requestAnimationFrame(frame);
+    const dt = VisAudio.clampDt((now - (lastT || now)) / 1000); lastT = now;
+    let fd = fbuf, td = tbuf;
+    if (source === "synthetic") {
+      const sig = synth.render(eng ? eng.time : now / 1000, dt);
+      fd = sig.floatFreqDb; td = sig.timeDomain;
+    } else if (analyser) {
+      analyser.getFloatFrequencyData(fbuf); analyser.getFloatTimeDomainData(tbuf);
+    }
+    const sf = sensFactor();
+    const b = bands.update(fd, dt, sf);
+    const bt = beat.update(b.bass_raw, dt, sf);
+    if (eng) {
+      // the engine owns the env writes — hand it the shape it reads (review
+      // 2026-08-21: the first wiring passed {timeDomain} and every band fell
+      // back to a constant 1.0; the demo looked alive on warp defaults alone)
+      if (cur && knobs.variation > 0 && cur.varOffsets) cur.varOffsets(eng.time, knobs.variation);
+      eng.frame(dt * speedFactor(),
+        { bass: b.bass, mid: b.mid, treb: b.treb, bass_att: b.bass_att,
+          mid_att: b.mid_att, treb_att: b.treb_att, vol: b.level, vol_att: b.level,
+          beat: bt, wave: td }, engKnobs());
+      if (eng.fault) {
+        stopLoop();
+        renderState(eng.fault.stage === "per-frame" || eng.fault.stage === "per-vertex" ? "fault" : "glfault");
+        return;
+      }
+    }
+    const black = knobs.persistence <= -0.98 || (sf === 0 && cur && cur.audioOnly);
+    if (black && !blackSaid && (lastState === "running" || lastState === "synthetic")) {
+      blackSaid = true;
+      say("you have turned it off — " + (sf === 0 ? "sensitivity" : "persistence") + " is at the floor");
+    } else if (!black && blackSaid) { blackSaid = false; renderState(lastState); }
+  }
+  const startLoop = () => { if (!raf) { lastT = 0; raf = requestAnimationFrame(frame); } };
+  const stopLoop  = () => { if (raf) { cancelAnimationFrame(raf); raf = 0; } wakeRel(); };
+
+  /* ---- states (the law, §6): every rendering is distinct and names its cause ---- */
+  function renderState(key, detail) {
+    lastState = key;
+    const box = el().querySelector(".vz-state");
+    if (!box) return;
+    if (key === "running" || key === "synthetic") {
+      box.classList.add("hidden");
+      const badge = el().querySelector(".vz-badge");
+      badge.textContent = key === "synthetic"
+        ? "synthetic signal — this build has no microphone · now playing: " + (synth ? synth.title : "")
+        : (procBadge ? "processed: " + procBadge : "");
+      badge.style.display = badge.textContent ? "" : "none";
+      say(key === "synthetic" ? "synthetic — “Halogen Yard”, Fourteen Hours · " + presetLabel()
+                              : "listening · " + presetLabel());
+      return;
+    }
+    box.classList.remove("hidden");
+    const r = key === "fault" && eng && eng.fault
+      ? { headline: "preset rejected: " + eng.fault.name + " went non-finite (" + eng.fault.stage + ")",
+          detail: "holding the last good frame — pick another preset or fix this one", retryable: true }
+      : key === "glfault"
+      ? { headline: eng && eng.state === "unsupported" ? "this browser has no WebGL2"
+                    : "the renderer hit a wall (" + (eng && eng.fault ? eng.fault.stage : "gl") + ")",
+          detail: "rebuild will step the resolution down if it happens again", retryable: true }
+      : VisMic.micStateOf(typeof key === "string" ? (detail ? { status: key, detail } : key) : key);
+    box.innerHTML = `<b>${esc(r.headline)}</b><div>${esc(r.detail || "")}</div>` +
+      (r.retryable !== false ? `<button data-vz-start>${source ? "Resume" : "Start"}</button>` : "");
+    const btn = box.querySelector("[data-vz-start]");
+    if (btn) btn.onclick = start;
+    say(r.headline);
+  }
+  const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const presetLabel = () => (cur ? cur.name : "no preset");
+
+  /* ---- start: the user gesture that everything legal hangs off ---- */
+  async function start() {
+    if (!eng) initEngine();
+    if (DEMO || !VzCapture) return startSynthetic();
+    const un = VzCapture.supported();
+    if (un) return renderState(un);
+    try {
+      const got = await VzCapture.begin(deviceId, audioCtx);
+      audioCtx = got.ctx; stream = got.stream; track = got.track; analyser = got.analyser;
+      procBadge = VisMic.settingsReport(got.requested, got.actual);
+      track.onended = () => { life.event("trackEnded"); renderState("ended"); };
+      track.onmute = () => renderState("osmuted");
+      track.onunmute = () => { renderState("running"); };
+      audioCtx.onstatechange = () => {
+        if (audioCtx.state === "suspended" || audioCtx.state === "interrupted")
+          life.event("ctxStateChange", audioCtx.state);
+      };
+      mkPure(audioCtx.sampleRate);
+      source = "mic";
+      life.event("started");
+      await fillDevices();
+      startLoop(); renderState("running");
+    } catch (e) {
+      // teardown BEFORE rendering: a failure screen over a live microphone is
+      // the worst state this app can be in (review 2026-08-21)
+      if (track) { try { track.stop(); } catch (x) {} }
+      if (stream) for (const t of stream.getTracks()) { try { t.stop(); } catch (x) {} }
+      stream = track = null; source = null;
+      if (audioCtx && audioCtx.state === "running") audioCtx.suspend().catch(() => {});
+      renderState({ error: e, permissionState: await permState() });
+    }
+  }
+  async function permState() {
+    try { const st = await navigator.permissions.query({ name: "microphone" }); return st.state; }
+    catch (e) { return null; }
+  }
+  function startSynthetic() {
+    mkPure(48000);
+    synth = VisAudio.makeSynth(7, "song", 48000, 2048, "“Halogen Yard” — Fourteen Hours");
+    source = "synthetic";
+    wakeReq();                              // the phone locking mid-song ends the show
+    startLoop(); renderState("synthetic");
+  }
+  function mkPure(sampleRate) {
+    bands = VisAudio.makeBands(sampleRate, 2048, undefined);
+    beat = VisAudio.makeBeat({});
+  }
+  async function fillDevices() {
+    if (!VzCapture) return;
+    const sel = el().querySelector("[data-vz-dev]");
+    try {
+      const list = await VzCapture.devices();
+      sel.innerHTML = list.map((d) => `<option value="${esc(d.id)}"${d.id === deviceId ? " selected" : ""}>${esc(d.label)}</option>`).join("");
+      sel.style.display = list.length > 1 ? "" : "none";
+    } catch (e) { sel.style.display = "none"; }
+  }
+
+  function initEngine() {
+    canvas = el().querySelector("canvas");
+    eng = VisGL.createEngine(canvas, { seed: 41 });
+    if (!eng.init()) { renderState("fault"); return; }
+    if (eng.precision === "rgba8") say("reduced color precision — this GPU has no float render targets");
+    if (cur) applyPreset(cur);
+  }
+
+  /* ---- presets: the tree is the manifest (one request, house pattern) ---- */
+  async function loadLibrary(force) {
+    const tree = await getTree(force);
+    const files = tree.filter((e) => /^visualizer\/presets\/.+\.md$/.test(e.path)).map((e) => e.path).sort();
+    presets = []; let missed = 0;
+    for (const path of files) {
+      const r = await readOr(path, "", force);
+      if (!r.ok) { missed++; presets.push({ path, name: path.split("/").pop().replace(/\.md$/, ""), text: null }); continue; }
+      const nm = /^name:\s*(.+)$/m.exec(r.v);
+      presets.push({ path, name: (nm ? nm[1] : path.split("/").pop()).trim().replace(/^"|"$/g, ""), text: r.v });
+    }
+    return missed;
+  }
+  function applyPreset(entry) {
+    if (entry.text === null) { say(entry.name + " could not be read — not an empty preset"); return false; }
+    const r = loadPreset(entry.text);
+    if (!r.ok) {
+      const e0 = r.errors[0];
+      const why = e0.why || e0.message || e0.code || "unreadable";
+      const box = el().querySelector(".vz-state");
+      box.classList.remove("hidden");
+      box.innerHTML = `<b>preset rejected: ${esc(entry.name)}</b><div>${esc(`line ${e0.line || 0}: ${why}`)}</div>`;
+      say(`preset rejected — line ${e0.line || 0}: ${why}`);
+      return false;
+    }
+    const env = VisLang.makeEnv(r.compiled);
+    const sl = r.compiled.slots;
+    for (const pr of r.params) env[sl[pr.name]] = pr.default;
+    const vs = VisAudio.makeVariation((r.parsed.meta.variationSeed ?? r.parsed.meta.seed) || 0);
+    cur = {
+      name: entry.name, path: entry.path, text: entry.text, env, slots: sl,
+      load: r, params: r.params,
+      audioOnly: !r.compiled.programs["per-frame"].reads.includes("time"),
+      varOffsets: (t, amt) => {
+        r.params.forEach((pr, i) => { if (pr.vary) env[sl[pr.name]] = pr.default + vs.param(t, amt, i, pr.min, pr.max); });
+      },
+    };
+    const keep = el().querySelector("[data-vz-keep]");
+    if (!(keep && keep.checked)) {
+      const kb = r.parsed.meta.knobs || {};
+      for (const k of KNOBS) knobs[k] = typeof kb[k] === "number" ? kb[k] : 0;   // absent -> neutral
+      paintKnobs(); persistKnobs();
+    }
+    if (eng) {
+      eng.clearFault(); eng.resetClock();   // time is seconds since preset load
+      eng.setPrograms({ perFrame: r.compiled.programs["per-frame"], perVertex: r.compiled.programs["per-vertex"],
+                        env, slots: sl, runProgram: VisLang.runProgram, checkFinite: VisLang.checkFinite,
+                        resetOutputs: () => VisLang.resetOutputs(r.compiled, env), resetQ: () => VisLang.resetQ(r.compiled, env) });
+      if (eng.setWave) eng.setWave(r.parsed.meta.wave || {});
+      VisLang.resetQ(r.compiled, env);
+      if (source) startLoop();              // a fault stopped the loop; a good preset restarts it
+    }
+    if (!autoTimer) try { localStorage.setItem(LSP, entry.path); } catch (e) {}
+    paintParams();
+    if (lastState === "running" || lastState === "synthetic") renderState(lastState);
+    return true;
+  }
+
+  /* ---- knobs UI: tap-first (±0.1 steps), drag as enhancement ---- */
+  function paintKnobs() {
+    const box = el().querySelector(".vz-knobs");
+    box.querySelectorAll(".vz-knob.uni").forEach((n) => n.remove());
+    for (const k of KNOBS) {
+      const min = k === "variation" ? 0 : -1;
+      const row = document.createElement("div");
+      row.className = "vz-knob uni";
+      row.innerHTML = `<span class="lb">${k}</span><button data-d="-1">−</button>` +
+        `<input type="range" min="${min}" max="1" step="0.01" value="${knobs[k]}">` +
+        `<button data-d="1">+</button><span class="val">${knobs[k].toFixed(2)}</span>`;
+      const rng = row.querySelector("input"), val = row.querySelector(".val");
+      const set = (v) => { knobs[k] = Math.max(min, Math.min(1, v)); rng.value = knobs[k]; val.textContent = knobs[k].toFixed(2); persistKnobs(); };
+      rng.oninput = () => set(parseFloat(rng.value));
+      row.querySelectorAll("button").forEach((b) => (b.onclick = () => set(knobs[k] + 0.1 * +b.dataset.d)));
+      box.appendChild(row);
+    }
+  }
+  function paintParams() {
+    const box = el().querySelector(".vz-params");
+    box.innerHTML = "";
+    if (!cur || !cur.params.length) return;
+    for (const pr of cur.params) {
+      const row = document.createElement("div");
+      row.className = "vz-knob";
+      row.innerHTML = `<span class="lb">${esc(pr.label || pr.name)}</span><button data-d="-1">−</button>` +
+        `<input type="range" min="${pr.min}" max="${pr.max}" step="${(pr.max - pr.min) / 100}" value="${cur.env[cur.slots[pr.name]]}">` +
+        `<button data-d="1">+</button><span class="val"></span>`;
+      const rng = row.querySelector("input"), val = row.querySelector(".val");
+      const set = (v) => { const x = Math.max(pr.min, Math.min(pr.max, v)); cur.env[cur.slots[pr.name]] = x; pr.default = x; rng.value = x; val.textContent = (+x).toFixed(2); };
+      set(cur.env[cur.slots[pr.name]]);
+      rng.oninput = () => set(parseFloat(rng.value));
+      row.querySelectorAll("button").forEach((b) => (b.onclick = () => set(cur.env[cur.slots[pr.name]] + (pr.max - pr.min) * 0.1 * +b.dataset.d)));
+      box.appendChild(row);
+    }
+  }
+  const persistKnobs = () => { try { localStorage.setItem(LSK, JSON.stringify(knobs)); } catch (e) {} };
+
+  /* ---- save as: play until it looks right, keep it ---- */
+  async function saveAs() {
+    if (!cur) return say("no preset to derive from");
+    const name = el().querySelector("[data-vz-name]").value.trim();
+    if (!name) return say("name the child first — the field beside Save");
+    const parsed = VisPreset.parsePresetFile(cur.text, G);
+    const child = VisPreset.deriveChild(parsed, {
+      name, knobs: Object.assign({}, knobs),
+      variationSeed: (parsed.meta.variationSeed ?? parsed.meta.seed) || 0,
+    }, new Date().toISOString().slice(0, 10));
+    const text = VisPreset.serializePresetFile(child);
+    const check = loadPreset(text);
+    if (!check.ok) return say("refusing to save a preset that would be rejected: " + check.errors[0].why);
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    if (!slug) return say("that name has no letters or digits — pick another");
+    const path = `visualizer/presets/${slug}.md`;
+    if (DEMO) return say(path + " (demo — nothing is saved)");
+    if (presets.some((pp) => pp.path === path)) return say(slug + " exists — pick another name (retire the old one from the repo if you mean to replace it)");
+    try {
+      await putFileSha(path, text, "vz: preset " + slug + " (derived from " + (parsed.meta.name || "?") + ")", null);
+      say("saved " + slug + " — derived from " + parsed.meta.name);
+      await loadLibrary(true); paintLibrary();
+    } catch (e) { say("NOT saved — " + e.message); }
+  }
+
+  function paintLibrary() {
+    const sel = el().querySelector("[data-vz-preset]");
+    sel.innerHTML = presets.map((pp, i) => `<option value="${i}"${cur && cur.path === pp.path ? " selected" : ""}>${esc(pp.name)}${pp.text === null ? " (unread)" : ""}</option>`).join("") || `<option>no presets in the tree</option>`;
+  }
+
+  /* ---- auto-switch: a timer with the texture persisting, never a cut on beat ---- */
+  function setAuto(on) {
+    clearInterval(autoTimer); autoTimer = 0;
+    const cb = el() && el().querySelector("[data-vz-auto]");
+    if (cb) cb.checked = !!on;
+    if (on) {
+      try { localStorage.removeItem(LSP); } catch (e) {}   // law 2 carve-out
+      autoTimer = setInterval(() => {
+        const ok = presets.filter((pp) => pp.text !== null);
+        if (ok.length > 1) { let n; do { n = ok[(Math.random() * ok.length) | 0]; } while (cur && n.path === cur.path); applyPreset(n); paintLibrary(); }
+      }, 30000);
+    }
+  }
+
+  APPS.vz.onOpen = async () => {
+    const body = el();
+    if (!body.dataset.ready) {
+      body.dataset.ready = 1;
+      body.classList.remove("white");
+      body.innerHTML = `<div class="vz-main">
+        <div class="vz-stage"><canvas></canvas>
+          <div class="vz-state"><b>MilkDrop+</b><div data-vz-promise>the microphone starts on your word, never before</div><button data-vz-start class="default">Start</button></div>
+          <div class="vz-badge" style="display:none"></div></div>
+        <div class="vz-row">
+          <select data-vz-preset></select>
+          <button data-vz-prev>◀</button><button data-vz-next>▶</button>
+          <label><input type="checkbox" data-vz-auto> auto 30s</label>
+          <label title="loading a preset normally sets the knobs from its file"><input type="checkbox" data-vz-keep> keep my knobs</label>
+          <select data-vz-dev style="display:none"></select>
+          <button data-vz-full>Fullscreen</button>
+        </div>
+        <div class="vz-knobs"></div>
+        <div class="vz-knobs vz-params"></div>
+        <div class="vz-row"><input data-vz-name placeholder="name the child…" style="flex:1"><button data-vz-save>Save as…</button></div>
+        <div class="vz-strip"></div></div>`;
+      body.querySelector("[data-vz-start]").onclick = start;
+      if (DEMO || !VzCapture)
+        body.querySelector("[data-vz-promise]").textContent = "this build has no microphone — Start plays a seeded synthetic signal";
+      body.querySelector("[data-vz-save]").onclick = saveAs;
+      body.querySelector("[data-vz-auto]").onchange = (e) => setAuto(e.target.checked);
+      body.querySelector("[data-vz-preset]").onchange = (e) => { const pp = presets[+e.target.value]; if (pp) applyPreset(pp); };
+      body.querySelector("[data-vz-prev]").onclick = () => stepPreset(-1);
+      body.querySelector("[data-vz-next]").onclick = () => stepPreset(1);
+      body.querySelector("[data-vz-dev]").onchange = (e) => { deviceId = e.target.value; if (source === "mic") { life.event("hidden"); start(); } };
+      body.querySelector("[data-vz-full]").onclick = () => {
+        const st = body.querySelector(".vz-stage");
+        if (st.requestFullscreen) st.requestFullscreen().catch(() => st.classList.toggle("full"));
+        else st.classList.toggle("full");   // iOS: pseudo-fullscreen
+      };
+      paintKnobs();
+    }
+    say("loading the preset shelf…");
+    const missed = await loadLibrary();
+    paintLibrary();
+    const remembered = (() => { try { return localStorage.getItem(LSP); } catch (e) { return null; } })();
+    const pick = presets.find((pp) => pp.path === remembered && pp.text !== null) || presets.find((pp) => pp.text !== null);
+    if (pick) applyPreset(pick);
+    const strip = el().querySelector(".vz-strip");
+    strip.innerHTML = (missed ? `<b>${missed} preset(s) could not be read — shown as unread, not empty.</b> ` : "") +
+      `${presets.length} preset(s) on the shelf · audio never leaves this page · the stream stops when you leave`;
+    say((DEMO || !VzCapture ? "synthetic build — " : "") + presets.length + " preset(s) · tap Start");
+  };
+  function stepPreset(d) {
+    const ok = presets.filter((pp) => pp.text !== null);
+    if (!ok.length || !cur) return;
+    const i = ok.findIndex((pp) => pp.path === cur.path);
+    applyPreset(ok[(i + d + ok.length) % ok.length]); paintLibrary();
+  }
+  APPS.vz.onClose = () => {
+    life.event("closed"); stopLoop(); setAuto(false); source = null;
+    if (eng) { eng.destroy(); eng = null; canvas = null; }   // FBOs freed; reopen re-inits lazily
+  };
+  APPS.vz.onHide = () => { if (source) life.event("hidden"); };
+  Object.assign(PFCT, { vzLoadPreset: loadPreset });
+  return { loadPreset };
+})();
+
 /* ----- Stoop: the pipeline dashboard ----- */
 /* The window wiki/stoop-front-end.md has specified since 2026-08-05, buildable
    since the rename ruled and pointed at its data today: Andrew's "its state is
@@ -8301,6 +10989,7 @@ function buildWindows() {
   WM.make("why", "why.exe", Math.min(640, W - 40), 540, cascade(6) + 220, 50);
   WM.make("mb", "MB Teaches ML", Math.min(680, W - 40), Math.min(560, H - 130), cascade(7) + 60, 45);
   WM.make("stoop", "Stoop", Math.min(660, W - 40), Math.min(540, H - 135), cascade(7) + 90, 55);
+  WM.make("vz", "MilkDrop+", Math.min(720, W - 40), Math.min(600, H - 130), cascade(7) + 150, 40);
   WM.make("web", "Wiki Web", Math.min(700, W - 40), Math.min(520, H - 138), cascade(7) + 120, 60);
   WM.make("settings", "Settings", 350, 500, cascade(7) + 260, 60);
   WM.make("about", "About PFC98", 400, 560, cascade(8) + 300, 40);
@@ -8465,6 +11154,256 @@ you get to write.
   roll? → *Nothing — the hammers hold no history; only the roll holds the song.*
 - \`d1-02\` **Find the leak:** "The piano got better at this song by playing it
   twice." → *It played the same roll the same way; any difference was in the room.*
+`,
+"visualizer/presets/aftershock.md": `---
+name: Aftershock
+author: fable
+created: 2026-08-20
+seed: 33
+knobs:   { speed: 0.0, variation: 0.0, sensitivity: 0.2, persistence: 0.15, zoom: 0.0, hue: 0.0 }
+params:
+  - { name: twist, label: "Rim twist", min: 0, max: 1, default: 0.5 }
+  - { name: lift, label: "Lift", min: 0, max: 1, default: 0.45 }
+wave: { mode: circle, additive: true }
+---
+A beat is an instant; what you see of one is its aftermath. This preset spends its beat
+on q1 — an envelope with a fast attack and a slow release, held across frames — and then
+spends q1 on a rim that keeps turning long after the hit is over, faster the further out
+you go. q2 walks a phase only while the envelope is up, so the pattern advances in the
+gaps between kicks and rests through the silences. Nothing here is a function of time
+alone and nothing is a function of this frame's audio alone; the cross-frame variables
+are the whole difference.
+
+## per-frame
+_hit  = clamp(beat, 0, 1)
+_rise = clamp(dt * 24, 0, 1)          // attack and release are written in seconds, not frames,
+_fall = clamp(dt * 1.2, 0, 1)         // so the envelope survives 120fps dropping to 30
+q1 = q1 + (_hit - q1) * if(above(_hit, q1), _rise, _fall)   // if() evaluates both branches; both are safe here
+q2 = fmod(q2 + q1 * dt * 0.9, 2 * pi)   // phase walks only while the envelope is up; wrapped so sin() keeps its precision
+q3 = 0.5 + 0.5 * sin(q2)
+decay = 0.974 - 0.010 * q1
+zoom  = 1.002 + 0.013 * lift * q1
+rot   = 0.003 + 0.008 * (q3 - 0.5)
+gamma      = 1.02 + 0.35 * q1
+echo_zoom  = 1.0 + 0.06 * q1
+echo_alpha = 0.20 * q1
+ob_size = 0.004 + 0.012 * q1
+ob_r = 0.95
+ob_g = 0.30 + 0.50 * q3
+ob_b = 0.25 + 0.45 * (1 - q3)
+ob_a = 0.35 + 0.35 * q1
+wave_r = 0.95
+wave_g = 0.75
+wave_b = 0.40 + 0.45 * q3
+wave_a = 0.20 + 0.40 * q1
+
+## per-vertex
+rot  = rot + 0.20 * twist * rad * q1  // the rim is still turning after the hit has gone
+zoom = zoom + 0.010 * q1 * cos(rad * 6 - q2)
+dx   = dx + 0.0026 * sin(ang * 3 + q2)
+dy   = dy + 0.0026 * cos(ang * 3 + q2)
+`,
+"visualizer/presets/cold-smoke.md": `---
+name: Cold Smoke
+author: fable
+created: 2026-08-20
+seed: 12
+knobs:   { speed: 0.0, variation: 0.0, sensitivity: 0.0, persistence: 0.25, zoom: 0.0, hue: 0.0 }
+params:
+  - { name: draft, label: "Draft", min: 0, max: 1, default: 0.45 }
+  - { name: chill, label: "Chill", min: 0, max: 1, default: 0.6 }
+wave: { mode: line, additive: false }
+---
+Smoke is never drawn. One faint stroke enters the frame each pass and the loop redraws
+it a thousand times over — dimmer, turned a little further — until the window is full
+of something nobody put there. That makes this the persistence preset: the knob decides
+how long a stroke is permitted to remember itself, and at the floor Cold Smoke is a thin
+blue line with nothing behind it. Push it until the trails outlast the bar, then pull it
+back until the separate passes are countable again, and you have found both ends of
+every trail in the library.
+
+## per-frame
+decay   = 0.985
+decay_r = decay - 0.004               // unequal channels: the smoke cools as it ages
+decay_b = decay + 0.003
+zoom    = 1.0025 + 0.0035 * draft
+rot     = 0.0015
+dx      = 0.0004 * sin(time * 0.11)
+dy      = 0.0003 * cos(time * 0.09)
+gamma    = 1.06
+brighten = 1
+_breath = clamp(bass_att - 1, 0, 1)   // bands sit at 1.0 = average for this room, so deviation is band - 1
+ob_size = 0.004 + 0.008 * _breath
+ob_r    = 0.26 + 0.20 * chill
+ob_g    = 0.52
+ob_b    = 0.86
+ob_a    = 0.45
+wave_r  = 0.70
+wave_g  = 0.84
+wave_b  = 1.00
+wave_a  = 0.16 + 0.20 * _breath
+wave_smoothing = 0.92
+wave_mystery   = 0.10
+
+## per-vertex
+rot  = rot + 0.030 * sin(rad * 3.0 - time * 0.35)
+zoom = zoom + 0.0022 * cos(ang * 2 + time * 0.20)
+dx   = dx + 0.0016 * (noise2(xc * 2.2, yc * 2.2 + time * 0.05) - 0.5)
+dy   = dy + 0.0016 * (noise2(xc * 2.2 + 7, yc * 2.2 - time * 0.05) - 0.5)
+`,
+"visualizer/presets/loud-room.md": `---
+name: Loud Room
+author: fable
+created: 2026-08-20
+seed: 5
+knobs:   { speed: 0.0, variation: 0.0, sensitivity: 0.3, persistence: 0.0, zoom: 0.0, hue: 0.0 }
+params:
+  - { name: punch, label: "Punch (low)", min: 0, max: 1, default: 0.7 }
+  - { name: splay, label: "Splay (high)", min: 0, max: 1, default: 0.55 }
+wave: { mode: spiral, additive: true }
+---
+Bass and treble are given separate jobs here: the low end swells the middle of the field
+and squashes it sideways, the high end twists the rim and scatters the border, and the
+mids do nothing but colour. Because the bands are normalised against their own recent
+average, this answers a quiet kitchen radio the same way it answers a loud room — which
+is what leaves sensitivity free to be a trim rather than a calibration. It sets the
+volume of the response, not of the music: at the top the kick throws the whole field, at
+the floor the preset holds still and the window tells you which knob you turned.
+
+## per-frame
+_kick = clamp(bass_att - 1, 0, 2)
+_body = max(mid_att - 1, 0)
+_hats = clamp(treb_att - 1, 0, 2)
+decay = 0.958 - 0.018 * _kick         // the kick eats its own trail, so consecutive hits stay legible
+zoom  = 1.004 + 0.030 * punch * pow(_kick, 1.3)
+rot   = 0.002 + 0.024 * splay * _hats - 0.008 * _body
+sx    = 1 + 0.020 * _kick
+sy    = 1 - 0.014 * _kick
+gamma = 1.05 + 0.30 * _body
+ob_size = 0.003 + 0.010 * _hats
+ob_r = 0.30 + 0.60 * _hats
+ob_g = 0.20
+ob_b = 0.55 + 0.35 * _body
+ob_a = 0.55
+ib_size = 0.004 + 0.014 * _kick
+ib_r = 1.00
+ib_g = 0.45 + 0.40 * _body
+ib_b = 0.15
+ib_a = 0.60
+wave_r = 1.00
+wave_g = 0.55 + 0.30 * clamp(treb - 1, 0, 2)   // plain band, not the follower: colour is allowed to be jumpy, motion is not
+wave_b = 0.35
+wave_a = 0.25 + 0.45 * _body
+wave_smoothing = 0.62
+wave_mystery   = 0.40
+
+## per-vertex
+_lo = clamp(bass_att - 1, 0, 2)       // audio reads here too; the per-frame locals do not reach this block
+_hi = clamp(treb_att - 1, 0, 2)
+zoom = zoom + 0.030 * punch * _lo * (1 - rad)   // low end swells the middle
+rot  = rot + 0.090 * splay * _hi * rad          // high end twists the rim
+dx   = dx + 0.0020 * _hi * sin(ang * 5)
+dy   = dy + 0.0020 * _hi * cos(ang * 5)
+`,
+"visualizer/presets/orrery.md": `---
+name: Orrery
+author: fable
+created: 2026-08-20
+seed: 61
+knobs:   { speed: -0.35, variation: 0.0, sensitivity: -0.4, persistence: 0.0, zoom: 0.0, hue: 0.0 }
+params:
+  - { name: gearing, label: "Gearing", min: 1, max: 12, default: 5.5 }
+  - { name: tilt, label: "Plane tilt", min: 0, max: 1, default: 0.35 }
+wave: { mode: circle, additive: true }
+---
+Almost nothing here comes from the room. Every rotation is a function of the clock, and
+each radius has been geared to turn at its own rate, so the field reads as nested rings
+sliding past one another the way an orrery's arms do. Speed is therefore the whole
+instrument: it multiplies the simulation's clock, and at the floor the feedback field
+goes perfectly still while the waveform keeps answering the music — proof in one gesture
+that the two halves of the picture run on different time.
+
+## per-frame
+decay = 0.966
+zoom  = 0.9975
+rot   = 0.0045
+cx    = 0.5 + 0.05 * sin(time * 0.13)
+cy    = 0.5 + 0.05 * cos(time * 0.17) * tilt
+darken_center = 1                     // flow is inward here; without this the middle packs solid in a minute
+gamma       = 1.14
+echo_zoom   = 1.05
+echo_alpha  = 0.26
+echo_orient = 3                       // both axes; the mirrored ghost is stage B, so it never compounds
+ob_size = 0.006
+ob_r = 1.00
+ob_g = 0.78
+ob_b = 0.30
+ob_a = 0.65
+wave_r = 1.00
+wave_g = 0.88
+wave_b = 0.55
+wave_a = 0.30
+wave_smoothing = 0.80
+wave_mystery   = 0.25
+
+## per-vertex
+rot  = rot + 0.012 * cos(rad * gearing - time * 0.40)   // each radius keeps its own year
+zoom = zoom + 0.0035 * sin(rad * gearing * 1.6 + time * 0.6)
+cx   = cx + 0.020 * tilt * sin(rad * 2.5 + time * 0.20) // per-vertex centre: the orbit is eccentric
+dx   = dx + 0.0010 * sin(time * 0.31 + ang)
+dy   = dy + 0.0010 * cos(time * 0.29 + ang)
+`,
+"visualizer/presets/slow-weather.md": `---
+name: Slow Weather
+author: fable
+created: 2026-08-20
+seed: 88
+knobs:   { speed: 0.0, variation: 0.45, sensitivity: 0.0, persistence: 0.1, zoom: 0.0, hue: 0.0 }
+params:
+  - { name: pressure, label: "Pressure", min: 0, max: 1, default: 0.5, vary: true }
+  - { name: wind, label: "Wind", min: -1, max: 1, default: 0.2, vary: true }
+  - { name: ceiling, label: "Cloud ceiling", min: 0, max: 1, default: 0.6, vary: true }
+wave: { mode: double, additive: false }
+---
+Left alone this is a stately preset — a wide slow tunnel, a degree of drift, a pale rim
+— and it will hold that shape for as long as you leave it. Three of its parameters are
+declared varying: pressure, wind and cloud ceiling wander on seeded sums of slow sines,
+so the preset writes small revisions of itself while you watch. Variation is the knob
+that decides how far those revisions may go — at zero the file plays exactly as written,
+at the top the weather changes faster than the song does. The seed in the frontmatter
+fixes where it starts, which is why the same preset opened twice looks the same twice.
+
+## per-frame
+_phase  = rand_static(1) * 2 * pi    // resolved once at load from seed:, so the sky starts where it started last time
+decay   = 0.972
+zoom    = 1.0015 + 0.005 * (pressure - 0.5)
+zoomexp = 1.0 + 0.4 * (pressure - 0.5)
+rot     = 0.006 * wind
+dx      = 0.0018 * wind + 0.0006 * (noise1(time * 0.06) - 0.5)
+dy      = 0.0007 * sin(time * 0.07 + _phase)
+gamma   = 1.0 + 0.35 * ceiling
+ob_size = 0.005 + 0.004 * ceiling
+ob_r = 0.55 + 0.35 * ceiling
+ob_g = 0.60
+ob_b = 0.72 - 0.20 * pressure
+ob_a = 0.40
+ib_size = 0.002
+ib_r = 0.90
+ib_g = 0.90
+ib_b = 0.95
+ib_a = 0.20
+wave_r = 0.80
+wave_g = 0.86
+wave_b = 0.92
+wave_a = 0.22
+wave_y = 0.42
+wave_smoothing = 0.85
+
+## per-vertex
+_phase = rand_static(1) * 2 * pi     // locals do not cross blocks; rand_static is fixed at load, so this is the same number
+rot  = rot + 0.014 * wind * rad
+zoom = zoom + 0.0030 * sin(rad * 5.0 + _phase)
+dy   = dy + 0.0008 * cos(ang + rad * 3.0)
 `,
 "stoop/state.json": `{
   "generated_at": "2026-08-14T16:00:00+00:00",
