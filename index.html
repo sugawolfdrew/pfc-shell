@@ -2965,8 +2965,16 @@ const WM = (() => {
     el.querySelector(".title-bar").classList.remove("inactive");
     el.style.zIndex = ++z;
     if (isMobile()) {
+      /* The one-window rule hides its neighbours, and a hidden window must hear
+         about it exactly as a minimized one does — this path used to swap the
+         window out silently, which on a phone is the whole app-switch gesture:
+         MilkDrop+ kept driving the GPU, and in the mic build would have kept a
+         live stream, behind a window nobody could see (law 3). */
       document.querySelectorAll(".window.app").forEach(w => {
-        if (w !== el) w.classList.remove("open");
+        if (w === el || !w.classList.contains("open")) return;
+        w.classList.remove("open");
+        const other = w.id.replace(/^win-/, "");
+        if (APPS[other] && APPS[other].onHide) APPS[other].onHide();
       });
       el.classList.add("open");
     }
@@ -10061,6 +10069,30 @@ const VZ = (() => {
   const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const presetLabel = () => (cur ? cur.name : "no preset");
 
+  /* The idle offer — the one rendering that is not in the state table, because it
+     is the state before any cause exists. Every path back to "nothing is running"
+     goes through here, which is the fix for Andrew's 2026-08-21 report that the
+     window "reopens frozen": `lastState` outlived the window, so the reopen's
+     applyPreset re-hid this panel over a destroyed engine and a stopped loop, and
+     the only control that could restart the show was invisible. */
+  function offerShow() {
+    const body = el(); if (!body) return;
+    const box = body.querySelector(".vz-state"); if (!box) return;
+    box.classList.remove("hidden");
+    box.innerHTML = `<b>MilkDrop+</b><div data-vz-promise>${
+      DEMO || !VzCapture ? "this build has no microphone — Start plays a seeded synthetic signal"
+                         : "the microphone starts on your word, never before"}</div>` +
+      `<button data-vz-start class="default">${source ? "Resume" : "Start"}</button>`;
+    box.querySelector("[data-vz-start]").onclick = start;
+    const badge = body.querySelector(".vz-badge");
+    if (badge) { badge.textContent = ""; badge.style.display = "none"; }
+  }
+  /* Presentation state is per-showing, never per-session. */
+  function idle() {
+    lastState = "idle"; blackSaid = false; procBadge = null; pending = null;
+    offerShow();
+  }
+
   /* ---- start: the user gesture that everything legal hangs off ---- */
   async function start() {
     if (!eng) initEngine();
@@ -10295,7 +10327,7 @@ const VZ = (() => {
       body.classList.remove("white");
       body.innerHTML = `<div class="vz-main">
         <div class="vz-stage"><canvas></canvas>
-          <div class="vz-state"><b>MilkDrop+</b><div data-vz-promise>the microphone starts on your word, never before</div><button data-vz-start class="default">Start</button></div>
+          <div class="vz-state"></div>
           <div class="vz-badge" style="display:none"></div></div>
         <div class="vz-row">
           <select data-vz-preset></select>
@@ -10309,9 +10341,7 @@ const VZ = (() => {
         <div class="vz-knobs vz-params"></div>
         <div class="vz-row"><input data-vz-name placeholder="name the child…" style="flex:1"><button data-vz-save>Save as…</button></div>
         <div class="vz-strip"></div></div>`;
-      body.querySelector("[data-vz-start]").onclick = start;
-      if (DEMO || !VzCapture)
-        body.querySelector("[data-vz-promise]").textContent = "this build has no microphone — Start plays a seeded synthetic signal";
+      offerShow();
       body.querySelector("[data-vz-save]").onclick = saveAs;
       body.querySelector("[data-vz-auto]").onchange = (e) => setAuto(e.target.checked);
       body.querySelector("[data-vz-preset]").onchange = (e) => { const pp = presets[+e.target.value]; if (pp) applyPreset(pp, true); };
@@ -10324,6 +10354,12 @@ const VZ = (() => {
         else st.classList.toggle("full");   // iOS: pseudo-fullscreen
       };
       paintKnobs();
+    }
+    if (cur) {                     // restored from the taskbar: the shelf is already up
+      if (source && !raf) offerShow();          // a hide paused it; the tap resumes
+      else if (source) renderState(lastState);
+      else idle();
+      return;
     }
     say("loading the preset shelf…");
     const missed = await loadLibrary();
@@ -10343,11 +10379,23 @@ const VZ = (() => {
     applyPreset(ok[(i + d + ok.length) % ok.length], true);
   }
   APPS.vz.onClose = () => {
-    life.event("closed"); stopLoop(); setAuto(false); source = null;
+    life.event("closed"); stopLoop(); setAuto(false); source = null; synth = null;
     if (eng) { eng.destroy(); eng = null; canvas = null; }   // FBOs freed; reopen re-inits lazily
+    cur = null;                                             // the next open loads the shelf fresh
+    idle();
   };
-  APPS.vz.onHide = () => { if (source) life.event("hidden"); };
-  Object.assign(PFCT, { vzLoadPreset: loadPreset });
+  /* Hidden — minimized, or swapped out by the mobile one-window rule. The mic
+     teardown is law 3; stopping the loop is the same principle one layer down,
+     since a synthetic show holds no hardware but still drives the GPU behind a
+     window nobody can see. `source` survives, so the offer reads Resume. */
+  APPS.vz.onHide = () => {
+    if (!source) return;
+    life.event("hidden");
+    stopLoop();
+    lastState = "hidden"; blackSaid = false;
+    offerShow();
+  };
+  Object.assign(PFCT, { vzLoadPreset: loadPreset, vzFrameCount: () => (eng ? eng.frameCount : -1) });
   return { loadPreset };
 })();
 
