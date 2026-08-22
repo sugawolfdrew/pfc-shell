@@ -3155,6 +3155,130 @@ const VisLang = (() => {
     dt: 1 / 60, aspect: 1, time: 0, frame: 0, texsize: 720, meshx: 32, meshy: 24
   };
 
+  // --- custom shapes and custom waves (docs/milkdrop-plus.md §Custom waves and
+  // shapes are engine features). Each instance owns a private namespace: the author
+  // writes `rad` in ## shape1 and it binds to the slot named `shape1.rad`. The
+  // canonical name carries a dot, which the tokenizer cannot produce, so no equation
+  // anywhere can spell another instance's slot — and the invariant that a per-frame
+  // output name means one thing in every block survives a second `rad` and a second `x`.
+  const SHAPE_OUT = ['enabled', 'sides', 'rad', 'ang', 'x', 'y', 'r', 'g', 'b', 'a',
+                     'r2', 'g2', 'b2', 'a2', 'border_a', 'thick', 'additive', 'textured'];
+  const WAVE_OUT = ['enabled', 'samples', 'thick', 'additive', 'r', 'g', 'b', 'a',
+                    'smoothing', 'scaling', 'usedots'];
+  const POINT_OUT = ['x', 'y', 'r', 'g', 'b', 'a'];
+  // The two names nothing else in the language reads. sample ∈ [0,1] across the wave;
+  // value is the smoothed signal there, [-1,1].
+  const POINT_IN = ['sample', 'value'];
+  // Which of the owning wave's outputs a point block may read under their own names.
+  // r/g/b/a are deliberately absent: inside a point block those four name the POINT's
+  // colors, which the engine seeds from the wave's before every run — so reading `r`
+  // before assigning it IS how a point inherits, and a second spelling for the same
+  // number would only invite the wrong one.
+  const POINT_WAVE_IN = ['enabled', 'samples', 'thick', 'additive', 'smoothing', 'scaling', 'usedots'];
+  const SHAPES = ['shape1', 'shape2'];
+  const WAVES = ['wave1', 'wave2'];
+  const POINT_SECTION = { wave1: 'wave1-point', wave2: 'wave2-point' };
+
+  // A shape or wave is OFF until its block says otherwise: enabled 0 is the whole of
+  // the "a preset with none of these sections renders exactly as it does today"
+  // guarantee, and it is one number rather than a code path.
+  const SHAPE_DEF = {
+    enabled: 0, sides: 4, rad: 0.1, ang: 0, x: 0.5, y: 0.5,
+    r: 1, g: 1, b: 1, a: 1, r2: 1, g2: 1, b2: 1, a2: 0,
+    border_a: 0, thick: 1, additive: 0, textured: 0
+  };
+  const WAVE_DEF = {
+    enabled: 0, samples: 128, thick: 1, additive: 0,
+    r: 1, g: 1, b: 1, a: 1, smoothing: 0.5, scaling: 1, usedots: 0
+  };
+  // Resting values only — what makeEnv and the per-frame reset hold. The default a
+  // point AUTHOR sees is computed per sample by seedPointDefaults (x = sample,
+  // y = 0.5 + value*0.25*scaling, colors from the wave), which is why an empty
+  // ## wave1-point still draws a legible wave. No sentinel is needed: the decay_r/g/b
+  // -1 idiom exists because the engine cannot otherwise tell "author wrote nothing"
+  // from "author wrote a value", and a point block is re-seeded before every run, so
+  // for these six the two are the same picture.
+  const POINT_DEF = { x: 0, y: 0.5, r: 1, g: 1, b: 1, a: 1 };
+
+  const CUSTOM_SLOTS = [];    // canonical (dotted) names, in declaration order
+  const CUSTOM_BLOCKS = {};   // section name -> { reads, writes, alias }
+  const CUSTOM_DEFAULTS = {};
+  const qual = (inst, n) => inst + '.' + n;
+  // Every custom section reads the same ambient set: constants, the clock, the room,
+  // and this frame's q-vars as per-frame left them. None reads the warp outputs — a
+  // shape is drawn in stage A, not warped by it.
+  const CUSTOM_AMBIENT = CONST_NAMES.concat(ENGINE, AUDIO, QVARS);
+
+  SHAPES.forEach((s) => {
+    const alias = {};
+    SHAPE_OUT.forEach((n) => {
+      const c = qual(s, n);
+      alias[n] = c; CUSTOM_SLOTS.push(c); CUSTOM_DEFAULTS[c] = SHAPE_DEF[n];
+    });
+    CUSTOM_BLOCKS[s] = { reads: CUSTOM_AMBIENT.slice(), writes: SHAPE_OUT.slice(), alias };
+  });
+
+  WAVES.forEach((w) => {
+    const alias = {};
+    WAVE_OUT.forEach((n) => {
+      const c = qual(w, n);
+      alias[n] = c; CUSTOM_SLOTS.push(c); CUSTOM_DEFAULTS[c] = WAVE_DEF[n];
+    });
+    CUSTOM_BLOCKS[w] = { reads: CUSTOM_AMBIENT.slice(), writes: WAVE_OUT.slice(), alias };
+
+    const palias = {};
+    POINT_IN.forEach((n) => {
+      const c = qual(w, n);
+      palias[n] = c; CUSTOM_SLOTS.push(c); CUSTOM_DEFAULTS[c] = 0;
+    });
+    POINT_OUT.forEach((n) => {
+      const c = qual(w, 'point.' + n);
+      palias[n] = c; CUSTOM_SLOTS.push(c); CUSTOM_DEFAULTS[c] = POINT_DEF[n];
+    });
+    POINT_WAVE_IN.forEach((n) => (palias[n] = qual(w, n)));   // read-only borrowings
+    CUSTOM_BLOCKS[POINT_SECTION[w]] = {
+      // POINT_OUT is in reads AND writes on purpose: the six are pre-seeded, so
+      // reading one before assigning it yields the default rather than an error.
+      reads: CUSTOM_AMBIENT.concat(POINT_IN, POINT_WAVE_IN, POINT_OUT),
+      writes: POINT_OUT.slice(),
+      alias: palias
+    };
+  });
+
+  const SECTIONS = ['per-frame', 'per-vertex'].concat(SHAPES, WAVES, WAVES.map((w) => POINT_SECTION[w]));
+
+  // Every author-facing name that means something private inside some section. A
+  // declared params: name may not be one of these — it would be readable in per-frame
+  // and shadowed in the section, the kind of quiet difference this repo refuses.
+  const RESERVED = (() => {
+    const seen = new Set();
+    Object.keys(CUSTOM_BLOCKS).forEach((k) => Object.keys(CUSTOM_BLOCKS[k].alias).forEach((n) => seen.add(n)));
+    return Array.from(seen).sort();
+  })();
+
+  Object.assign(DEFAULTS, CUSTOM_DEFAULTS);
+
+  // Clamps live here so the engine and the gate read one table. Out of range clamps;
+  // non-finite is a fault, never a clamp. [min, max, roundToInteger].
+  const CUSTOM_CLAMPS = {
+    sides: [3, 64, true], samples: [8, 512, true], thick: [1, 8, false],
+    rad: [0, 2, false], alpha: [0, 1, false]
+  };
+
+  const CUSTOM = {
+    shapes: SHAPES, waves: WAVES, pointSection: POINT_SECTION,
+    shapeOut: SHAPE_OUT, waveOut: WAVE_OUT, pointOut: POINT_OUT,
+    pointIn: POINT_IN,
+    slots: CUSTOM_SLOTS, clamps: CUSTOM_CLAMPS,
+    // Keyed by AUTHOR name, not by the canonical slot name: a caller comparing its own
+    // table against the grammar's wants shapeDefaults.sides, and reaching into
+    // `defaults` with a bare name would find nothing and compare undefined to undefined.
+    shapeDefaults: SHAPE_DEF, waveDefaults: WAVE_DEF, pointDefaults: POINT_DEF,
+    // Draw order inside stage A, fixed by the plan: warp draw, borders, then this,
+    // then the main waveform. Everything here smears; that is the point.
+    drawOrder: SHAPES.concat(WAVES)
+  };
+
   const fnArity = {};
   FN_NAMES.forEach((n) => (fnArity[n] = { min: FNS[n][0], max: FNS[n][1] }));
 
@@ -3167,12 +3291,25 @@ const VisLang = (() => {
     engine: ENGINE,
     qvars: QVARS,
     vertexInputs: VERTEX_IN,
-    outputs: { warp: WARP, decay: DECAY, wave: WAVE, stageA: STAGE_A, stageB: STAGE_B },
+    // `wave` is the MAIN waveform's per-frame outputs (wave_r, wave_x, …); the three
+    // below are the custom instruments' author-facing names, which live in a different
+    // namespace and share none of those slots.
+    outputs: { warp: WARP, decay: DECAY, wave: WAVE, stageA: STAGE_A, stageB: STAGE_B,
+               shape: SHAPE_OUT, customWave: WAVE_OUT, point: POINT_OUT },
     defaults: DEFAULTS,
     // Slot order for the shared env. Every name the language can touch lives here.
-    vars: CONST_NAMES.concat(ENGINE, AUDIO, QVARS, VERTEX_IN, OUTPUTS),
-    sections: ['per-frame', 'per-vertex'],
-    blocks: {
+    // The custom slots are APPENDED, never interleaved: every name that had a slot
+    // index before this slice keeps it, so a recorded env stays readable.
+    vars: CONST_NAMES.concat(ENGINE, AUDIO, QVARS, VERTEX_IN, OUTPUTS, CUSTOM_SLOTS),
+    sections: SECTIONS,
+    // Names spoken for inside some custom section; a declared param may not take one.
+    reserved: RESERVED,
+    custom: CUSTOM,
+    // The blend law, as data (docs §Transitions). Per-frame outputs are mixed BY NAME
+    // across a blend. A shape or wave slot is NEVER mixed: each program keeps its own
+    // instruments and both draw, every alpha scaled by that program's weight. Mixing
+    // them would make a shape jump position mid-blend.
+    blocks: Object.assign({
       'per-frame': {
         // Per-frame sees last frame's q-vars; its own outputs must be assigned before
         // they are read, which is what makes the block a pure (inputs,q)->(out,q').
@@ -3183,11 +3320,11 @@ const VisLang = (() => {
         reads: CONST_NAMES.concat(ENGINE, AUDIO, QVARS, VERTEX_IN, OUTPUTS),
         writes: WARP
       }
-    },
+    }, CUSTOM_BLOCKS),
     functions: fnArity,
     functionNames: FN_NAMES,
     frontmatter: {
-      keys: ['name', 'author', 'created', 'derived-from', 'seed', 'variation-seed', 'knobs', 'params', 'wave', 'shape'],
+      keys: ['name', 'author', 'created', 'derived-from', 'seed', 'variation-seed', 'knobs', 'params', 'wave'],
       required: ['name', 'author', 'created', 'seed'],
       // Neutral position per knob: the render at neutral is bit-identical to the
       // unmodified preset, which is what makes an old preset still controllable.
@@ -3203,7 +3340,6 @@ const VisLang = (() => {
       enums: {
         'wave.mode': ['line', 'double', 'circle', 'spiral'],
         'wave.additive': ['true', 'false'],
-        'shape.blend': ['alpha', 'additive'],
         echo_orient: ['none', 'flip-x', 'flip-y', 'both']
       }
     },
@@ -3409,8 +3545,17 @@ const VisLang = (() => {
     const err = (line, name, why) => errors.push({ line, name, why, severity: 'error' });
     const warn = (line, name, why) => warnings.push({ line, name, why, severity: 'warning' });
 
+    // A section with a private namespace (## shape1, ## wave1-point) resolves its
+    // author-facing names through this table; every other block has none and the name
+    // IS the slot, byte-for-byte as before. The canonical names carry a dot, which the
+    // tokenizer cannot produce, so no equation reaches another instance's slot.
+    const alias = ctx.alias || null;
+    const canon = (name) => (alias !== null && alias[name] !== undefined ? alias[name] : name);
+
     const slotFor = (name) => {
-      if (ctx.slots[name] !== undefined) return ctx.slots[name];
+      const c = canon(name);
+      if (ctx.slots[c] !== undefined) return ctx.slots[c];
+      // An author local: per block, never aliased, keyed by what the author typed.
       let s = ctx.locals[name];
       if (s === undefined) { s = ctx.alloc(); ctx.locals[name] = s; }
       return s;
@@ -3488,12 +3633,12 @@ const VisLang = (() => {
     for (const st of stmts) {
       walk(st.expr, st.line);
       const name = st.name;
-      if (ctx.block === 'per-vertex' && ctx.qvars.has(name)) {
-        err(st.line, name, `q-vars are read-only in per-vertex — "${name}" is written by per-frame and persists across frames`);
+      if (ctx.block !== 'per-frame' && ctx.qvars.has(name)) {
+        err(st.line, name, `q-vars are read-only in ${ctx.block} — "${name}" is written by per-frame and persists across frames`);
         emit(OP_POP);
         push(-1);
       } else if (ctx.writes.has(name)) {
-        const slot = ctx.slots[name];
+        const slot = ctx.slots[canon(name)];
         emit(OP_STORE, slot);
         push(-1);
         if (writes.indexOf(name) < 0) writes.push(name);
@@ -3517,11 +3662,25 @@ const VisLang = (() => {
 
     // The other half of a typo: a local computed and then never spent.
     localLine.forEach((line, name) => { if (!used.has(name)) warn(line, name, `"${name}" is assigned and never read`); });
+    // An instrument that never switches itself on draws nothing, silently, with a clean
+    // lint. Parking a block deliberately is legal, so this warns rather than refuses.
+    if (/^(shape|wave)[12]$/.test(ctx.block) && code.length && !assigned.has('enabled'))
+      warn(stmts.length ? stmts[0].line : 0, 'enabled', `## ${ctx.block} never assigns "enabled" — the block runs and nothing it computes is drawn`);
     ctx.reads.forEach((n) => { if (used.has(n)) reads.push(n); });
 
     reserve(maxDepth + 1);
+    // A block with a private namespace is self-describing: it carries the author
+    // name -> slot map it was compiled with, so a caller reads `rad` out of shape1 without
+    // knowing the canonical spelling. A block with no alias table shares the preset's
+    // map and carries null, which is the caller's signal to use that one.
+    let blockSlots = null;
+    if (alias !== null) {
+      blockSlots = {};
+      Object.keys(alias).forEach((n) => (blockSlots[n] = ctx.slots[alias[n]]));
+    }
     return {
       block: ctx.block,
+      slots: blockSlots,
       code: Int32Array.from(code),
       consts: Float64Array.from(consts),
       seed: ctx.seed,
@@ -3571,6 +3730,18 @@ const VisLang = (() => {
     const qvars = new Set(g.qvars);
     const programs = {};
     const seen = new Set();
+    // The alias tables are grammar data and the two halves (vars, blocks.alias) are
+    // edited by hand. If they ever disagree the failure is silent — every aliased name
+    // becomes an author local and the section compiles to nothing — so it is checked
+    // once, loudly, at load. 8 sections × ~20 names.
+    g.sections.forEach((s) => {
+      const spec = g.blocks[s], a = spec && spec.alias;
+      if (!a) return;
+      Object.keys(a).forEach((n) => {
+        if (slots[a[n]] === undefined)
+          throw new Error('compilePreset: grammar alias ' + s + '."' + n + '" names no slot "' + a[n] + '"');
+      });
+    });
 
     for (const b of normalizeBlocks(blocks)) {
       const spec = g.blocks[b.name];
@@ -3589,6 +3760,7 @@ const VisLang = (() => {
         block: b.name,
         reads: new Set(spec.reads),
         writes: new Set(spec.writes),
+        alias: spec.alias || null,
         qvars,
         slots,
         locals: {},
@@ -3598,11 +3770,15 @@ const VisLang = (() => {
         warnings
       });
     }
-    // A missing section is legal; the engine still wants something callable.
+    // A missing section is legal; the engine still wants something callable. All six
+    // custom sections are optional, so on most presets this is where six empty programs
+    // come from — empty code arrays, nothing to run and nothing to draw, because
+    // `enabled` never leaves 0.
     g.sections.forEach((s) => {
       if (!programs[s]) {
         programs[s] = compileBlock([], {
           block: s, reads: new Set(g.blocks[s].reads), writes: new Set(g.blocks[s].writes),
+          alias: g.blocks[s].alias || null,
           qvars, slots, locals: {}, alloc, seed, errors, warnings
         });
       }
@@ -3633,7 +3809,44 @@ const VisLang = (() => {
     g.qvars.forEach((n) => (env[compiled.slots[n]] = 0));
   };
 
-  const validateFrontmatter = (fm, grammar) => {
+
+  // The point block's slots flattened into the exact shape seedPointDefaults reads.
+  const pointSlots = (compiled, wave) => {
+    const g = compiled.grammar || VIS_GRAMMAR;
+    const sec = g.custom && g.custom.pointSection[wave];
+    if (!sec) throw new Error('pointSlots: "' + wave + '" is not a custom wave');
+    const al = g.blocks[sec].alias, s = compiled.slots;
+    return {
+      sample: s[al.sample], value: s[al.value],
+      x: s[al.x], y: s[al.y], r: s[al.r], g: s[al.g], b: s[al.b], a: s[al.a],
+      scaling: s[al.scaling],
+      waveR: s[wave + '.r'], waveG: s[wave + '.g'], waveB: s[wave + '.b'], waveA: s[wave + '.a']
+    };
+  };
+
+  // The per-sample seed, and the whole of the claim that an EMPTY ## wave1-point still
+  // draws a legible wave: the six outputs are written to their documented defaults
+  // before the point program runs, so a block that assigns none of them leaves a plain
+  // scaled scope trace, and a block that reads one before assigning it reads that
+  // default rather than an error. y is UP — 0 is the bottom of the window, the same
+  // convention wave_y, the mesh and the warp's uv space already ship with — so a
+  // positive sample sits ABOVE the centre line.
+  // fin() here matches OP_LOAD, which already fin()s every env read: the fault
+  // discipline covers what an author's equations PRODUCE (checkFinite walks
+  // program.targets), not what the audio buffer hands in.
+  const seedPointDefaults = (env, ps, sample, value) => {
+    const s = fin(sample), v = fin(value);
+    env[ps.sample] = s;
+    env[ps.value] = v;
+    env[ps.x] = s;
+    env[ps.y] = fin(0.5 + v * 0.25 * env[ps.scaling]);
+    env[ps.r] = env[ps.waveR];
+    env[ps.g] = env[ps.waveG];
+    env[ps.b] = env[ps.waveB];
+    env[ps.a] = env[ps.waveA];
+  };
+
+  const validateFrontmatter = (fm, grammar, declaredSections) => {
     // VisPreset pre-seeds every grammar key as camelCase null (round-trip
     // stability needs it); a null is "absent", never "unknown" (defect B).
     const kebab = (k) => k.replace(/[A-Z]/g, (c) => '-' + c.toLowerCase());
@@ -3661,8 +3874,17 @@ const VisLang = (() => {
       Object.keys(p).forEach((k) => { if (f.params.keys.indexOf(k) < 0) err(k, `unknown params key "${k}" — known keys: ${f.params.keys.join(', ')}`); });
       f.params.required.forEach((k) => { if (p[k] === undefined) err(p.name || `params[${i}]`, `param "${p.name || i}" is missing "${k}"`); });
       // A declared param becomes a readable name in the equations, so it may not
-      // collide with an engine name and it may not wear the local underscore.
-      if (p.name !== undefined && (g.vars.indexOf(p.name) >= 0 || FNS[p.name] || p.name[0] === '_')) err(p.name, `param "${p.name}" collides with an engine name`);
+      // collide with an engine name, may not wear the local underscore, and may not be
+      // one of the names a custom section speaks for — params: [{name: sample}] would
+      // read fine in per-frame and mean the wave's position inside ## wave1-point.
+      // The reserved half speaks only for sections THIS FILE declares. A preset written
+      // before the 2+2 existed may well carry a param called `value` or `scaling`; those
+      // names mean something private only inside a block it does not have, and refusing
+      // to load it would break the promise that such a file renders exactly as before.
+      const spoken = declaredSections && g.reserved
+        ? g.reserved.filter((n) => declaredSections.some((s) => CUSTOM_BLOCKS[s] && CUSTOM_BLOCKS[s].alias[n] !== undefined))
+        : (g.reserved || []);
+      if (p.name !== undefined && (g.vars.indexOf(p.name) >= 0 || spoken.indexOf(p.name) >= 0 || FNS[p.name] || p.name[0] === '_')) err(p.name, `param "${p.name}" collides with an engine name`);
     });
     Object.keys(f.enums).forEach((path) => {
       const dot = path.indexOf('.');
@@ -3686,6 +3908,10 @@ const VisLang = (() => {
     makeEnv,
     resetOutputs,
     resetQ,
+    // The custom instruments' seam with the engine: slot indices resolved once, then
+    // index-only work in the frame path.
+    pointSlots,
+    seedPointDefaults,
     validateFrontmatter,
     // Primitive semantics, exposed so a reference implementation (tests, verify/)
     // can check the flat evaluator without re-deriving the arithmetic.
@@ -4256,6 +4482,53 @@ const VisGL = (() => {
   const RES = [720, 512, 360, 256];        // internal long edge; the context-loss ladder
   const WARP = ['zoom', 'rot', 'cx', 'cy', 'sx', 'sy', 'dx', 'dy', 'zoomexp'];
 
+  // Custom shapes and custom waves (docs/milkdrop-plus.md §"Custom waves and shapes are
+  // engine features"). Two of each, drawn inside stage A so they smear. The name lists
+  // are ordered, and that order is the wire format: every key array, default array and
+  // slot lookup below indexes by position, never by string, because the point loop runs
+  // 512 times a frame per wave.
+  const SHAPE_OUT = ['enabled', 'sides', 'rad', 'ang', 'x', 'y',
+                     'r', 'g', 'b', 'a', 'r2', 'g2', 'b2', 'a2',
+                     'border_a', 'thick', 'additive', 'textured'];
+  const SHAPE_DEF = [0, 4, 0.1, 0, 0.5, 0.5,
+                     1, 1, 1, 1, 1, 1, 1, 0,
+                     0, 1, 0, 0];
+  const WAVE_OUT  = ['enabled', 'samples', 'thick', 'additive',
+                     'r', 'g', 'b', 'a', 'smoothing', 'scaling', 'usedots'];
+  const WAVE_DEF  = [0, 128, 1, 0,
+                     1, 1, 1, 1, 0.5, 1, 0];
+  const POINT_OUT = ['x', 'y', 'r', 'g', 'b', 'a'];
+  // Positional indices into the three arrays above. Named so the hot loops read as
+  // English and still compile to an integer index.
+  const S_ENABLED = 0, S_SIDES = 1, S_RAD = 2, S_ANG = 3, S_X = 4, S_Y = 5,
+        S_R = 6, S_G = 7, S_B = 8, S_A = 9, S_R2 = 10, S_G2 = 11, S_B2 = 12, S_A2 = 13,
+        S_BORDER_A = 14, S_THICK = 15, S_ADDITIVE = 16, S_TEXTURED = 17;
+  const W_ENABLED = 0, W_SAMPLES = 1, W_THICK = 2, W_ADDITIVE = 3,
+        W_R = 4, W_G = 5, W_B = 6, W_A = 7, W_SMOOTHING = 8, W_SCALING = 9, W_USEDOTS = 10;
+  const P_X = 0, P_Y = 1, P_R = 2, P_G = 3, P_B = 4, P_A = 5;
+  // Stage names, used verbatim in engine.fault.stage — an author reads the section
+  // heading they typed, not an engine word for it.
+  const SHAPE_SECTIONS = ['shape1', 'shape2'];
+  const WAVE_SECTIONS = ['wave1', 'wave2'];
+  const POINT_SECTIONS = ['wave1-point', 'wave2-point'];
+  // Hard clamps, stated in the code because the doc states them. A clamp is not a
+  // silent fix — it bounds a legal author choice; a non-finite is a FAULT (see guardC).
+  const SIDES_MIN = 3, SIDES_MAX = 64;
+  const SAMPLES_MIN = 8;                     // the ceiling is WAVE_MAX, shared with the main wave
+  const THICK_MIN = 1, THICK_MAX = 8;
+  const RAD_MAX = 2;
+  const TAU = Math.PI * 2;
+
+  //<VIS-DRAW-CONST-BEGIN>
+  const VSTRIDE = 6;                       // a drawn vertex: x y  r g b a (premultiplied)
+  const DRAW_VERTS = WAVE_MAX * 6;         // worst case: 512 dots, six vertices per quad
+  // The runner checks finiteness but does not clamp a position. In pixel space a finite
+  // 1e308 becomes Inf, its normal becomes NaN, and the ribbon turns to garbage — so
+  // every position read here is bounded. Sixteen screens out is the author's own
+  // "off screen", drawn as off screen.
+  const POS_MAX = 32;
+  //<VIS-DRAW-CONST-END>
+
   // Every engine slot at its neutral value — the same numbers VIS_GRAMMAR declares, so
   // the two never drift. The engine owns this reset; do not also call VisLang's
   // resetOutputs between frames. decay_r/g/b carry -1 as "follow decay": a block that
@@ -4424,6 +4697,140 @@ const VisGL = (() => {
     return n;
   };
 
+
+  // clamp() above returns NaN for NaN on purpose — it is used where a bad value must
+  // still reach the finite check. These three are TOTAL, and they sit on the paths where
+  // a number goes straight into a vertex buffer: a NaN written into the fed-back buffer
+  // is a hole the loop preserves forever, long after the equation recovers.
+  const c01 = (v) => (v > 0 ? (v < 1 ? v : 1) : 0);
+  const cRange = (v, a, b) => (v >= a ? (v <= b ? v : b) : a);
+  const cInt = (v, a, b) => { const r = Math.round(v); return r >= a ? (r <= b ? r : b) : a; };
+
+  // A regular polygon in NDC, aspect-corrected by the same aspectScale the warp and the
+  // main wave use, so a shape is round in any window and does not squash on rotation.
+  // Vertex k sits at ang + 2*pi*k/sides — ang is the polygon's own rotation, and sides=4
+  // with ang=0 is a diamond, not a square, which is MilkDrop's behaviour and is why ang
+  // is authorable rather than baked.
+  //
+  // Layout, one upload, two primitives:
+  //   pos[0..1]                 centre           -> TRIANGLE_FAN pivot, colour r,g,b,a
+  //   pos[2 .. (sides+1)*2-1]   rim, sides of it -> colour r2,g2,b2,a2
+  //   pos[(sides+1)*2 ..]       rim[0] repeated  -> closes the fan
+  // so the fan is drawArrays(TRIANGLE_FAN, 0, sides + 2) and the border is
+  // drawArrays(LINE_LOOP, 1, sides) over the same buffer.
+  const shapeFan = (sh, as, pos, col) => {
+    const n = sh.sides;
+    const cx = sh.x * 2 - 1, cy = sh.y * 2 - 1;
+    // rad 1.0 reaches the shorter-axis edge, the same scale per-vertex `rad` already
+    // means (docs §the mesh). Two scales under one spelling is the trap this repo keeps
+    // finding; the cost is that a shape written for MilkDrop's radius reads half as big.
+    const rx = sh.rad / as.x, ry = sh.rad / as.y;
+    pos[0] = cx; pos[1] = cy;
+    col[0] = sh.r; col[1] = sh.g; col[2] = sh.b; col[3] = sh.a;
+    for (let k = 0; k < n; k++) {
+      const a = sh.ang + (k / n) * TAU;
+      const o = (k + 1) * 2, c = (k + 1) * 4;
+      pos[o] = cx + Math.cos(a) * rx;
+      pos[o + 1] = cy + Math.sin(a) * ry;
+      col[c] = sh.r2; col[c + 1] = sh.g2; col[c + 2] = sh.b2; col[c + 3] = sh.a2;
+    }
+    const e = (n + 1) * 2, ec = (n + 1) * 4;
+    pos[e] = pos[2]; pos[e + 1] = pos[3];
+    col[ec] = sh.r2; col[ec + 1] = sh.g2; col[ec + 2] = sh.b2; col[ec + 3] = sh.a2;
+    return n + 2;
+  };
+
+  //<VIS-DRAW-GEOM-BEGIN>
+  // Interleave and premultiply. Premultiplying is what lets one vertex layout serve
+  // both blend modes: additive is ONE/ONE, alpha is ONE/ONE_MINUS_SRC_ALPHA. With
+  // non-premultiplied colours the additive path would discard alpha entirely, and a
+  // cross-fade between two additive presets would double the light in the middle.
+  const packFan = (pos, col, n, out) => {
+    for (let i = 0; i < n; i++) {
+      const p = i * 2, c = i * 4, o = i * VSTRIDE, a = col[c + 3];
+      out[o] = clamp(pos[p], -POS_MAX, POS_MAX);
+      out[o + 1] = clamp(pos[p + 1], -POS_MAX, POS_MAX);
+      out[o + 2] = col[c] * a; out[o + 3] = col[c + 1] * a; out[o + 4] = col[c + 2] * a;
+      out[o + 5] = a;
+    }
+    return n;
+  };
+
+  // WebGL2's lineWidth is a no-op above 1.0 on nearly every driver, so `thick` is real
+  // geometry: a two-vertex-wide triangle strip. Normals are taken in PIXEL space — in
+  // NDC a diagonal on a 16:9 buffer comes out thinner than a vertical. The miter scale
+  // is capped at 4 because a per-point block is free to fold a wave back on itself, and
+  // an uncapped miter throws a spike across the whole frame at the fold. A zero-length
+  // segment reuses the last good direction rather than dividing by it.
+  const ribbon = (pos, col, cStride, first, n, closed, hwPx, tw, th, out) => {
+    if (n < 2) return 0;
+    const sx = tw * 0.5, sy = th * 0.5;
+    let o = 0, pdx = 1, pdy = 0;
+    for (let i = 0; i < n; i++) {
+      const pi = (first + i) * 2;
+      const px = clamp(pos[pi], -POS_MAX, POS_MAX) * sx, py = clamp(pos[pi + 1], -POS_MAX, POS_MAX) * sy;
+      const hasP = closed || i > 0, hasN = closed || i < n - 1;
+      let ux = 0, uy = 0, vx = 0, vy = 0, lu = 0, lv = 0;
+      if (hasP) {
+        const q = (first + (i - 1 + n) % n) * 2;
+        ux = px - clamp(pos[q], -POS_MAX, POS_MAX) * sx;
+        uy = py - clamp(pos[q + 1], -POS_MAX, POS_MAX) * sy;
+        lu = Math.sqrt(ux * ux + uy * uy);
+        if (lu > 1e-6) { ux /= lu; uy /= lu; } else { ux = 0; uy = 0; lu = 0; }
+      }
+      if (hasN) {
+        const q = (first + (i + 1) % n) * 2;
+        vx = clamp(pos[q], -POS_MAX, POS_MAX) * sx - px;
+        vy = clamp(pos[q + 1], -POS_MAX, POS_MAX) * sy - py;
+        lv = Math.sqrt(vx * vx + vy * vy);
+        if (lv > 1e-6) { vx /= lv; vy /= lv; } else { vx = 0; vy = 0; lv = 0; }
+      }
+      let tx = ux + vx, ty = uy + vy;
+      const lt = Math.sqrt(tx * tx + ty * ty);
+      if (lt > 1e-6) { tx /= lt; ty /= lt; } else { tx = pdx; ty = pdy; }
+      let d = 1;
+      if (lu > 0 && lv > 0) d = tx * vx + ty * vy;
+      const ms = hwPx / (d > 0.25 ? d : 0.25);
+      const ox = -ty * ms, oy = tx * ms;
+      const ci = cStride ? (first + i) * cStride : 0, a = col[ci + 3];
+      const cr = col[ci] * a, cg = col[ci + 1] * a, cb = col[ci + 2] * a;
+      out[o] = (px + ox) / sx; out[o + 1] = (py + oy) / sy;
+      out[o + 2] = cr; out[o + 3] = cg; out[o + 4] = cb; out[o + 5] = a;
+      o += VSTRIDE;
+      out[o] = (px - ox) / sx; out[o + 1] = (py - oy) / sy;
+      out[o + 2] = cr; out[o + 3] = cg; out[o + 4] = cb; out[o + 5] = a;
+      o += VSTRIDE;
+      pdx = tx; pdy = ty;
+    }
+    if (closed) { for (let k = 0; k < VSTRIDE * 2; k++) out[o + k] = out[k]; o += VSTRIDE * 2; }
+    return o / VSTRIDE;
+  };
+
+  // usedots. A point sprite is a square of side `thick`, so a quad is the identical
+  // picture without betting on gl_PointSize: ES 3.0 guarantees a maximum point size of
+  // only 1, and a driver that honours nothing renders every dot as a single pixel.
+  // Six vertices per dot — the corners doubled at each end — keeps the whole wave in
+  // one TRIANGLE_STRIP, the doubled pairs collapsing to zero area between quads.
+  const dotQuads = (pos, col, n, sizePx, tw, th, out) => {
+    if (n < 1) return 0;
+    const hx = sizePx / tw, hy = sizePx / th;   // half a dot, NDC per axis
+    let o = 0;
+    for (let i = 0; i < n; i++) {
+      const p = i * 2, c = i * 4;
+      const x = clamp(pos[p], -POS_MAX, POS_MAX), y = clamp(pos[p + 1], -POS_MAX, POS_MAX);
+      const a = col[c + 3], cr = col[c] * a, cg = col[c + 1] * a, cb = col[c + 2] * a;
+      for (let k = 0; k < 6; k++) {
+        const corner = k === 0 ? 0 : k === 5 ? 3 : k - 1;   // A A B C D D
+        out[o] = x + ((corner & 1) ? hx : -hx);
+        out[o + 1] = y + ((corner & 2) ? hy : -hy);
+        out[o + 2] = cr; out[o + 3] = cg; out[o + 4] = cb; out[o + 5] = a;
+        o += VSTRIDE;
+      }
+    }
+    return o / VSTRIDE;
+  };
+  //<VIS-DRAW-GEOM-END>
+
   // Engine-fixed GLSL. Presets never reach here — they are data that lands in uniforms
   // and in the per-vertex UV buffer.
   const GLSL = {
@@ -4493,6 +4900,34 @@ precision highp float;
 out vec4 fragColor;
 uniform vec4 uCol;
 void main(){ fragColor = uCol; }`,
+
+    // One program for everything else stage A draws: shape fans, shape outlines,
+    // custom-wave ribbons, custom-wave dots. Colour is per vertex because a custom wave
+    // has a colour per POINT and the `wave` program's single uCol cannot express it.
+    // There is no uv attribute: a textured shape's uv IS its position, so the shape
+    // shows the previous frame straight through itself.
+    shapeVS: `#version 300 es
+layout(location=0) in vec2 aPos;
+layout(location=1) in vec4 aCol;
+out vec4 vCol;
+out vec2 vUV;
+void main(){ vCol = aCol; vUV = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }`,
+
+    // uTex is the frame stage A is READING this frame — never the target being written,
+    // which would be a feedback loop inside one draw and is undefined besides. Colours
+    // arrive premultiplied, so modulating rgb by the sample keeps them premultiplied.
+    shapeFS: `#version 300 es
+precision highp float;
+in vec4 vCol;
+in vec2 vUV;
+out vec4 fragColor;
+uniform sampler2D uTex;
+uniform float uTextured;
+void main(){
+  vec4 c = vCol;
+  if (uTextured > 0.5) c.rgb *= texture(uTex, vUV).rgb;
+  fragColor = c;
+}`,
 
     copyFS: `#version 300 es
 precision highp float;
@@ -4590,12 +5025,18 @@ void main(){
     let cur = 0, shown = 0, simTime = 0, frameNo = 0;
     let targets = [null, null], readTarget = null;
     let progs = {}, unis = {};
-    let vaoWarp = null, vaoQuad = null, vaoWave = null;
-    let bufPos = null, bufUV = null, bufIdx = null, bufQuad = null, bufWave = null;
+    let vaoWarp = null, vaoQuad = null, vaoWave = null, vaoDraw = null;
+    let bufPos = null, bufUV = null, bufIdx = null, bufQuad = null, bufWave = null, bufDraw = null;
     let idxCount = 0;
     const CHAN = ['decay_r', 'decay_g', 'decay_b'];
     let params = {}, waveMode = 'line', chanWritten = null;
     let perFrame = null, perVertex = null, runProgram = defaultRun, checkFinite = null;
+    // The outgoing program's shapes/waves and the incoming one's. Two whole sets, never
+    // merged: outputs are mixed by name only for the engine's own slots (see the mix in
+    // frame()); a shape's position is not an engine slot and mixing it would slide the
+    // shape across the screen on every switch. The doc's law: a blend must never make a
+    // shape jump position.
+    let custom = null, customB = null;
     /* The blend (docs/milkdrop-plus.md §Transitions): a second program context
        runs alongside the current one; OUTPUTS are mixed by name, never the
        equations; per-vertex UVs are computed twice and lerped; at the end of
@@ -4609,6 +5050,278 @@ void main(){
     const waveRaw = new Float32Array(WAVE_MAX);
     const waveSm = new Float32Array(WAVE_MAX);
     const waveArr = new Float32Array((WAVE_MAX + 1) * 2);
+
+    // The budget: 2 waves x 512 samples x 60fps = 61 440 point-program runs a second.
+    // Nothing below this line allocates after createEngine returns — one buffer per
+    // primitive, filled and drawn before the next primitive reuses it.
+
+    const SH_MAXV = SIDES_MAX + 2;
+    const shPos = new Float32Array(SH_MAXV * 2);
+    const shCol = new Float32Array(SH_MAXV * 4);
+    const cwPos = new Float32Array(WAVE_MAX * 2);
+    const cwCol = new Float32Array(WAVE_MAX * 4);
+    const cwRaw = new Float32Array(WAVE_MAX);
+    const cwSm = new Float32Array(WAVE_MAX);
+
+    // Vertices for whatever stage A is drawing at this instant: one shape's fan, then
+    // its outline, then a wave's ribbon or its dots. Sized once for the worst case any
+    // of them can reach and reused by all of them — 74KB, allocated with the context
+    // and freed with it.
+    const drawArr = new Float32Array(DRAW_VERTS * VSTRIDE);
+
+    const borderCol = new Float32Array(4);
+
+
+    // --- binding -----------------------------------------------------------
+    // A program is self-describing: it carries the name->slot map it was compiled with,
+    // so a block whose outputs live in private slots (shape1.rad is not shape2.rad, and
+    // neither is the per-vertex `rad`) and a block that shares the preset map are read
+    // through the same two lines. Falling back to the bare name is the existing house
+    // move from keysFrom(): a typed array stores a string key too — slower, never wrong.
+    const bindKeys = (prog, presetSlots, names) => {
+      const m = (prog && prog.slots) || presetSlots || null;
+      const k = new Array(names.length);
+      for (let i = 0; i < names.length; i++) k[i] = m && m[names[i]] !== undefined ? m[names[i]] : names[i];
+      return k;
+    };
+    const bindKey = (prog, presetSlots, name) => {
+      const m = (prog && prog.slots) || presetSlots || null;
+      return m && m[name] !== undefined ? m[name] : name;
+    };
+    // An empty block is an ABSENT block. compilePreset synthesises a zero-length program
+    // for every declared section, so without this a preset carrying none of the six new
+    // headings would still pay 4 x 18 default stores and 4 checkFinite sweeps a frame.
+    // The contract's claim — such a preset renders exactly as it does today,
+    // bit-identical — is cheapest to keep true by not running anything at all.
+    const liveProg = (p) => (typeof p === 'function' ? p : p && p.code && p.code.length > 0 ? p : null);
+
+    const newShape = () => ({
+      prog: null, K: null,
+      enabled: 0, sides: 4, rad: 0.1, ang: 0, x: 0.5, y: 0.5,
+      r: 1, g: 1, b: 1, a: 1, r2: 1, g2: 1, b2: 1, a2: 0,
+      border_a: 0, thick: 1, additive: 0, textured: 0
+    });
+    const newWave = () => ({
+      prog: null, K: null, point: null, PK: null, kSample: 'sample', kValue: 'value',
+      enabled: 0, samples: 128, thick: 1, additive: 0,
+      r: 1, g: 1, b: 1, a: 1, smoothing: 0.5, scaling: 1, usedots: 0
+    });
+    const newCustom = () => ({ shapes: [newShape(), newShape()], waves: [newWave(), newWave()] });
+    // Bind once per setPrograms/setBlend, never per frame.
+    const bindCustom = (c, p) => {
+      const sl = p.slots || null;
+      for (let i = 0; i < 2; i++) {
+        const s = c.shapes[i];
+        s.prog = liveProg(p.shapes && p.shapes[i]);
+        s.K = s.prog ? bindKeys(s.prog, sl, SHAPE_OUT) : null;
+        const w = c.waves[i];
+        w.prog = liveProg(p.waves && p.waves[i]);
+        w.point = liveProg(p.wavePoints && p.wavePoints[i]);
+        w.K = w.prog ? bindKeys(w.prog, sl, WAVE_OUT) : null;
+        w.PK = w.point ? bindKeys(w.point, sl, POINT_OUT) : null;
+        w.kSample = bindKey(w.point, sl, 'sample');
+        w.kValue = bindKey(w.point, sl, 'value');
+      }
+      return c;
+    };
+    custom = newCustom();
+    customB = newCustom();
+
+    // --- faults ------------------------------------------------------------
+    // The outgoing program going non-finite is the preset failing: name it and hold the
+    // last good frame. The INCOMING program going non-finite cancels the blend and keeps
+    // the show on the outgoing one — the same ruling frame() already applies to the
+    // incoming per-frame block, applied to the same preset's shapes and waves.
+    const faultA = (name, stage, line) => fault(name, stage, line);
+    const faultB = (name, stage, line) => {
+      engine.blendFault = { name, line: line === undefined ? null : line, stage: 'blend ' + stage };
+      bl = null; engine.blending = false;
+      return false;
+    };
+    // checkFinite knows which names a block wrote and on what line; the generic sweep is
+    // the fallback for a raw-function program (defaultRun), which carries no target list
+    // — checkFinite would throw on it, and the engine promises never to mutate or assume
+    // anything about a program beyond what runProgram understands.
+    const canFin = (prog, fin) => !!(fin && prog && prog.targets);
+    const guardC = (prog, env, fin, K, names, stage, bad) => {
+      if (canFin(prog, fin)) {
+        const b = fin(prog, env);
+        return b ? bad(b.name, b.block || stage, b.line) : true;
+      }
+      for (let i = 0; i < K.length; i++) {
+        const v = env[K[i]];
+        if (!(v > -Infinity && v < Infinity)) return bad(names[i], stage, null);
+      }
+      return true;
+    };
+
+    // --- one shape ---------------------------------------------------------
+    // w is the program's blend weight. Every alpha is multiplied by it, and by nothing
+    // else: at w=0 the set contributes exactly nothing, at w=1 exactly itself, which is
+    // what makes a promotion invisible.
+    const runShape = (c, i, env, run, fin, w, bad) => {
+      const s = c.shapes[i];
+      if (!s.prog || !(w > 0)) return true;
+      const K = s.K;
+      for (let j = 0; j < SHAPE_OUT.length; j++) env[K[j]] = SHAPE_DEF[j];
+      run(s.prog, env);
+      if (!guardC(s.prog, env, fin, K, SHAPE_OUT, SHAPE_SECTIONS[i], bad)) return false;
+      if (!(env[K[S_ENABLED]] > 0.5)) { s.enabled = 0; return true; }
+      s.enabled = 1;
+      s.sides = cInt(env[K[S_SIDES]], SIDES_MIN, SIDES_MAX);
+      s.rad = cRange(env[K[S_RAD]], 0, RAD_MAX);
+      // ang and x/y are deliberately unbounded: a shape orbiting off-screen and back is
+      // an author's choice, and the finite check above already refused the only value
+      // that could hurt the buffer.
+      s.ang = env[K[S_ANG]];
+      s.x = env[K[S_X]];
+      s.y = env[K[S_Y]];
+      s.r = c01(env[K[S_R]]); s.g = c01(env[K[S_G]]); s.b = c01(env[K[S_B]]);
+      s.a = c01(env[K[S_A]]) * w;
+      s.r2 = c01(env[K[S_R2]]); s.g2 = c01(env[K[S_G2]]); s.b2 = c01(env[K[S_B2]]);
+      s.a2 = c01(env[K[S_A2]]) * w;
+      s.border_a = c01(env[K[S_BORDER_A]]) * w;
+      s.thick = cRange(env[K[S_THICK]], THICK_MIN, THICK_MAX);
+      s.additive = env[K[S_ADDITIVE]] > 0.5 ? 1 : 0;
+      s.textured = env[K[S_TEXTURED]] > 0.5 ? 1 : 0;
+      if (s.rad <= 0 || (s.a <= 0 && s.a2 <= 0 && s.border_a <= 0)) return true;
+      drawShape(s, shPos, shCol, shapeFan(s, as, shPos, shCol));
+      return true;
+    };
+
+    // --- one wave ----------------------------------------------------------
+    const runWave = (c, i, env, run, fin, w, bad, wave) => {
+      const v = c.waves[i];
+      // No `## waveN` means no wave: `enabled` defaults to 0, so a lone `## waveN-point`
+      // has nothing to be a point of. Stated rather than implied, because a point block
+      // that silently never runs is exactly the failure shape this app exists to refuse,
+      // which is why §12.2 asks the lint for a warning the runner cannot raise.
+      if (!v.prog || !(w > 0)) return true;
+      const K = v.K;
+      for (let j = 0; j < WAVE_OUT.length; j++) env[K[j]] = WAVE_DEF[j];
+      run(v.prog, env);
+      if (!guardC(v.prog, env, fin, K, WAVE_OUT, WAVE_SECTIONS[i], bad)) return false;
+      if (!(env[K[W_ENABLED]] > 0.5)) { v.enabled = 0; return true; }
+      v.enabled = 1;
+      const n = cInt(env[K[W_SAMPLES]], SAMPLES_MIN, WAVE_MAX);
+      v.samples = n;
+      v.thick = cRange(env[K[W_THICK]], THICK_MIN, THICK_MAX);
+      v.additive = env[K[W_ADDITIVE]] > 0.5 ? 1 : 0;
+      v.r = c01(env[K[W_R]]); v.g = c01(env[K[W_G]]); v.b = c01(env[K[W_B]]); v.a = c01(env[K[W_A]]);
+      v.smoothing = cRange(env[K[W_SMOOTHING]], 0, 1);
+      v.scaling = env[K[W_SCALING]];
+      v.usedots = env[K[W_USEDOTS]] > 0.5 ? 1 : 0;
+      // A point block may raise alpha per point, so a=0 only means "nothing to draw"
+      // when there is no point block to raise it.
+      if (v.a <= 0 && !v.point) return true;
+
+      // `value` is the smoothed signal at that sample. The smoothing is the wave's OWN
+      // output and the smoother is the engine's existing one — there is exactly one
+      // smoother in this file and this is it. The signal is sanitised HERE, at the
+      // engine boundary, not in the point loop: a non-finite sample is the analyser
+      // misbehaving, not the author, and it must not be reported as a preset fault.
+      const src = wave, m = src ? src.length : 0;
+      if (m > 1) {
+        const stride = m / n;
+        for (let j = 0; j < n; j++) {
+          const s0 = src[(j * stride) | 0];
+          cwRaw[j] = s0 > -1e30 && s0 < 1e30 ? s0 : 0;
+        }
+      } else {
+        // No signal at all: `value` is 0 and the wave still draws. A point block that
+        // ignores `value` — a Lissajous figure, a ring, a rain of dots — is a legal
+        // wave, and it must not disappear because the room went quiet.
+        for (let j = 0; j < n; j++) cwRaw[j] = 0;
+      }
+      smoothWave(cwRaw, n, v.smoothing, cwSm);
+
+      const P = v.PK, prog = v.point, kS = v.kSample, kV = v.kValue;
+      const dn = n > 1 ? 1 / (n - 1) : 0;
+      const sc = v.scaling, dr = v.r, dg = v.g, db = v.b, da = v.a;
+      let bs = -1;
+      for (let j = 0; j < n; j++) {
+        const smp = j * dn, val = cwSm[j];
+        // The defaults, computed ONCE and in one place. They are written into the env
+        // BEFORE the block runs, so an EMPTY `## waveN-point` still draws a legible wave
+        // and a block that writes only x keeps the default y — sequential single-pass
+        // assignment all the way down. With no point block at all the env is never
+        // touched: the defaults ARE the point, and 512 round trips through slot memory
+        // buy nothing.
+        let px = smp, py = 0.5 + val * 0.25 * sc, pr = dr, pg = dg, pb = db, pa = da;
+        if (prog) {
+          env[kS] = smp; env[kV] = val;
+          env[P[P_X]] = px; env[P[P_Y]] = py;
+          env[P[P_R]] = pr; env[P[P_G]] = pg; env[P[P_B]] = pb; env[P[P_A]] = pa;
+          run(prog, env);
+          px = env[P[P_X]]; py = env[P[P_Y]];
+          pr = env[P[P_R]]; pg = env[P[P_G]]; pb = env[P[P_B]]; pa = env[P[P_A]];
+        }
+        // ONE test covers all six outputs, at six adds and one compare. Any NaN poisons
+        // the sum; any infinity makes (acc - acc) a NaN. Six isFinite() calls per sample
+        // would be 3072 a frame at the budget for the same answer, and a check on x and
+        // y alone would let a NaN COLOUR through — which is worse than a NaN position,
+        // because a discarded triangle heals and a NaN written into the fed-back buffer
+        // never does.
+        const acc = px + py + pr + pg + pb + pa;
+        if (acc - acc !== 0) { bs = j; break; }
+        const o = j * 2, cc = j * 4;
+        // A POSITION in [0,1] spans the window, exactly as the main waveform's wave_x/y
+        // and a shape's centre already do; only `rad`, a RADIUS, is aspect-corrected, so
+        // that a shape is round. Correcting positions here would be the other consistent
+        // choice and was rejected: it would stop a custom wave from reaching the edges of
+        // a wide window, which is the common case. A point block drawing a circle divides
+        // its own offsets by `aspect`, which every block can read.
+        cwPos[o] = px * 2 - 1; cwPos[o + 1] = py * 2 - 1;
+        cwCol[cc] = c01(pr); cwCol[cc + 1] = c01(pg); cwCol[cc + 2] = c01(pb);
+        cwCol[cc + 3] = c01(pa) * w;
+      }
+      if (bs >= 0) {
+        // Name it the way the author can act on. checkFinite runs once, on the sample
+        // that actually went bad, and never in the hot path — the env still holds that
+        // sample's values, so the variable and line it reports are the real ones. With
+        // no checkFinite (a raw-function program) the sweep below names the output.
+        if (prog) {
+          if (canFin(prog, fin)) {
+            const b = fin(prog, env);
+            if (b) return bad(b.name, b.block || POINT_SECTIONS[i], b.line);
+          }
+          for (let j = 0; j < P.length; j++) {
+            const q = env[P[j]];
+            if (!(q > -Infinity && q < Infinity)) return bad(POINT_OUT[j], POINT_SECTIONS[i], null);
+          }
+          return bad(POINT_OUT[P_X], POINT_SECTIONS[i], null);
+        }
+        // With no point block the six values come from `sample`, the sanitised signal
+        // and the wave's own already-checked outputs, so the only one that can be
+        // non-finite here is scaling — named as the WAVE block's, because that is the
+        // heading the author would open to fix it.
+        return bad('scaling', WAVE_SECTIONS[i], null);
+      }
+      drawCustomWave(v, cwPos, cwCol, n);
+      return true;
+    };
+
+    // --- the frame's whole custom pass -------------------------------------
+    // Draw order inside stage A is category-major: every shape, then every wave. During a
+    // blend that reads outgoing-shapes, incoming-shapes, outgoing-waves, incoming-waves,
+    // so the categories keep their layering (shapes under waves under the main waveform)
+    // while each program keeps its own geometry and its own env. The two sets never share
+    // a number: A runs against `env` with A's key arrays, B against `bl.env` with B's.
+    //
+    // The weight is recomputed between the shape pass and the wave pass because faultB
+    // can cancel the blend mid-pass; without the recompute the outgoing program would
+    // spend one frame at 1-e alpha with nothing to blend against, and the eye reads that
+    // as a flicker at exactly the moment the app is explaining a rejection.
+    const drawCustom = (e, wave) => {
+      let i;
+      let w = bl ? 1 - e : 1;
+      for (i = 0; i < 2; i++) if (!runShape(custom, i, env, runProgram, checkFinite, w, faultA)) return false;
+      for (i = 0; i < 2 && bl; i++) runShape(customB, i, bl.env, bl.runProgram, bl.checkFinite, e, faultB);
+      w = bl ? 1 - e : 1;
+      for (i = 0; i < 2; i++) if (!runWave(custom, i, env, runProgram, checkFinite, w, faultA, wave)) return false;
+      for (i = 0; i < 2 && bl; i++) runWave(customB, i, bl.env, bl.runProgram, bl.checkFinite, e, faultB, wave);
+      return true;
+    };
     const onLost = (e) => { e.preventDefault(); lossCount++; ready = false; engine.state = 'lost'; };
     const onRestored = () => { /* restore() is an offer, never automatic — see the ladder */ };
 
@@ -4676,6 +5389,14 @@ void main(){
       vaoWave = gl.createVertexArray();
       gl.bindVertexArray(vaoWave);
       gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+      bufDraw = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, bufDraw);
+      gl.bufferData(gl.ARRAY_BUFFER, drawArr, gl.DYNAMIC_DRAW);
+      vaoDraw = gl.createVertexArray();
+      gl.bindVertexArray(vaoDraw);
+      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, VSTRIDE * 4, 0);
+      gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, VSTRIDE * 4, 8);
       gl.bindVertexArray(null);
     };
 
@@ -4683,12 +5404,21 @@ void main(){
       const want = {
         warp: [GLSL.warpVS, GLSL.warpFS], border: [GLSL.quadVS, GLSL.borderFS],
         wave: [GLSL.waveVS, GLSL.waveFS], comp: [GLSL.quadVS, GLSL.compFS],
-        copy: [GLSL.quadVS, GLSL.copyFS]
+        copy: [GLSL.quadVS, GLSL.copyFS], shape: [GLSL.shapeVS, GLSL.shapeFS]
       };
       progs = {}; unis = {};
+      engine.customUnavailable = null;      // this build's verdict, not the last one's
       for (const k in want) {
         const r = compileProg(gl, want[k][0], want[k][1]);
-        if (r.err) { engine.fault = { name: k, stage: 'shader', detail: r.err }; return false; }
+        if (r.err) {
+          // Every other program is load-bearing for every preset. The shape program draws
+          // custom shapes and custom waves only, so a driver that refuses it costs those
+          // layers and nothing else — the alternative is a preset with no shapes going
+          // dark on an old GPU because of a feature it never used. Named, never silent:
+          // engine.customUnavailable is what the window reports.
+          if (k === 'shape') { engine.customUnavailable = r.err; continue; }
+          engine.fault = { name: k, stage: 'shader', detail: r.err }; return false;
+        }
         progs[k] = r.prog; unis[k] = uniformsOf(gl, r.prog);
       }
       return true;
@@ -4715,10 +5445,10 @@ void main(){
       targets = [null, null]; readTarget = null;
       for (const k in progs) gl.deleteProgram(progs[k]);
       progs = {}; unis = {};
-      [bufPos, bufUV, bufIdx, bufQuad, bufWave].forEach(b => b && gl.deleteBuffer(b));
-      [vaoWarp, vaoQuad, vaoWave].forEach(v => v && gl.deleteVertexArray(v));
-      bufPos = bufUV = bufIdx = bufQuad = bufWave = null;
-      vaoWarp = vaoQuad = vaoWave = null;
+      [bufPos, bufUV, bufIdx, bufQuad, bufWave, bufDraw].forEach(b => b && gl.deleteBuffer(b));
+      [vaoWarp, vaoQuad, vaoWave, vaoDraw].forEach(v => v && gl.deleteVertexArray(v));
+      bufPos = bufUV = bufIdx = bufQuad = bufWave = bufDraw = null;
+      vaoWarp = vaoQuad = vaoWave = vaoDraw = null;
     };
 
     const buildAll = () => {
@@ -4764,6 +5494,70 @@ void main(){
       }
       const list = stage === 'per-frame' ? KSL : KW, names = stage === 'per-frame' ? SLOTS : WARP;
       for (let i = 0; i < list.length; i++) if (!isFinite(env[list[i]])) return fault(names[i], stage);
+      return true;
+    };
+
+    // The framebuffer, viewport and target are bound by frame(); these bind nothing but
+    // their own buffer, program and texture, and they never clear. Everything they draw
+    // lands in stage A, so everything they draw smears — that is the point of drawing
+    // here rather than in the composite.
+    const drawExtra = (additive, textured, verts, srcTex) => {
+      if (!progs.shape) return false;      // the driver refused it; engine.customUnavailable says so
+      gl.useProgram(progs.shape);
+      gl.uniform1i(unis.shape.uTex, 0);
+      gl.uniform1f(unis.shape.uTextured, textured ? 1 : 0);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, srcTex);
+      gl.enable(gl.BLEND);
+      // Premultiplied: alpha is ONE/ONE_MINUS_SRC_ALPHA, not SRC_ALPHA — the alpha is
+      // already in the rgb and multiplying it in twice darkens every edge. ONE/ONE is
+      // the additive path, and it is why an additive shape smears into a glowing trail.
+      if (additive) gl.blendFunc(gl.ONE, gl.ONE);
+      else gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      gl.bindBuffer(gl.ARRAY_BUFFER, bufDraw);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, drawArr, 0, verts * VSTRIDE);
+      gl.bindVertexArray(vaoDraw);
+    };
+
+    // sh's alphas already carry the program's blend weight (runner.js §9) — do not
+    // weight again. pos[0..1] is the fan pivot and pos[2..] the rim, nFan = sides + 2.
+    const drawShape = (sh, pos, col, nFan) => {
+      if (!progs.shape) return true;
+      const src = targets[cur];
+      if (sh.a > 0 || sh.a2 > 0) {
+        drawExtra(sh.additive, sh.textured, packFan(pos, col, nFan, drawArr), src.tex);
+        gl.drawArrays(gl.TRIANGLE_FAN, 0, nFan);
+      }
+      if (sh.border_a > 0) {
+        // The outline is the ribbon a custom wave uses, closed, over the rim the fan
+        // already built — so `thick` means one thing across the whole slice, and no
+        // vertex is computed twice. The grammar declares border_a and no border colour,
+        // so the outline is the shape's own rgb at that alpha, which is the only reading
+        // under which border_a alone is a usable control. cStride 0: one colour, reused.
+        borderCol[0] = sh.r; borderCol[1] = sh.g; borderCol[2] = sh.b; borderCol[3] = sh.border_a;
+        const sides = nFan - 2;
+        const vc = ribbon(pos, borderCol, 0, 1, sides, true,
+                          clamp(sh.thick, 1, THICK_MAX) * 0.5, tw, th, drawArr);
+        if (vc) {
+          drawExtra(sh.additive, 0, vc, src.tex);
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, vc);
+        }
+      }
+      return true;
+    };
+
+    // wv.r/g/b/a are the author's declared wave colour and are informational here: the
+    // colour that draws is per-point in `col`, already weighted and clamped. Using wv.a
+    // as a uniform alpha would double-apply the wave's own alpha on top of every point's.
+    const drawCustomWave = (wv, pos, col, n) => {
+      if (!progs.shape) return true;
+      const thick = clamp(wv.thick, 1, THICK_MAX);
+      const verts = wv.usedots
+        ? dotQuads(pos, col, n, thick, tw, th, drawArr)
+        : ribbon(pos, col, 4, 0, n, false, thick * 0.5, tw, th, drawArr);
+      if (!verts) return true;
+      drawExtra(wv.additive, 0, verts, targets[cur].tex);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, verts);
       return true;
     };
 
@@ -4849,6 +5643,11 @@ void main(){
       // with perVertex, and reads the slots back out. It compiles nothing itself.
       setPrograms(p) {
         p = p || {};
+        // A hard set replaces the whole show, so an ease still in flight is over: leaving
+        // `bl` and `customB` alive kept the abandoned incoming preset's shapes and waves
+        // drawing over the new one, and then promoted them.
+        if (bl) { bl = null; engine.blending = false; engine.blendDone = false; engine.blendFault = null; }
+        bindCustom(customB, {});
         perFrame = p.perFrame || null;
         perVertex = p.perVertex || null;
         runProgram = p.runProgram || defaultRun;
@@ -4859,6 +5658,9 @@ void main(){
         if (p.env) env = p.env;
         if ('slots' in p) K = p.slots ? keysFrom(p.slots) : IDKEYS;
         rekey();
+        // shapes / waves / wavePoints are each a 2-array, index 0 = shape1/wave1.
+        // Absent, null or empty entries bind to null and cost nothing per frame.
+        bindCustom(custom, p);
         return engine;
       },
       setBlend(p, dur) {
@@ -4871,6 +5673,7 @@ void main(){
                writes: (p.perFrame && p.perFrame.writes) || [],
                t0: simTime, dur: Math.max(0.3, num(dur, 3)), snap: [],
                localT: 0, cancelFault: null, promote: false };
+        bindCustom(customB, p);
         engine.blending = true; engine.blendDone = false; engine.blendFault = null;
         return engine;
       },
@@ -4905,6 +5708,10 @@ void main(){
           runProgram = bl.runProgram; checkFinite = bl.checkFinite;
           env = bl.env; K = bl.K2;
           chanWritten = bl.writes.length ? CHAN.map(n => bl.writes.indexOf(n) >= 0) : null;
+          // Promotion is a swap, not a copy: the incoming set is already bound against
+          // its own env and slot maps, and the outgoing set becomes the scratch that the
+          // next setBlend rebinds. No key array is rebuilt, and nothing allocates.
+          const swapC = custom; custom = customB; customB = swapC;
           rekey();
           simTime = bl.localT;   // time = seconds since preset load, the incoming clock
           bl = null; engine.blending = false; engine.blendDone = true;
@@ -5030,6 +5837,11 @@ void main(){
         }
 
         const wave = audio && audio.wave;
+        // Inside stage A, above the borders and below the main waveform. Faulting here
+        // returns before shown/cur flip and before present(), so the canvas keeps the
+        // last good frame: dst is this frame's scratch and the next good frame rebuilds
+        // it from src through the warp.
+        if (!drawCustom(e, wave)) return false;
         if (wave && wave.length > 1 && E('wave_a') > 0) {
           const n = Math.min(wave.length, WAVE_MAX);
           const stride = wave.length / n;
@@ -5156,7 +5968,16 @@ void main(){
   return {
     createEngine, GLSL, DEFAULTS,
     mesh: { NX, NY, NV }, ref: REF, dtMax: DT_MAX, resLadder: RES, warpSlots: WARP,
-    math: { clamp, compPow, compLin, aspectScale, persistDecay, vertexSlots, warpUV, seedField, quantize, smoothWave, waveVerts, ihash }
+    // The custom-primitive contract, exported so verify/unit.mjs can pin it against
+    // VIS_GRAMMAR without a browser and without a second hand-kept list.
+    custom: {
+      shapeOut: SHAPE_OUT, shapeDefaults: SHAPE_DEF,
+      waveOut: WAVE_OUT, waveDefaults: WAVE_DEF, pointOut: POINT_OUT,
+      sections: { shapes: SHAPE_SECTIONS, waves: WAVE_SECTIONS, points: POINT_SECTIONS },
+      limits: { sides: [SIDES_MIN, SIDES_MAX], samples: [SAMPLES_MIN, WAVE_MAX], thick: [THICK_MIN, THICK_MAX], rad: [0, RAD_MAX] }
+    },
+    math: { clamp, compPow, compLin, aspectScale, persistDecay, vertexSlots, warpUV, seedField, quantize, smoothWave, waveVerts, ihash,
+            shapeFan, c01, cRange, cInt, packFan, ribbon, dotQuads }
   };
 })();
 
@@ -9938,7 +10759,7 @@ const VZ = (() => {
   function loadPreset(text) {
     const parsed = VisPreset.parsePresetFile(text, G);
     if (parsed.errors.length) return { ok: false, errors: parsed.errors, parsed };
-    const fmErrors = VisLang.validateFrontmatter(parsed.meta, G).filter((e) => e.severity === "error");
+    const fmErrors = VisLang.validateFrontmatter(parsed.meta, G, Object.keys(parsed.blocks)).filter((e) => e.severity === "error");
     const params = parsed.meta.params || [];
     let g = G;
     if (params.length) {
@@ -10022,7 +10843,7 @@ const VZ = (() => {
       }
       if (eng.fault) {
         stopLoop();
-        renderState(eng.fault.stage === "per-frame" || eng.fault.stage === "per-vertex" ? "fault" : "glfault");
+        renderState(G.sections.indexOf(eng.fault.stage) >= 0 ? "fault" : "glfault");
         return;
       }
     }
@@ -10043,9 +10864,13 @@ const VZ = (() => {
     if (key === "running" || key === "synthetic") {
       box.classList.add("hidden");
       const badge = el().querySelector(".vz-badge");
-      badge.textContent = key === "synthetic"
+      const refused = eng && eng.customUnavailable
+        ? "this GPU refused the shape program — custom shapes and waves will not draw"
+        : "";
+      const base = key === "synthetic"
         ? "synthetic signal — this build has no microphone · now playing: " + (synth ? synth.title : "")
         : (procBadge ? "processed: " + procBadge : "");
+      badge.textContent = refused ? (base ? base + " · " + refused : refused) : base;
       badge.style.display = badge.textContent ? "" : "none";
       say(key === "synthetic" ? "synthetic — “Halogen Yard”, Fourteen Hours · " + presetLabel()
                               : "listening · " + presetLabel());
@@ -10155,6 +10980,7 @@ const VZ = (() => {
     eng = VisGL.createEngine(canvas, { seed: 41 });
     if (!eng.init()) { renderState("fault"); return; }
     if (eng.precision === "rgba8") say("reduced color precision — this GPU has no float render targets");
+    if (eng.customUnavailable) say("this GPU refused the shape program — custom shapes and custom waves will not draw; everything else runs");
     if (cur) applyPreset(cur);
   }
 
@@ -10196,6 +11022,9 @@ const VZ = (() => {
       VisLang.resetQ(r.compiled, env);
       eng.clearFault();
       eng.setBlend({ perFrame: r.compiled.programs["per-frame"], perVertex: r.compiled.programs["per-vertex"],
+                     shapes: [r.compiled.programs["shape1"], r.compiled.programs["shape2"]],
+                     waves: [r.compiled.programs["wave1"], r.compiled.programs["wave2"]],
+                     wavePoints: [r.compiled.programs["wave1-point"], r.compiled.programs["wave2-point"]],
                      env, slots: sl, runProgram: VisLang.runProgram, checkFinite: VisLang.checkFinite,
                      resetOutputs: () => VisLang.resetOutputs(r.compiled, env) }, 3.0);
       pending = next;
@@ -10205,6 +11034,9 @@ const VZ = (() => {
     if (eng) {
       eng.clearFault(); eng.resetClock();   // time is seconds since preset load
       eng.setPrograms({ perFrame: r.compiled.programs["per-frame"], perVertex: r.compiled.programs["per-vertex"],
+                        shapes: [r.compiled.programs["shape1"], r.compiled.programs["shape2"]],
+                        waves: [r.compiled.programs["wave1"], r.compiled.programs["wave2"]],
+                        wavePoints: [r.compiled.programs["wave1-point"], r.compiled.programs["wave2-point"]],
                         env, slots: sl, runProgram: VisLang.runProgram, checkFinite: VisLang.checkFinite,
                         resetOutputs: () => VisLang.resetOutputs(r.compiled, env), resetQ: () => VisLang.resetQ(r.compiled, env) });
       if (eng.setWave) eng.setWave(r.parsed.meta.wave || {});
@@ -10221,7 +11053,16 @@ const VZ = (() => {
     cur = {
       name: entry.name, path: entry.path, text: entry.text, env, slots: sl,
       load: r, params: r.params,
-      audioOnly: !r.compiled.programs["per-frame"].reads.includes("time"),
+      // "nothing here moves without audio" — true only if NO block reads time, now that
+      // a preset's whole motion can live in a shape or a custom wave.
+      // "nothing here moves without audio" — true only if NO block reads the clock, in
+      // either of its two spellings. Drum Skin integrates dt into q2 and never mentions
+      // `time`; calling it audio-only made the window announce "you have turned it off"
+      // over a picture that was still turning (review 2026-08-21).
+      audioOnly: !G.sections.some((s) => {
+        const pr = r.compiled.programs[s];
+        return pr && pr.reads && (pr.reads.includes("time") || pr.reads.includes("dt"));
+      }),
       varOffsets: (t, amt) => {
         r.params.forEach((pr, i) => { if (pr.vary) env[sl[pr.name]] = pr.default + vs.param(t, amt, i, pr.min, pr.max); });
       },
@@ -10395,7 +11236,14 @@ const VZ = (() => {
     lastState = "hidden"; blackSaid = false;
     offerShow();
   };
-  Object.assign(PFCT, { vzLoadPreset: loadPreset, vzFrameCount: () => (eng ? eng.frameCount : -1) });
+  // Test handles. vzApplyText drives the REAL applyPreset with a preset the gate wrote,
+  // which is the only way a pixel scenario can hold everything constant but the one line
+  // it is asking about; vzEngine is how the gate reaches a runtime fault the language
+  // itself cannot produce (fin() maps NaN to 0, so only the outside world can). Nothing
+  // in the shipped paths calls either.
+  Object.assign(PFCT, { vzLoadPreset: loadPreset, vzFrameCount: () => (eng ? eng.frameCount : -1),
+                        vzEngine: () => eng,
+                        vzApplyText: (name, text) => applyPreset({ path: "gate/" + name + ".md", name, text }) });
   return { loadPreset };
 })();
 
@@ -11579,6 +12427,190 @@ _phase = rand_static(1) * 2 * pi     // locals do not cross blocks; rand_static 
 rot  = rot + 0.014 * wind * rad
 zoom = zoom + 0.0030 * sin(rad * 5.0 + _phase)
 dy   = dy + 0.0008 * cos(ang + rad * 3.0)
+`,
+"visualizer/presets/drum-skin.md": `---
+name: Drum Skin
+author: fable
+created: 2026-08-21
+seed: 19
+knobs:   { speed: 0.0, variation: 0.0, sensitivity: 0.15, persistence: 0.1, zoom: 0.0, hue: 0.0 }
+params:
+  - { name: tension, label: "Tension", min: 0, max: 1, default: 0.5 }
+  - { name: strike, label: "Strike", min: 0, max: 1, default: 0.6 }
+---
+A custom wave with no point block already draws the signal left to right — that is the
+floor, and it is why deleting either point block below leaves you with a legible line
+rather than a blank window. The point block is what lets you keep the reading and throw
+the geometry away. Here one reading of the signal is drawn twice: wave1 spends sample on
+the angle and value on the radius, so the line closes into a ring that bulges wherever
+the room is loud; wave2 spends sample on x and pins both of its ends with
+1 - sqr(2 * sample - 1), so it hangs across the middle like a chord clamped where it
+meets the hoop. Nothing else in this file draws — the main waveform is off at wave_a = 0,
+which is why there is no wave: line in the frontmatter to configure it. The warp expands,
+so every ring a strike leaves grows and thins on its way out: a struck skin, not a drain.
+The ring has a visible seam where the last sample meets the first; it is a line the
+engine bent into a circle, and saying so costs less than hiding it. Tension buys
+smoothing on the rim — a taut skin rings, a slack one thuds — and Strike sets the
+scaling both readings share.
+
+## per-frame
+_hit = clamp(bass_att - 1, 0, 1)
+q1 = q1 + (_hit - q1) * clamp(dt * if(above(_hit, q1), 26, 1.7), 0, 1)  // strike, then ring down
+q2 = fmod(q2 + dt * (0.22 + 0.90 * q1), 2 * pi)   // the rim only turns while the skin is still moving
+q3 = 0.5 + 0.5 * sin(q2 * 2)
+q4 = clamp(treb_att - 1, 0, 1)        // hats colour the chord; they are not allowed to move anything
+decay = 0.964 - 0.016 * q1            // a fresh strike eats the ring before it, so hits stay countable
+zoom  = 1.0030 + 0.0130 * q1 * (0.4 + 0.6 * tension)  // a taut skin throws its ring further out
+rot   = 0.0016 - 0.0040 * q1
+gamma = 1.12
+ob_size = 0.0025
+ob_r = 0.35
+ob_g = 0.55
+ob_b = 0.85                           // a cold rim: the hoop the skin is stretched over
+ob_a = 0.10
+wave_a = 0                            // the main waveform is off in this file on purpose — everything
+                                      // here that answers the music is a custom wave
+
+## per-vertex
+zoom = zoom + 0.010 * q1 * (1 - rad)  // the strike leaves from the middle, so the middle expands hardest
+rot  = rot + 0.020 * q1 * rad         // and the rim shears behind it
+dx   = dx + 0.0012 * q1 * cos(ang * 4 + q2)
+dy   = dy + 0.0012 * q1 * sin(ang * 4 + q2)
+
+## wave1
+enabled   = 1
+samples   = 256
+thick     = 2
+additive  = 1                         // additive, because two arcs of the ring crossing should get brighter
+smoothing = 0.50 + 0.42 * tension     // a taut skin rings and a slack one thuds; this is that difference
+scaling   = 0.60 + 0.90 * strike
+r = 1.00
+g = 0.62
+b = 0.30
+a = 0.42
+usedots   = 0                         // dots would read as beads on a hoop; the line reads as a skin
+
+## wave1-point
+// The six point outputs are re-seeded before every sample — x = sample, y from the
+// signal, colour from ## wave1 — so reading one before assigning it inherits the wave's
+// number rather than accumulating the last sample's. That is why these lines modulate.
+_amp = abs(value)
+_th  = sample * 2 * pi + q2
+_rr  = 0.26 + 0.09 * q1 + 0.15 * value * scaling  // the loudest strikes push the ring past the
+x    = 0.5 + _rr * cos(_th) / aspect  // frame, where it is clipped and never wrapped.
+y    = 0.5 + _rr * sin(_th)           // A POSITION spans the window, so a circle drawn from
+g = g + 0.30 * _amp                   // positions is an ellipse unless its x offset is divided
+b = b + 0.28 * q3                     // by aspect. Only rad — a radius — is corrected for you.
+a = a * (0.45 + 0.85 * _amp)          // the loud arc of the ring is the bright arc
+
+## wave2
+enabled   = 1
+samples   = 192
+thick     = 1
+additive  = 1
+smoothing = 0.86                      // the chord is the slow reading of the signal the rim reads fast
+scaling   = 0.80 + 0.80 * strike
+r = 0.62
+g = 0.86 - 0.20 * q4
+b = 1.00
+a = 0.30
+usedots   = 0
+
+## wave2-point
+_env = 1 - sqr(2 * sample - 1)        // zero at both ends: a chord is clamped where it meets the hoop
+x = 0.14 + 0.72 * sample
+y = 0.5 + 0.24 * value * scaling * _env
+a = a * _env                          // colour inherited from ## wave2; the clamp shapes the alpha too,
+                                      // so the chord fades out exactly where it is pinned
+`,
+"visualizer/presets/paper-lantern.md": `---
+name: Paper Lantern
+author: fable
+created: 2026-08-21
+seed: 47
+knobs:   { speed: 0.0, variation: 0.0, sensitivity: 0.25, persistence: 0.2, zoom: 0.0, hue: 0.0 }
+params:
+  - { name: hang, label: "Hang", min: 0, max: 1, default: 0.55 }
+  - { name: paper, label: "Paper", min: 0, max: 1, default: 0.6 }
+wave: { mode: line, additive: false }
+---
+A custom shape is not a sprite. It is a stamp, pressed into the same buffer the warp
+reads back next frame, so what you end up looking at is never the hexagon that was
+drawn — it is the few hundred ghosts of it the loop has already carried to the rim.
+This file draws two: a six-sided paper body, thin enough in the middle to see the smear
+through and framed by the only hard line in the window, and a small additive flame
+pinned to the same anchor so it can never swing free of its lantern. Both blocks
+recompute that anchor from q2 instead of sharing it, because a shape block reads the
+audio, the params and this frame's q-vars and nothing else — the warp's outputs are not
+in its scope, and a candle that solved its position a different way would drift off its
+own lamp. There is no border in the warp at all: under an expanding zoom a ring drawn
+at the rim is off the frame the frame after it is drawn, and it is the middle of an
+expanding field that goes hungry. The lanterns are stamped in the middle. They are the
+fuel — set enabled to 0 in one of the two shape blocks and watch how much of the
+window was that shape's trail.
+
+## per-frame
+_lift = clamp(bass_att - 1, 0, 1)
+q1 = q1 + (_lift - q1) * clamp(dt * if(above(_lift, q1), 9, 1.6), 0, 1)  // one envelope, both slopes in seconds
+q2 = fmod(q2 + dt * (0.55 + 0.70 * hang), 2 * pi)   // the swing keeps its own phase; the room only brightens it
+q3 = 0.5 + 0.5 * sin(q2)
+decay   = 0.977
+decay_b = 0.972                       // blue leaves first, so the smear ages from paper-white to amber
+zoom    = 1.0042                      // expansion: anything stamped now is at the rim in about four seconds
+rot     = 0.0009
+dx      = 0.0010 * sin(q2)            // the whole field leans with the swing, so ghosts stack beside
+                                      // each other instead of exactly on top
+gamma   = 1.09
+ob_a    = 0                           // under an expanding warp a rim border is off the frame the frame
+                                      // after it is drawn; the fuel this field needs is stamped in the middle
+wave_a  = 0.10                        // the main waveform is present but quiet: it is not the subject here
+wave_y  = 0.78
+wave_thick = 1
+wave_smoothing = 0.90
+
+## per-vertex
+rot  = rot + 0.014 * sin(rad * 2.4 - time * 0.22)   // a draught in the room, not in the lantern
+zoom = zoom + 0.0022 * (1 - rad)      // the middle lets go faster than the rim, so the ghosts fan out
+dx   = dx + 0.0009 * sin(ang * 2 + q2)
+
+## shape1
+enabled  = 1
+sides    = 6
+_swing   = 0.17 * hang * sin(q2)
+x        = 0.5 + _swing
+y        = 0.44 - 0.028 * cos(q2 * 2) // twice the rate, and minus because y is UP: a pendulum is
+                                     // highest at both ends of its arc and lowest through the middle
+ang      = 0.30 * hang * sin(q2 - 0.5)  // the body lags the swing, and the lag is what reads as weight
+rad      = 0.210 + 0.090 * q1
+r  = 1.00
+g  = 0.70 + 0.16 * q3
+b  = 0.34
+a  = 0.10 + 0.26 * paper              // the fill IS the paper: thin enough that the trail shows through it
+r2 = 1.00
+g2 = 0.90
+b2 = 0.66
+a2 = 0.02                             // edge nearly clear, so the body dissolves outward into its own smear
+border_a = 0.50 + 0.40 * q1           // the wire frame: the only hard line this preset draws
+thick    = 2
+additive = 0                          // alpha, so the paper occludes; the flame below is the additive one
+textured = 0                          // the paper is lit, not printed
+
+## shape2
+enabled  = 1
+sides    = 3
+x        = 0.5 + 0.17 * hang * sin(q2)  // recomputed, not inherited: shape blocks share no state,
+y        = 0.44 - 0.028 * cos(q2 * 2)   // and a blend must never make a shape jump
+ang      = 0.9 * q2
+rad      = 0.032 + 0.052 * q1
+r  = 1.00
+g  = 0.84
+b  = 0.52
+a  = 0.80
+a2 = 0.00                             // r2/g2/b2 default to white; at a2 zero the core is a soft blob, not a disc
+border_a = 0
+thick    = 1
+additive = 1                          // an over-range core is what smears into a glow rather than a stripe
+textured = 0
 `,
 "stoop/state.json": `{
   "generated_at": "2026-08-14T16:00:00+00:00",
